@@ -4,7 +4,15 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import type { ResolvedOrganismSpec } from '../core/species';
 import { Rng } from '../core/seed';
-import { FuzzLayer, type FuzzBody, type FuzzInteractionState, type FuzzParams } from './FuzzLayer';
+import { HairCurveLayer } from './HairCurveLayer';
+import { VectorParticleLayer } from './VectorParticleLayer';
+import type {
+  HairCurveParams,
+  HairRoot,
+  MotionState,
+  SurfaceBody,
+  VectorParticleParams,
+} from './renderTypes';
 
 interface SporeFieldProps {
   spec: ResolvedOrganismSpec;
@@ -14,7 +22,7 @@ interface SporeFieldProps {
 interface BodyModel {
   coreRadius: number;
   coreColor: THREE.Color;
-  colonies: FuzzBody[];
+  bodies: SurfaceBody[];
 }
 
 export function SporeField({ spec, seed }: SporeFieldProps) {
@@ -27,29 +35,31 @@ export function SporeField({ spec, seed }: SporeFieldProps) {
         <directionalLight position={[2.5, 3.2, 4]} intensity={0.82} color="#fff3e3" />
         <pointLight position={[-3, 2, 2]} intensity={0.52} color="#d6f0ee" />
         <pointLight position={[3, -1.6, 2]} intensity={0.48} color="#f3ddd0" />
-        <OrganismBody spec={spec} seed={seed} />
+        <OrganismSurface spec={spec} seed={seed} />
       </Canvas>
     </div>
   );
 }
 
-function OrganismBody({ spec, seed }: SporeFieldProps) {
+function OrganismSurface({ spec, seed }: SporeFieldProps) {
   const groupRef = useRef<THREE.Group>(null);
   const [dragging, setDragging] = useState(false);
-  const interactionRef = useRef<FuzzInteractionState>({
+  const [hairRoots, setHairRoots] = useState<HairRoot[]>([]);
+  const [hairTips, setHairTips] = useState<THREE.Vector3[]>([]);
+  const orbitStateRef = useRef({ azimuth: 0, polar: Math.PI / 2 });
+  const motionRef = useRef<MotionState>({
     dragging: false,
     impulse: 0,
     wind: new THREE.Vector3(),
-    pointer: null,
   });
-  const orbitStateRef = useRef({ azimuth: 0, polar: Math.PI / 2 });
   const model = useMemo(() => createBodyModel(spec, seed), [seed, spec]);
-  const fuzzParams = useMemo(() => deriveFuzzParams(spec), [spec]);
+  const hairParams = useMemo(() => deriveHairParams(spec), [spec]);
+  const vectorParams = useMemo(() => deriveVectorParams(spec), [spec]);
 
   useFrame((state, delta) => {
     const dt = Math.min(0.033, delta);
-    interactionRef.current.impulse = Math.max(0, interactionRef.current.impulse - dt * 0.85);
-    interactionRef.current.wind.multiplyScalar(0.92);
+    motionRef.current.impulse = Math.max(0, motionRef.current.impulse - dt * 0.8);
+    motionRef.current.wind.multiplyScalar(0.92);
     if (groupRef.current) {
       groupRef.current.rotation.z = Math.sin(state.clock.elapsedTime * 0.18) * (0.02 + spec.asymmetry * 0.04);
     }
@@ -62,7 +72,7 @@ function OrganismBody({ spec, seed }: SporeFieldProps) {
         <meshPhysicalMaterial
           color={model.coreColor}
           transparent
-          opacity={0.22 + spec.wetness * 0.22}
+          opacity={0.2 + spec.wetness * 0.24}
           roughness={0.22 + spec.grain * 0.56}
           transmission={0.24 + spec.translucency * 0.32}
           thickness={0.6}
@@ -71,25 +81,38 @@ function OrganismBody({ spec, seed }: SporeFieldProps) {
         />
       </mesh>
 
-      {model.colonies.map((c, idx) => (
-        <mesh key={idx} position={c.center}>
-          <sphereGeometry args={[c.radius * 0.18, 20, 20]} />
+      {model.bodies.map((body, idx) => (
+        <mesh key={idx} position={body.center}>
+          <sphereGeometry args={[body.radius * 0.18, 20, 20]} />
           <meshStandardMaterial
-            color={c.color}
-            emissive={c.color}
+            color={body.color}
+            emissive={body.color}
             emissiveIntensity={0.08 + spec.glow * 0.22}
             transparent
-            opacity={0.16 + spec.translucency * 0.24}
+            opacity={0.14 + spec.translucency * 0.22}
             roughness={0.35}
           />
         </mesh>
       ))}
 
-      <FuzzLayer
-        params={fuzzParams}
-        bodies={model.colonies}
+      <HairCurveLayer
+        params={hairParams}
+        bodies={model.bodies}
         seed={seed}
-        interactionRef={interactionRef}
+        motionRef={motionRef}
+        onSampled={(roots, tips) => {
+          setHairRoots(roots);
+          setHairTips(tips);
+        }}
+      />
+
+      <VectorParticleLayer
+        params={vectorParams}
+        bodies={model.bodies}
+        hairRoots={hairRoots}
+        hairTips={hairTips}
+        seed={seed ^ 0x0ab15f3d}
+        motionRef={motionRef}
       />
 
       <OrbitControls
@@ -101,11 +124,11 @@ function OrganismBody({ spec, seed }: SporeFieldProps) {
         dampingFactor={0.08}
         enableDamping
         onStart={() => {
-          interactionRef.current.dragging = true;
+          motionRef.current.dragging = true;
           setDragging(true);
         }}
         onChange={(event) => {
-          if (!event || !interactionRef.current.dragging) return;
+          if (!event || !motionRef.current.dragging) return;
           const ctrl = event.target as {
             getAzimuthalAngle: () => number;
             getPolarAngle: () => number;
@@ -116,17 +139,16 @@ function OrganismBody({ spec, seed }: SporeFieldProps) {
           const dp = pol - orbitStateRef.current.polar;
           orbitStateRef.current.azimuth = az;
           orbitStateRef.current.polar = pol;
-
-          interactionRef.current.wind.x += da * 0.25;
-          interactionRef.current.wind.y += dp * -0.2;
-          interactionRef.current.wind.z += da * 0.12;
-          interactionRef.current.impulse = Math.min(
+          motionRef.current.wind.x += da * 0.25;
+          motionRef.current.wind.y += dp * -0.2;
+          motionRef.current.wind.z += da * 0.12;
+          motionRef.current.impulse = Math.min(
             1,
-            interactionRef.current.impulse + Math.abs(da) * 0.42 + Math.abs(dp) * 0.34
+            motionRef.current.impulse + Math.abs(da) * 0.42 + Math.abs(dp) * 0.34
           );
         }}
         onEnd={() => {
-          interactionRef.current.dragging = false;
+          motionRef.current.dragging = false;
           setDragging(false);
         }}
       />
@@ -138,21 +160,21 @@ function OrganismBody({ spec, seed }: SporeFieldProps) {
 
 function createBodyModel(spec: ResolvedOrganismSpec, seed: number): BodyModel {
   const rng = new Rng(seed ^ 0x51f15d9f);
-  const colonyCount = Math.max(1, spec.colonyCount);
+  const count = Math.max(1, spec.colonyCount);
   const spread = 0.5 + spec.spawnRadius * 2.0;
   const coreRadius = 0.38 + spec.hollowness * 0.32;
-  const colonies: FuzzBody[] = [];
+  const bodies: SurfaceBody[] = [];
 
-  for (let i = 0; i < colonyCount; i++) {
-    const angle = (i / colonyCount) * Math.PI * 2 + (rng.next() - 0.5) * spec.asymmetry * 1.2;
-    const radial = colonyCount === 1 ? 0 : spread * (0.34 + rng.next() * 0.66);
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * Math.PI * 2 + (rng.next() - 0.5) * spec.asymmetry * 1.2;
+    const radial = count === 1 ? 0 : spread * (0.34 + rng.next() * 0.66);
     const center = new THREE.Vector3(
       Math.cos(angle) * radial,
       (rng.next() - 0.5) * (0.6 + spec.asymmetry * 0.9),
       Math.sin(angle) * radial * 0.84
     );
     const radius = 0.56 + spec.spawnRadius * 0.92 + rng.next() * 0.38;
-    colonies.push({
+    bodies.push({
       center,
       radius,
       color: new THREE.Color(spec.palette[i % spec.palette.length] ?? '#d9c7ac'),
@@ -162,26 +184,54 @@ function createBodyModel(spec: ResolvedOrganismSpec, seed: number): BodyModel {
   return {
     coreRadius,
     coreColor: new THREE.Color(spec.palette[0] ?? '#d9c7ac'),
-    colonies,
+    bodies,
   };
 }
 
-function deriveFuzzParams(spec: ResolvedOrganismSpec): FuzzParams {
+function deriveHairParams(spec: ResolvedOrganismSpec): HairCurveParams {
   return {
     enabled: true,
-    fiberCount: Math.round(260 + spec.sporeCount * 1.7),
-    fiberLength: 0.1 + spec.filamentLength * 0.32,
-    fiberLengthJitter: 0.18 + spec.scaleVariance * 0.35,
-    fiberWidth: 0.01 + spec.translucency * 0.012,
-    shellOffset: 0.01 + spec.hollowness * 0.04,
-    swayAmplitude: 0.02 + spec.jitter * 0.08,
-    swayFrequency: 0.35 + spec.swirl * 1.05,
-    tangentNoise: 0.15 + spec.jitter * 0.35,
-    droop: 0.03 + spec.droop * 0.45,
-    clumpiness: 0.15 + spec.branching * 0.7,
-    translucency: 0.3 + spec.translucency * 0.6,
-    opacity: 0.22 + spec.translucency * 0.34,
-    brightness: 0.12 + spec.glow * 0.42,
+    rootCount: Math.round(120 + spec.sporeCount * 0.85),
+    segmentsPerHair: Math.round(7 + spec.branching * 7),
+    stepLength: 0.042 + spec.filamentLength * 0.06,
+    swayFrequency: 0.32 + spec.swirl * 1.05,
+    dashLength: 0.028 + spec.filamentLength * 0.035,
+    dashWidth: 0.009 + spec.translucency * 0.007,
+    hairLengthJitter: 0.22 + spec.scaleVariance * 0.48,
+    curlStrength: 0.14 + spec.swirl * 0.56,
+    outwardBias: 0.22 + spec.shellOpenness * 0.62,
+    noiseStrength: 0.06 + spec.jitter * 0.34,
+    branchProbability: 0.03 + spec.branching * 0.2,
+    branchLengthScale: 0.35 + spec.branching * 0.28,
+    taperPower: 1.25 + spec.scaleVariance * 0.9,
+    tipDotProbability: 0.1 + spec.glow * 0.16,
+    opacity: 0.16 + spec.translucency * 0.34,
+    color: spec.palette[1] ?? '#c9baa4',
+  };
+}
+
+function deriveVectorParams(spec: ResolvedOrganismSpec): VectorParticleParams {
+  return {
+    enabled: true,
+    particleCount: Math.round(220 + spec.sporeCount * 0.55),
+    spawnShellInner: 0.05 + spec.hollowness * 0.18,
+    spawnShellOuter: 0.38 + spec.spawnRadius * 0.34,
+    particleSize: 0.02 + spec.scaleVariance * 0.02,
+    particleSizeJitter: 0.32 + spec.scaleVariance * 0.3,
+    opacity: 0.14 + spec.translucency * 0.28,
+    velocityScale: 0.0035 + spec.drift * 0.006,
+    damping: 0.08 + (1 - spec.collisionSoftness) * 0.16,
+    noiseScale: 0.8 + spec.latticeDensity * 1.8,
+    curlStrength: 0.02 + spec.swirl * 0.08,
+    outwardDrift: 0.0005 + spec.drift * 0.0012,
+    inwardRecovery: 0.0014 + spec.recovery * 0.0032,
+    surfaceAttraction: 0.003 + spec.cohesion * 0.009,
+    swirlStrength: 0.001 + spec.swirl * 0.004,
+    lifetimeMin: 5 + spec.birthStagger * 4,
+    lifetimeMax: 10 + spec.birthStagger * 8,
+    respawn: true,
+    color: spec.palette[2] ?? '#ece2d0',
+    bloomFactor: 0.15 + spec.glow * 0.4,
   };
 }
 
