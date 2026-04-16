@@ -1,4 +1,4 @@
-import { normalizeSceneSpec } from '../src/core/scene';
+import { DEFAULT_SCENE_SPEC, normalizeSceneSpec, type SceneSpec } from '../src/core/scene';
 
 export const config = { runtime: 'edge' };
 
@@ -131,21 +131,16 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   if (!parsed) {
-    return json({ error: 'llm-bad-json', detail: rawText.slice(0, 800) }, 502);
+    const fallback = synthesizeFallbackSceneSpec(text);
+    return json(fallback, 200, { 'x-scene-fallback': 'llm-bad-json' });
   }
 
   try {
     const normalized = normalizeSceneSpec(parsed, { strict: true });
     return json(normalized, 200);
   } catch (error) {
-    return json(
-      {
-        error: 'schema-mismatch',
-        detail: String(error),
-        raw: parsed,
-      },
-      502
-    );
+    const fallback = synthesizeFallbackSceneSpec(text);
+    return json(fallback, 200, { 'x-scene-fallback': `schema-mismatch:${String(error)}` });
   }
 }
 
@@ -204,9 +199,161 @@ function stripFence(text: string): string {
   return trimmed.slice(firstLineEnd + 1, lastFence);
 }
 
-function json(payload: unknown, status: number): Response {
+function synthesizeFallbackSceneSpec(text: string): SceneSpec {
+  const rng = seededRng(text);
+  const lower = text.toLowerCase();
+  const valence = clamp01(
+    0.5 +
+      keywordBias(lower, ['hope', 'warm', 'love', 'gentle', 'relief', 'bright', 'calm'], 0.08) -
+      keywordBias(lower, ['grief', 'lonely', 'hurt', 'fear', 'dread', 'empty', 'tired'], 0.08) +
+      (rng() - 0.5) * 0.2
+  );
+  const arousal = clamp01(
+    0.45 +
+      keywordBias(lower, ['rush', 'panic', 'urgent', 'restless', 'fast', 'burn'], 0.1) -
+      keywordBias(lower, ['quiet', 'still', 'slow', 'soft', 'rest'], 0.08) +
+      (rng() - 0.5) * 0.18
+  );
+  const fragility = clamp01(
+    0.45 +
+      keywordBias(lower, ['fragile', 'tender', 'vulnerable', 'break', 'shy'], 0.11) +
+      (rng() - 0.5) * 0.2
+  );
+  const tension = clamp01(
+    0.42 +
+      keywordBias(lower, ['tense', 'fear', 'pressure', 'stuck', 'anxious'], 0.11) -
+      keywordBias(lower, ['ease', 'release', 'accept', 'settled'], 0.08) +
+      (rng() - 0.5) * 0.18
+  );
+  const wonder = clamp01(
+    0.5 +
+      keywordBias(lower, ['wonder', 'curious', 'dream', 'spark', 'strange'], 0.1) +
+      (rng() - 0.5) * 0.2
+  );
+
+  const family = pickFamily({ valence, arousal, fragility, tension, wonder }, rng);
+
+  const basePalette = paletteByFamily(family);
+  const scene: SceneSpec = {
+    mood: { valence, arousal, fragility, tension, wonder },
+    morphology: {
+      family,
+      colonyCount: clamp01(0.28 + arousal * 0.45 + (rng() - 0.5) * 0.2),
+      sporeCount: clamp01(0.35 + wonder * 0.3 + tension * 0.2 + (rng() - 0.5) * 0.18),
+      shellOpenness: clamp01(0.38 + valence * 0.24 + (1 - tension) * 0.2 + (rng() - 0.5) * 0.2),
+      latticeDensity: clamp01(0.4 + tension * 0.28 + (1 - fragility) * 0.22 + (rng() - 0.5) * 0.18),
+      filamentLength: clamp01(0.35 + wonder * 0.3 + arousal * 0.15 + (rng() - 0.5) * 0.2),
+      branching: clamp01(0.3 + arousal * 0.4 + wonder * 0.2 + (rng() - 0.5) * 0.2),
+      asymmetry: clamp01(0.3 + wonder * 0.25 + fragility * 0.2 + (rng() - 0.5) * 0.24),
+      stemLength: clamp01(0.32 + (1 - fragility) * 0.22 + (rng() - 0.5) * 0.2),
+      droop: clamp01(0.2 + fragility * 0.32 + (1 - arousal) * 0.2 + (rng() - 0.5) * 0.2),
+      hollowness: clamp01(0.25 + valence * 0.22 + wonder * 0.18 + (rng() - 0.5) * 0.2),
+      scaleVariance: clamp01(0.3 + wonder * 0.3 + arousal * 0.2 + (rng() - 0.5) * 0.24),
+      spawnRadius: clamp01(0.3 + arousal * 0.32 + (rng() - 0.5) * 0.2),
+      birthStagger: clamp01(0.2 + (1 - arousal) * 0.28 + fragility * 0.2 + (rng() - 0.5) * 0.2),
+    },
+    motion: {
+      drift: clamp01(0.24 + arousal * 0.38 + (rng() - 0.5) * 0.2),
+      swirl: clamp01(0.18 + wonder * 0.32 + arousal * 0.18 + (rng() - 0.5) * 0.2),
+      pulse: clamp01(0.2 + arousal * 0.4 + tension * 0.14 + (rng() - 0.5) * 0.2),
+      collisionSoftness: clamp01(0.45 + fragility * 0.3 + (1 - tension) * 0.15 + (rng() - 0.5) * 0.12),
+      cohesion: clamp01(0.34 + (1 - arousal) * 0.18 + (1 - wonder) * 0.2 + (rng() - 0.5) * 0.14),
+      scatter: clamp01(0.2 + arousal * 0.3 + wonder * 0.22 + (rng() - 0.5) * 0.18),
+      recovery: clamp01(0.35 + (1 - arousal) * 0.22 + (1 - tension) * 0.2 + (rng() - 0.5) * 0.16),
+      jitter: clamp01(0.12 + arousal * 0.25 + tension * 0.2 + (rng() - 0.5) * 0.16),
+    },
+    material: {
+      translucency: clamp01(0.36 + valence * 0.22 + fragility * 0.2 + (rng() - 0.5) * 0.14),
+      wetness: clamp01(0.34 + fragility * 0.18 + valence * 0.16 + (rng() - 0.5) * 0.14),
+      glow: clamp01(0.16 + wonder * 0.32 + valence * 0.16 + (rng() - 0.5) * 0.12),
+      grain: clamp01(0.24 + tension * 0.3 + (1 - valence) * 0.16 + (rng() - 0.5) * 0.16),
+      palette: basePalette,
+    },
+    interaction: {
+      pointerResponse: arousal > 0.66 ? 'repel-burst' : wonder > 0.62 ? 'follow' : valence > 0.65 ? 'attract' : 'repel-soft',
+      pointerStrength: clamp01(0.35 + arousal * 0.32 + (rng() - 0.5) * 0.14),
+      pointerRadius: clamp01(0.32 + wonder * 0.22 + (rng() - 0.5) * 0.14),
+      pointerRecovery: clamp01(0.38 + (1 - arousal) * 0.28 + (rng() - 0.5) * 0.14),
+    },
+    rationale: 'Fallback synthesis from local deterministic scene mapper.',
+  };
+
+  try {
+    return normalizeSceneSpec(scene, { strict: true });
+  } catch {
+    return DEFAULT_SCENE_SPEC;
+  }
+}
+
+function keywordBias(text: string, words: string[], amount: number): number {
+  let score = 0;
+  for (const word of words) {
+    if (text.includes(word)) score += amount;
+  }
+  return score;
+}
+
+function pickFamily(
+  mood: { valence: number; arousal: number; fragility: number; tension: number; wonder: number },
+  rng: () => number
+): SceneSpec['morphology']['family'] {
+  const scores: Array<{ family: SceneSpec['morphology']['family']; score: number }> = [
+    { family: 'metatrichia', score: mood.tension * 0.8 + (1 - mood.valence) * 0.6 + rng() * 0.2 },
+    { family: 'physarum', score: mood.arousal * 0.8 + mood.tension * 0.5 + rng() * 0.2 },
+    { family: 'cribraria', score: (1 - mood.arousal) * 0.6 + (1 - mood.wonder) * 0.3 + rng() * 0.2 },
+    { family: 'chlorociboria', score: mood.valence * 0.6 + (1 - mood.tension) * 0.5 + rng() * 0.2 },
+    { family: 'badhamia', score: mood.wonder * 0.8 + mood.arousal * 0.4 + rng() * 0.2 },
+    { family: 'colloderma', score: mood.fragility * 0.8 + (1 - mood.arousal) * 0.4 + rng() * 0.2 },
+  ];
+  scores.sort((a, b) => b.score - a.score);
+  return scores[0].family;
+}
+
+function paletteByFamily(family: SceneSpec['morphology']['family']): string[] {
+  switch (family) {
+    case 'metatrichia':
+      return ['#2E2A2A', '#5A3030', '#8B4A44', '#C8A38A'];
+    case 'physarum':
+      return ['#D0B25D', '#A08C3D', '#6D7A45', '#E7D9A0'];
+    case 'cribraria':
+      return ['#6A5A45', '#A77452', '#D9AF83', '#F2D7B4'];
+    case 'chlorociboria':
+      return ['#2D6F67', '#4D9B8F', '#88C4B4', '#D7E7DC'];
+    case 'badhamia':
+      return ['#5C4B7A', '#8661A9', '#C38ED9', '#E9D9F2'];
+    case 'colloderma':
+      return ['#CFCAC3', '#E4DED8', '#F4F1ED', '#B8C5C6'];
+    default:
+      return DEFAULT_SCENE_SPEC.material.palette;
+  }
+}
+
+function seededRng(seedText: string): () => number {
+  let state = hashText(seedText) || 1;
+  return () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 4294967296;
+  };
+}
+
+function hashText(text: string): number {
+  let h = 1779033703 ^ text.length;
+  for (let i = 0; i < text.length; i++) {
+    h = Math.imul(h ^ text.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  h = Math.imul(h ^ (h >>> 16), 2246822507);
+  h = Math.imul(h ^ (h >>> 13), 3266489909);
+  return (h ^ (h >>> 16)) >>> 0;
+}
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+function json(payload: unknown, status: number, extraHeaders: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(payload), {
     status,
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...extraHeaders },
   });
 }
