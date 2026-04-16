@@ -96,10 +96,23 @@ export function emotionToCharId(label: string): CharId {
 
 /**
  * Compatibility between two characters. Used by the physics layer as a
- * multiplier on long-range attraction: higher = more eager to approach,
- * negative = repel. Populated with a real 6×6 matrix in Phase C;
- * Phase A uses 1.0 (everyone gently attracts).
+ * multiplier on long-range attraction: positive → eager to approach,
+ * negative → repel. Used by the tendril layer to color connection lines.
+ *
+ * Rows = self, columns = other. Diagonal is 1.0 (same kind always bonds).
+ * Lonely (5) is mostly negative — it pushes others away, except for
+ * calm (1) which can sit comfortably with it.
  */
-export function compatibility(_a: CharId, _b: CharId): number {
-  return 1.0;
+const COMPAT_MATRIX: number[][] = [
+  // 0 tender 1 calm  2 curious 3 dreamy 4 companion 5 lonely
+  [   1.0,    0.8,    0.5,      0.6,     0.9,        -0.2 ], // 0 tender
+  [   0.8,    1.0,    0.3,      0.4,     0.7,         0.5 ], // 1 calm
+  [   0.5,    0.3,    1.0,      0.8,     0.6,        -0.1 ], // 2 curious
+  [   0.6,    0.4,    0.8,      1.0,     0.5,        -0.3 ], // 3 dreamy
+  [   0.9,    0.7,    0.6,      0.5,     1.0,        -0.4 ], // 4 companion
+  [  -0.2,    0.5,   -0.1,     -0.3,    -0.4,         1.0 ], // 5 lonely
+];
+
+export function compatibility(a: CharId, b: CharId): number {
+  return COMPAT_MATRIX[a][b];
 }

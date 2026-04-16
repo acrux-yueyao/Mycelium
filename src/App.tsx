@@ -8,6 +8,7 @@ import { TreeHoleInput } from './components/TreeHoleInput';
 import { useEmotion } from './hooks/useEmotion';
 import type { CharId } from './data/characters';
 import { findNearestBody, stepField } from './core/field';
+import { stepConnections, type Connection } from './core/connections';
 
 interface LiveEntity {
   id: string;
@@ -18,24 +19,30 @@ interface LiveEntity {
   vy: number;
   size: number;
   bornAt: number;
-  /** Incremented whenever a new neighbor arrives — fires a greeting bounce. */
   greetingPulse: number;
+  /** Seconds spent currently connected to a char5 (lonely). */
+  lonelyExposure: number;
   rationale?: string;
 }
 
 const GAZE_MAX_RANGE = 450;
 const GREETING_RADIUS = 320;
+const LONELY_EXPOSE_PER_S = 0.15;
+const LONELY_RECOVER_PER_S = 0.08;
+const LONELY_SAT_FLOOR = 0.55;
 
 /**
  * Root stage.
  *
  * Phases active:
- *   A · physics field (attract / repel / walls / center-repel)
+ *   A · physics (attract / repel / walls / center)
  *   B · eye tracking + newcomer greeting
+ *   C · compatibility matrix + tendrils + loneliness desaturation
  */
 export default function App() {
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
   const [entities, setEntities] = useState<LiveEntity[]>([]);
+  const [connections, setConnections] = useState<Connection[]>([]);
   const { loading, error, read, clearError } = useEmotion();
 
   useEffect(() => {
@@ -48,20 +55,62 @@ export default function App() {
   const vpRef = useRef(viewport);
   useEffect(() => { vpRef.current = viewport; }, [viewport]);
 
+  const connectionMapRef = useRef<Map<string, Connection>>(new Map());
+  const lastFrameTimeRef = useRef(performance.now());
+
   useEffect(() => {
     let raf = 0;
     const loop = () => {
+      const now = performance.now();
+      const dt = Math.min(0.05, (now - lastFrameTimeRef.current) / 1000);
+      lastFrameTimeRef.current = now;
+
       setEntities((prev) => {
-        if (prev.length === 0) return prev;
-        return stepField(prev, vpRef.current.w, vpRef.current.h);
+        if (prev.length === 0) {
+          if (connectionMapRef.current.size > 0) {
+            connectionMapRef.current = new Map();
+            setConnections([]);
+          }
+          return prev;
+        }
+
+        const stepped = stepField(prev, vpRef.current.w, vpRef.current.h);
+        const nextConn = stepConnections(stepped, connectionMapRef.current, now);
+        connectionMapRef.current = nextConn;
+
+        const lonelyConnected = new Set<string>();
+        for (const c of nextConn.values()) {
+          if (c.a.charId === 5) lonelyConnected.add(c.b.id);
+          if (c.b.charId === 5) lonelyConnected.add(c.a.id);
+        }
+        const updated = stepped.map((e) => {
+          let exp = e.lonelyExposure;
+          if (lonelyConnected.has(e.id)) {
+            exp = Math.min(3, exp + LONELY_EXPOSE_PER_S * dt);
+          } else {
+            exp = Math.max(0, exp - LONELY_RECOVER_PER_S * dt);
+          }
+          return exp === e.lonelyExposure ? e : { ...e, lonelyExposure: exp };
+        });
+
+        return updated;
       });
+
+      const arr = Array.from(connectionMapRef.current.values());
+      setConnections((prevConns) => {
+        if (prevConns.length !== arr.length) return arr;
+        for (let i = 0; i < arr.length; i++) {
+          if (prevConns[i].id !== arr[i].id) return arr;
+        }
+        return arr;
+      });
+
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  // Per-entity gaze targets — nearest other within GAZE_MAX_RANGE.
   const gazeMap = useMemo(() => {
     const map = new Map<string, { x: number; y: number } | null>();
     for (const e of entities) {
@@ -103,6 +152,7 @@ export default function App() {
       size,
       bornAt: Date.now(),
       greetingPulse: 0,
+      lonelyExposure: 0,
       rationale: result.reading.rationale,
     };
     setEntities((prev) => {
@@ -119,10 +169,11 @@ export default function App() {
   return (
     <div className="stage">
       <Background />
-      <TendrilLayer entities={[]} connections={[]} />
+      <TendrilLayer connections={connections} />
 
       {entities.map((e, i) => {
         const t = gazeMap.get(e.id);
+        const sat = Math.max(LONELY_SAT_FLOOR, 1 - e.lonelyExposure * 0.35);
         return (
           <Entity
             key={e.id}
@@ -135,6 +186,7 @@ export default function App() {
             gazeTargetX={t ? t.x : null}
             gazeTargetY={t ? t.y : null}
             greetingPulse={e.greetingPulse}
+            saturation={sat}
           />
         );
       })}
