@@ -102,7 +102,17 @@ export const HYBRID_FACE: FaceConfig = {
   mouthY: 0.51,
 };
 
-const HYBRID_LETTER: Record<CharId, string> = { 0: 'A', 1: 'B', 2: 'C', 3: 'D', 4: 'E', 5: 'F' };
+/**
+ * CharId → letter mapping used in hybrid filenames. This is the
+ * *artist's* labeling, not a simple 0..5 → A..F sequence:
+ *   A = char2 mushroom (橙色空心蘑菇)
+ *   B = char3 glitter  (彩色闪片圆头菌)
+ *   C = char5 shrub    (黑枝白团菌)
+ *   D = char1 bubble   (白色果冻水滴菌)
+ *   E = char0 radial   (白球星芒菌)
+ *   F = char4 cups     (薄荷双杯菌)
+ */
+const HYBRID_LETTER: Record<CharId, string> = { 0: 'E', 1: 'D', 2: 'A', 3: 'B', 4: 'F', 5: 'C' };
 
 /**
  * Per-pair face overrides for hybrids whose art has a twin-body layout
@@ -148,9 +158,10 @@ const HYBRID_FACES_MAP: Partial<Record<string, FaceConfig[]>> = {
 
 export function hybridFaces(a: CharId, b: CharId): FaceConfig[] {
   if (a === b) return [CHARACTERS[a].face];
-  const lo = a < b ? a : b;
-  const hi = a < b ? b : a;
-  const key = `${HYBRID_LETTER[lo]}_${HYBRID_LETTER[hi]}`;
+  const la = HYBRID_LETTER[a];
+  const lb = HYBRID_LETTER[b];
+  const [lo, hi] = la < lb ? [la, lb] : [lb, la];
+  const key = `${lo}_${hi}`;
   return HYBRID_FACES_MAP[key] ?? [HYBRID_FACE];
 }
 
@@ -159,8 +170,10 @@ export function hybridAsset(a: CharId, b: CharId): string {
   // is blocked upstream, but fall back to the base sprite defensively
   // instead of 404-ing on a nonexistent hybrid_X_X.png.
   if (a === b) return charAsset(a);
-  const [lo, hi] = a < b ? [a, b] : [b, a];
-  return `/assets/characters/hybrid_${HYBRID_LETTER[lo]}_${HYBRID_LETTER[hi]}.png`;
+  const la = HYBRID_LETTER[a];
+  const lb = HYBRID_LETTER[b];
+  const [lo, hi] = la < lb ? [la, lb] : [lb, la];
+  return `/assets/characters/hybrid_${lo}_${hi}.png`;
 }
 
 /** Lookup charId from an emotion label; defaults to 0 if unknown. */
