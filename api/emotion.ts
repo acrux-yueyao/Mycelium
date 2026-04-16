@@ -1,12 +1,14 @@
 /**
- * Emotion API proxy — Vercel Edge function style.
+ * Emotion API proxy — Vercel Edge function.
  *
- * Contract: POST { text: string } -> EmotionReading JSON matching
- *   src/core/emotion.ts :: EmotionReading.
+ * POST { text: string } → EmotionReading JSON.
  *
- * LLM is a hard dependency of the piece. If ANTHROPIC_API_KEY is missing
- * or the upstream call fails, return non-2xx; the frontend surfaces a
- * visible failure state rather than falling back to any heuristic.
+ * LLM is a hard dependency; failures return non-2xx with detail. The
+ * frontend surfaces a visible failure state — no local fallback.
+ *
+ * Labels returned by `primary.label` / `secondary.label` are constrained
+ * to the 18 tags in src/data/characters.ts so the client can do a direct
+ * charId lookup without fuzzy matching.
  */
 
 export const config = { runtime: 'edge' };
@@ -14,42 +16,33 @@ export const config = { runtime: 'edge' };
 const MODEL = 'claude-haiku-4-5-20251001';
 const API_URL = 'https://api.anthropic.com/v1/messages';
 
-const SYSTEM_PROMPT = `You are the interpretive membrane for a biological art piece called Mycelium. A person has written a single sentence anonymously — a private confession, a passing thought, something they might not say aloud. Your task is to translate it into the morphology of a single slime mold or cup fungus that will grow on screen in response.
+const SYSTEM_PROMPT = `You interpret a single anonymous sentence (Chinese, English, or mixed) written on a screen, and translate it into an emotional reading that will grow a kawaii character on screen in response.
 
-Return ONLY a JSON object matching this schema (no prose, no markdown):
+Return ONLY this JSON object (no prose, no markdown fences):
 
 {
   "primary":   { "label": string, "weight": number (0..1) },
   "secondary": { "label": string, "weight": number (0..1) },
   "intensity": number (0..1),
-  "species":   "metatrichia" | "physarum" | "cribraria" | "chlorociboria" | "badhamia" | "colloderma",
-  "surfaceModifier": "none" | "pearl-translucency" | "oxidized-copper" | "chartreuse-sheen" | "indigo-bruise" | "ember-warmth",
-  "rationale": string (max 24 Chinese chars or 12 English words, poetic, no quotes)
+  "rationale": string
 }
 
-Labels are not constrained to basic emotions — use nuanced English words (melancholy, tenderness, restless-hope, quiet-dread, etc.). Primary.weight + secondary.weight should sum near 1.0.
+Field rules:
 
-SPECIES MAPPING (primary emotion → species):
+- \`label\` MUST be exactly one of these 18 tags (grouped by the character they point to):
+    warm peach ball        → tender | nostalgic | soft
+    soft bubble            → calm | clear | empty
+    orange mushroom        → curious | playful | clumsy
+    iridescent glitter     → dreamy | excited | romantic
+    teal twin-cups         → companion | social | attached
+    charcoal shrub         → lonely | restrained | quiet
+- \`primary.weight\` and \`secondary.weight\` must each be in [0,1] and sum near 1.0.
+- \`intensity\`: 0.2 for faint/muted, 0.5 moderate, 0.8+ acute/overwhelming.
+- \`rationale\`: max 18 Chinese characters OR 10 English words. One poetic line, no quote marks, no period.
 
-- metatrichia (Metatrichia vesparium, dark branching slime mold, near-black to blood red): heavy, oppressed, grief, stuckness, exhaustion, numb sorrow, suffocation.
-- physarum (Physarum polycephalum, the classic yellow slime mold with pulsing vascular network): anxiety, tension, restlessness, over-thinking, frayed urgency, scattered energy.
-- cribraria (Cribraria aurantiaca, honey-amber lattice globes): structured neutrality, resignation, composure under strain, quiet focus, contemplative stillness.
-- chlorociboria (Chlorociboria aeruginascens, teal-green cup fungus): calm, clarity, relief, peace, acceptance, gentle sadness that has settled.
-- badhamia (Badhamia utricularis, iridescent purple clusters): curiosity, surprise, wonder, mercurial delight, playful confusion, multi-faceted mood.
-- colloderma (Colloderma oculatum, pearl-white translucent jelly): tenderness, vulnerability, fragility, quiet affection, reverence, soft love.
-
-SURFACE MODIFIER (secondary emotion → texture tint):
-
-- pearl-translucency: paired with vulnerability, reverence, soft grief
-- oxidized-copper: paired with old pain, nostalgia, rusted longing
-- chartreuse-sheen: paired with envy, unease, queasy anticipation
-- indigo-bruise: paired with melancholy, deep introspection, night thoughts
-- ember-warmth: paired with affection, yearning, banked desire
-- none: when secondary emotion doesn't need texture cue
-
-INTENSITY: 0.2 for faint / muted, 0.5 for moderate, 0.8+ for acute / overwhelming.
-
-Interpret the sentence for its *affective core*, not its surface subject. "I made tea" is only about tea if the words around it make it so. Be willing to pick surprising species when the text warrants it — the piece rewards unexpected readings.`;
+Interpret the AFFECTIVE CORE of the sentence, not the literal subject.
+"我做了茶" is about tea only if the surrounding tone makes it so — otherwise it may be 'quiet' or 'nostalgic'.
+Be willing to pick surprising pairings when the text warrants it.`;
 
 interface AnthropicRequest {
   model: string;
@@ -59,13 +52,10 @@ interface AnthropicRequest {
 }
 
 export default async function handler(req: Request): Promise<Response> {
-  if (req.method !== 'POST') {
-    return json({ error: 'method-not-allowed' }, 405);
-  }
+  if (req.method !== 'POST') return json({ error: 'method-not-allowed' }, 405);
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return json({ error: 'missing-api-key' }, 500);
-  }
+  if (!apiKey) return json({ error: 'missing-api-key' }, 500);
 
   let body: { text?: unknown };
   try {
@@ -74,9 +64,7 @@ export default async function handler(req: Request): Promise<Response> {
     return json({ error: 'invalid-body' }, 400);
   }
   const text = typeof body.text === 'string' ? body.text.trim() : '';
-  if (!text || text.length > 500) {
-    return json({ error: 'invalid-text' }, 400);
-  }
+  if (!text || text.length > 500) return json({ error: 'invalid-text' }, 400);
 
   const payload: AnthropicRequest = {
     model: MODEL,
@@ -106,7 +94,6 @@ export default async function handler(req: Request): Promise<Response> {
   } catch (e) {
     return json({ error: 'upstream-unreachable', detail: String(e) }, 502);
   }
-
   if (!upstream.ok) {
     const detail = await upstream.text();
     return json({ error: `upstream-${upstream.status}`, detail }, 502);
@@ -124,19 +111,11 @@ export default async function handler(req: Request): Promise<Response> {
 }
 
 function extractJson(s: string): unknown | null {
-  try {
-    return JSON.parse(s);
-  } catch {
-    /* empty */
-  }
+  try { return JSON.parse(s); } catch { /* empty */ }
   const first = s.indexOf('{');
   const last = s.lastIndexOf('}');
   if (first >= 0 && last > first) {
-    try {
-      return JSON.parse(s.slice(first, last + 1));
-    } catch {
-      /* empty */
-    }
+    try { return JSON.parse(s.slice(first, last + 1)); } catch { /* empty */ }
   }
   return null;
 }
