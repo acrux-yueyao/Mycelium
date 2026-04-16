@@ -1,20 +1,20 @@
 /**
  * Entity — a living character on stage.
  *
- * Animation layers (composed via nested motion.divs so transform axes don't clobber):
+ * Composed animation layers (nested motion.divs so transforms don't clash):
  *   1. Grow        scale 0 → 1.1 → 1 on mount (1.8s ease-out)
  *   2. Float       y [0, -5, 0] infinite (5s)
  *   3. Wobble      rotate ±1.5° infinite (8s, slow lazy sway)
- *   4. Breathe     scale [1, 1.04, 1] infinite (3.5s) on img itself
- *   5. Expressions (scheduler):
- *      - blink       random every 2–5s, both eyelids close 160ms
- *      - wink-left   occasional
- *      - wink-right  occasional
- *      - squint      occasional, longer half-close (0.8s)
- *      - happy       ^^ kawaii smile eyes (1.4s, weighted twice)
+ *   4. Greet       scale bounce [1, 1.12, 0.96, 1.04, 1] on greetingPulse++
+ *   5. Breathe     scale [1, 1.04, 1] infinite (3.5s)
+ *
+ * Face layer (FaceOverlay) handles:
+ *   - permanent skin patches covering baked eyes
+ *   - pupils that gaze toward gazeTarget via spring
+ *   - blink / wink-left / wink-right / squint / happy expressions
  */
 import { useEffect, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, useAnimationControls } from 'framer-motion';
 import { CHARACTERS, charAsset, type CharId } from '../data/characters';
 import { FaceOverlay, type ExpressionKind } from './FaceOverlay';
 
@@ -25,6 +25,9 @@ export interface EntityProps {
   y: number;
   size?: number;
   phaseOffset?: number;
+  gazeTargetX?: number | null;
+  gazeTargetY?: number | null;
+  greetingPulse?: number;
   onMount?: () => void;
 }
 
@@ -41,6 +44,8 @@ const NON_BLINK_EXPRESSIONS: ExpressionKind[] = [
   'happy',
 ];
 
+const GAZE_RANGE_PX = 5;
+
 export function Entity({
   id,
   charId,
@@ -48,6 +53,9 @@ export function Entity({
   y,
   size = 180,
   phaseOffset = 0,
+  gazeTargetX,
+  gazeTargetY,
+  greetingPulse = 0,
   onMount,
 }: EntityProps) {
   const character = CHARACTERS[charId];
@@ -88,6 +96,28 @@ export function Entity({
     };
   }, []);
 
+  let gazeX = 0;
+  let gazeY = 0;
+  if (gazeTargetX != null && gazeTargetY != null) {
+    const dx = gazeTargetX - x;
+    const dy = gazeTargetY - y;
+    const d = Math.hypot(dx, dy) || 1;
+    gazeX = (dx / d) * GAZE_RANGE_PX;
+    gazeY = (dy / d) * GAZE_RANGE_PX;
+  }
+
+  const greetControls = useAnimationControls();
+  const greetSeen = useRef(0);
+  useEffect(() => {
+    if (greetingPulse > greetSeen.current) {
+      greetSeen.current = greetingPulse;
+      greetControls.start({
+        scale: [1, 1.12, 0.96, 1.04, 1],
+        transition: { duration: 0.7, times: [0, 0.25, 0.55, 0.82, 1], ease: 'easeOut' },
+      });
+    }
+  }, [greetingPulse, greetControls]);
+
   return (
     <motion.div
       className="entity"
@@ -120,23 +150,34 @@ export function Entity({
           transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut', delay: wobbleDelay }}
         >
           <motion.div
-            style={{ width: '100%', height: '100%', position: 'relative', willChange: 'transform' }}
-            animate={{ scale: [1, 1.04, 1] }}
-            transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut', delay: breatheDelay }}
+            style={{ width: '100%', height: '100%', willChange: 'transform' }}
+            animate={greetControls}
           >
-            <img
-              src={charAsset(charId)}
-              alt=""
-              draggable={false}
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'contain',
-                display: 'block',
-                userSelect: 'none',
-              }}
-            />
-            <FaceOverlay face={character.face} triggerKey={exprKey} kind={expr} />
+            <motion.div
+              style={{ width: '100%', height: '100%', position: 'relative', willChange: 'transform' }}
+              animate={{ scale: [1, 1.04, 1] }}
+              transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut', delay: breatheDelay }}
+            >
+              <img
+                src={charAsset(charId)}
+                alt=""
+                draggable={false}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain',
+                  display: 'block',
+                  userSelect: 'none',
+                }}
+              />
+              <FaceOverlay
+                face={character.face}
+                triggerKey={exprKey}
+                kind={expr}
+                gazeX={gazeX}
+                gazeY={gazeY}
+              />
+            </motion.div>
           </motion.div>
         </motion.div>
       </motion.div>

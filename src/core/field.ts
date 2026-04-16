@@ -10,7 +10,7 @@
  *  - Velocity damping so motion feels like drifting through cream, not
  *    a bouncy ball
  *
- * Later phases will add: eye-tracking, compat matrix, color tint, aging.
+ * Phase B adds findNearestBody() helper used for eye-tracking.
  */
 import { compatibility, type CharId } from '../data/characters';
 
@@ -23,18 +23,38 @@ export interface PhysBody {
   vy: number;
 }
 
-// Force tunables (per frame, assuming ~60fps). Dialed for a slow,
-// cream-floating feel — no bouncy ball energy.
-const ATTRACT_K = 0.10;        // long-range gentle pull
+const ATTRACT_K = 0.10;
 const ATTRACT_MIN = 180;
 const ATTRACT_MAX = 500;
 const REPEL_R = 160;
 const REPEL_K = 0.18;
 const WALL_MARGIN = 100;
 const WALL_K = 0.06;
-const CENTER_R = 190;           // input totem protective radius
+const CENTER_R = 190;
 const CENTER_K = 0.35;
-const DAMPING = 0.92;           // keep 92% of velocity per frame
+const DAMPING = 0.92;
+
+/**
+ * Find the nearest other body within `maxRange` pixels.
+ * Returns null if nothing is in range. Used by Phase B eye-tracking.
+ */
+export function findNearestBody<T extends PhysBody>(
+  self: T,
+  bodies: T[],
+  maxRange: number,
+): T | null {
+  let nearest: T | null = null;
+  let bestD = maxRange;
+  for (const b of bodies) {
+    if (b.id === self.id) continue;
+    const d = Math.hypot(b.x - self.x, b.y - self.y);
+    if (d < bestD) {
+      bestD = d;
+      nearest = b;
+    }
+  }
+  return nearest;
+}
 
 export function stepField<T extends PhysBody>(
   bodies: T[],
@@ -59,22 +79,19 @@ export function stepField<T extends PhysBody>(
       const nx = dx / d;
       const ny = dy / d;
 
-      // Long-range attraction
       if (d > ATTRACT_MIN && d < ATTRACT_MAX) {
         const f = ATTRACT_K * compatibility(a.charId, b.charId);
         fx += nx * f;
         fy += ny * f;
       }
-      // Short-range repulsion — quadratic ramp so it kicks in hard near 0
       if (d < REPEL_R) {
-        const t = (REPEL_R - d) / REPEL_R; // 0..1, stronger when closer
+        const t = (REPEL_R - d) / REPEL_R;
         const f = REPEL_K * t * t * REPEL_R;
         fx -= nx * f;
         fy -= ny * f;
       }
     }
 
-    // Soft walls
     if (a.x < WALL_MARGIN) {
       fx += (WALL_MARGIN - a.x) * WALL_K;
     } else if (a.x > viewportW - WALL_MARGIN) {
@@ -86,7 +103,6 @@ export function stepField<T extends PhysBody>(
       fy -= (a.y - (viewportH - WALL_MARGIN)) * WALL_K;
     }
 
-    // Keep the center clear for the input totem
     const dcx = a.x - cx;
     const dcy = a.y - cy;
     const dc = Math.hypot(dcx, dcy) || 1;
@@ -101,7 +117,6 @@ export function stepField<T extends PhysBody>(
     const x = a.x + vx;
     const y = a.y + vy;
 
-    // Hard clamp so nothing ever escapes the viewport.
     return {
       ...a,
       vx,
