@@ -71,3 +71,28 @@ body,
   pointer-events: none;
   z-index: 5;
 }
+
+/* ---- Entity (character sprite) ---- */
+.entity {
+  z-index: 3;
+}
+
+/* Soft ground shadow drawn as a blurred ellipse below the sprite */
+.entity::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 8%;
+  width: 52%;
+  height: 8%;
+  transform: translate(-50%, 50%);
+  background: radial-gradient(
+    ellipse at center,
+    rgba(60, 45, 30, 0.22) 0%,
+    rgba(60, 45, 30, 0.08) 55%,
+    transparent 85%
+  );
+  filter: blur(4px);
+  z-index: -1;
+  pointer-events: none;
+}
