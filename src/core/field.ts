@@ -21,6 +21,9 @@ export interface PhysBody {
   y: number;
   vx: number;
   vy: number;
+  /** If 'infecting' or 'transforming', pairwise attraction is skipped
+   *  so the entity can wander freely while it morphs. */
+  infectionState?: 'normal' | 'infecting' | 'transforming' | 'hybrid';
 }
 
 const ATTRACT_K = 0.10;
@@ -79,7 +82,11 @@ export function stepField<T extends PhysBody>(
       const nx = dx / d;
       const ny = dy / d;
 
-      if (d > ATTRACT_MIN && d < ATTRACT_MAX) {
+      // Skip attraction when either body is mid-transformation — they
+      // should be free to drift apart rather than magnetically locked.
+      const aBusy = a.infectionState === 'infecting' || a.infectionState === 'transforming';
+      const bBusy = b.infectionState === 'infecting' || b.infectionState === 'transforming';
+      if (!aBusy && !bBusy && d > ATTRACT_MIN && d < ATTRACT_MAX) {
         const f = ATTRACT_K * compatibility(a.charId, b.charId);
         fx += nx * f;
         fy += ny * f;

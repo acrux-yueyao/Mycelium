@@ -44,10 +44,15 @@ const LONELY_SAT_FLOOR = 0.55;
 // Contact → hold → roll outcome → infecting → transforming → hybrid.
 // No extra entities ever spawned: the original entity IS the hybrid once
 // its state flips to 'hybrid'.
-const INFECT_HOLD_MS = 2000;         // connection must hold this long before rolling
-const INFECTING_MS = 1500;           // color / texture drift phase
-const TRANSFORM_MS = 1200;           // sprite crossfade phase
+const INFECT_HOLD_MS = 3500;         // connection must hold this long before rolling
+const INFECTING_MS = 3500;           // color / texture drift phase (tint pulse)
+const TRANSFORM_MS = 2400;           // sprite + face crossfade phase
 const INFECTION_MIN_COMPAT = 0.5;    // below this, pairs bond but never infect
+// Base chance an eligible pair actually rolls for infection on any given
+// frame (gated by compat on top, so likely infection is ≈ BASE * compat).
+// Lower → rarer hybrid events, closer bonds without transforming.
+const BASE_INFECTION_PROB = 0.015;   // per-frame chance once HOLD is satisfied
+const ROLL_COOLDOWN_MS = 9000;       // after a "didn't fire" roll, wait this long
 const MUTUAL_COMPAT_CUTOFF = 0.85;   // at or above: both sides always transform
 const ONEWAY_COMPAT_CUTOFF = 0.65;   // at or above: 50/50 mutual vs one-way
 
@@ -80,6 +85,9 @@ export default function App() {
 
   const connectionMapRef = useRef<Map<string, Connection>>(new Map());
   const lastFrameTimeRef = useRef(performance.now());
+  // Pair key → timestamp of the last "didn't fire" probability check.
+  // Prevents re-rolling the same bonded pair every frame while they linger.
+  const rolledPairsRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     let raf = 0;
@@ -124,6 +132,15 @@ export default function App() {
           if (c.compat < INFECTION_MIN_COMPAT) continue;
           if (now - c.bornAt < INFECT_HOLD_MS) continue;
 
+          // Per-frame probability gate, scaled by compat. Pairs that don't
+          // fire enter a cooldown so we don't spam-roll them every frame.
+          const lastRoll = rolledPairsRef.current.get(c.id);
+          if (lastRoll != null && now - lastRoll < ROLL_COOLDOWN_MS) continue;
+          if (Math.random() > BASE_INFECTION_PROB * c.compat) {
+            rolledPairsRef.current.set(c.id, now);
+            continue;
+          }
+
           const pair: [CharId, CharId] =
             ea.charId < eb.charId ? [ea.charId, eb.charId] : [eb.charId, ea.charId];
           let aInfected: boolean;
@@ -146,6 +163,12 @@ export default function App() {
             }
           }
           rolls.push({ aId: c.a.id, bId: c.b.id, aInfected, bInfected, pair });
+          rolledPairsRef.current.delete(c.id);
+        }
+
+        // GC old roll-cooldown entries for pairs that no longer exist.
+        for (const key of rolledPairsRef.current.keys()) {
+          if (!nextConn.has(key)) rolledPairsRef.current.delete(key);
         }
 
         const lonelyConnected = new Set<string>();

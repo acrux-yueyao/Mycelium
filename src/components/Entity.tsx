@@ -24,7 +24,7 @@ import {
   CHARACTERS,
   charAsset,
   hybridAsset,
-  HYBRID_FACE,
+  hybridFaces,
   type CharId,
 } from '../data/characters';
 import { FaceOverlay, type ExpressionKind } from './FaceOverlay';
@@ -68,7 +68,7 @@ const GAZE_RANGE_PX = 5;
 
 // Sprite crossfade duration (seconds). Should roughly match TRANSFORM_MS
 // in App.tsx so the crossfade finishes as the state flips to 'hybrid'.
-const CROSSFADE_S = 1.2;
+const CROSSFADE_S = 2.4;
 
 export function Entity({
   id,
@@ -281,23 +281,31 @@ export function Entity({
                   />
                 )}
 
-                {/* Infecting tint: partner's color pulses over the base
-                    sprite while in 'infecting' state. soft-light blends
-                    without washing out the mushroom's own color. */}
+                {/* Infecting tint: partner's color pulses ON the mushroom
+                    silhouette only. We use the base PNG's alpha channel
+                    as a CSS mask, so the colored layer is clipped to the
+                    sprite shape and never bleeds into the background. */}
                 {isInfecting && partnerColor && (
                   <motion.div
                     aria-hidden
                     style={{
                       position: 'absolute',
-                      inset: '12%',
+                      inset: 0,
                       background: partnerColor,
-                      mixBlendMode: 'soft-light',
-                      borderRadius: '50%',
                       pointerEvents: 'none',
+                      WebkitMaskImage: `url(${baseSrc})`,
+                      WebkitMaskSize: 'contain',
+                      WebkitMaskRepeat: 'no-repeat',
+                      WebkitMaskPosition: 'center',
+                      maskImage: `url(${baseSrc})`,
+                      maskSize: 'contain',
+                      maskRepeat: 'no-repeat',
+                      maskPosition: 'center',
+                      mixBlendMode: 'soft-light',
                     }}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: [0, 0.55, 0.25, 0.55] }}
-                    transition={{ duration: 1.5, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' }}
+                    transition={{ duration: 2.2, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' }}
                   />
                 )}
 
@@ -325,21 +333,25 @@ export function Entity({
                   )}
                 </motion.div>
 
-                {/* Hybrid face: fades in with the hybrid sprite. */}
-                {hybridSrc && (
+                {/* Hybrid faces: one per body in the hybrid art (twin-cup
+                    hybrids get two). Fades in with the hybrid sprite. */}
+                {hybridSrc && infectionPair && (
                   <motion.div
                     style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: hybridOpacity }}
                     transition={{ duration: CROSSFADE_S, ease: 'easeInOut' }}
                   >
-                    <FaceOverlay
-                      face={HYBRID_FACE}
-                      triggerKey={exprKey}
-                      kind={expr}
-                      gazeX={gazeX}
-                      gazeY={gazeY}
-                    />
+                    {hybridFaces(infectionPair[0], infectionPair[1]).map((hf, idx) => (
+                      <FaceOverlay
+                        key={idx}
+                        face={hf}
+                        triggerKey={exprKey}
+                        kind={expr}
+                        gazeX={gazeX}
+                        gazeY={gazeY}
+                      />
+                    ))}
                   </motion.div>
                 )}
               </motion.div>

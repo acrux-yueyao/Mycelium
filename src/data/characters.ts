@@ -92,9 +92,7 @@ export function charAsset(id: CharId): string {
 }
 
 /**
- * Generic face for hybrids. All 15 hybrid sprites share a roughly
- * oval cap centered horizontally, so one calibrated face works for
- * every pair. Tune here if specific pairs drift noticeably.
+ * Default generic face for single-body hybrids.
  */
 export const HYBRID_FACE: FaceConfig = {
   eyeY: 0.42,
@@ -105,6 +103,56 @@ export const HYBRID_FACE: FaceConfig = {
 };
 
 const HYBRID_LETTER: Record<CharId, string> = { 0: 'A', 1: 'B', 2: 'C', 3: 'D', 4: 'E', 5: 'F' };
+
+/**
+ * Per-pair face overrides for hybrids whose art has a twin-body layout
+ * (two separate creatures fused into one sprite). Keyed by sorted letter
+ * pair. If absent, a hybrid falls back to a single HYBRID_FACE.
+ *
+ * Audit status (2026-04): the hand-drawn art doesn't always match the
+ * filename pair. We wire twin faces only where the visible image
+ * actually shows twin anatomy — coords here are correct FOR THE IMAGE,
+ * not for the nominal pair.
+ */
+const HYBRID_FACES_MAP: Partial<Record<string, FaceConfig[]>> = {
+  // Visibly twin images we've confirmed so far:
+  'A_C': [
+    { eyeY: 0.52, eyeLeftX: 0.23, eyeRightX: 0.36, eyeSize: 0.024, mouthY: 0.60 },
+    { eyeY: 0.52, eyeLeftX: 0.60, eyeRightX: 0.73, eyeSize: 0.024, mouthY: 0.60 },
+  ],
+  'A_F': [
+    { eyeY: 0.36, eyeLeftX: 0.18, eyeRightX: 0.35, eyeSize: 0.028, mouthY: 0.46 },
+    { eyeY: 0.36, eyeLeftX: 0.58, eyeRightX: 0.75, eyeSize: 0.028, mouthY: 0.46 },
+  ],
+  'B_E': [
+    { eyeY: 0.24, eyeLeftX: 0.23, eyeRightX: 0.42, eyeSize: 0.028, mouthY: 0.34 },
+    { eyeY: 0.72, eyeLeftX: 0.54, eyeRightX: 0.70, eyeSize: 0.028, mouthY: 0.81 },
+  ],
+  'B_F': [
+    { eyeY: 0.36, eyeLeftX: 0.18, eyeRightX: 0.35, eyeSize: 0.028, mouthY: 0.46 },
+    { eyeY: 0.36, eyeLeftX: 0.58, eyeRightX: 0.75, eyeSize: 0.028, mouthY: 0.46 },
+  ],
+  'C_F': [
+    { eyeY: 0.45, eyeLeftX: 0.18, eyeRightX: 0.35, eyeSize: 0.028, mouthY: 0.54 },
+    { eyeY: 0.45, eyeLeftX: 0.60, eyeRightX: 0.77, eyeSize: 0.028, mouthY: 0.54 },
+  ],
+  'D_F': [
+    { eyeY: 0.35, eyeLeftX: 0.20, eyeRightX: 0.36, eyeSize: 0.028, mouthY: 0.44 },
+    { eyeY: 0.35, eyeLeftX: 0.60, eyeRightX: 0.76, eyeSize: 0.028, mouthY: 0.44 },
+  ],
+  'E_F': [
+    { eyeY: 0.32, eyeLeftX: 0.22, eyeRightX: 0.38, eyeSize: 0.028, mouthY: 0.40 },
+    { eyeY: 0.32, eyeLeftX: 0.62, eyeRightX: 0.78, eyeSize: 0.028, mouthY: 0.40 },
+  ],
+};
+
+export function hybridFaces(a: CharId, b: CharId): FaceConfig[] {
+  if (a === b) return [CHARACTERS[a].face];
+  const lo = a < b ? a : b;
+  const hi = a < b ? b : a;
+  const key = `${HYBRID_LETTER[lo]}_${HYBRID_LETTER[hi]}`;
+  return HYBRID_FACES_MAP[key] ?? [HYBRID_FACE];
+}
 
 export function hybridAsset(a: CharId, b: CharId): string {
   // Only 15 cross-kind hybrid PNGs exist (A_B .. E_F). Same-kind fusion
