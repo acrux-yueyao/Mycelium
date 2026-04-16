@@ -8,14 +8,14 @@
  * or the upstream call fails, return non-2xx; the frontend surfaces a
  * visible failure state rather than falling back to any heuristic.
  *
- * Uses Claude Haiku 4.5 + prompt caching. The system prompt (species
+ * Uses Claude Haiku + prompt caching. The system prompt (species
  * manual + emotion ontology) is cached as a single block; each request
  * pays only for the user turn + the ~50-token JSON response.
  */
 
 export const config = { runtime: 'edge' };
 
-const MODEL = 'claude-3-5-haiku-20241022';
+const MODEL = 'claude-3-haiku-20240307';
 const API_URL = 'https://api.anthropic.com/v1/messages';
 
 const SYSTEM_PROMPT = `You are the interpretive membrane for a biological art piece called Mycelium. A person has written a single sentence anonymously — a private confession, a passing thought, something they might not say aloud. Your task is to translate it into the morphology of a single slime mold or cup fungus that will grow on screen in response.
