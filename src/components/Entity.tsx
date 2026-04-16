@@ -18,6 +18,7 @@ import {
   CHARACTERS,
   charAsset,
   hybridAsset,
+  HYBRID_FACE,
   type CharId,
 } from '../data/characters';
 import { FaceOverlay, type ExpressionKind } from './FaceOverlay';
@@ -82,7 +83,6 @@ export function Entity({
   const funnyTimer = useRef<number | null>(null);
 
   useEffect(() => {
-    if (isHybrid) return;
     const scheduleBlink = () => {
       const delay = BLINK_MIN_MS + Math.random() * (BLINK_MAX_MS - BLINK_MIN_MS);
       blinkTimer.current = window.setTimeout(() => {
@@ -209,7 +209,15 @@ export function Entity({
                 animate={{ filter: `saturate(${saturation})` }}
                 transition={{ duration: 1.2, ease: 'easeOut' }}
               />
-              {!isHybrid && (
+              {isHybrid ? (
+                <FaceOverlay
+                  face={HYBRID_FACE}
+                  triggerKey={exprKey}
+                  kind={expr}
+                  gazeX={gazeX}
+                  gazeY={gazeY}
+                />
+              ) : (
                 <>
                   <FaceOverlay
                     face={character.face}

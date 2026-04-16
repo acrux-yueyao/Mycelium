@@ -91,6 +91,19 @@ export function charAsset(id: CharId): string {
   return `/assets/characters/${CHARACTERS[id].slug}.png`;
 }
 
+/**
+ * Generic face for hybrids. All 15 hybrid sprites share a roughly
+ * oval cap centered horizontally, so one calibrated face works for
+ * every pair. Tune here if specific pairs drift noticeably.
+ */
+export const HYBRID_FACE: FaceConfig = {
+  eyeY: 0.42,
+  eyeLeftX: 0.36,
+  eyeRightX: 0.64,
+  eyeSize: 0.035,
+  mouthY: 0.51,
+};
+
 const HYBRID_LETTER: Record<CharId, string> = { 0: 'A', 1: 'B', 2: 'C', 3: 'D', 4: 'E', 5: 'F' };
 
 export function hybridAsset(a: CharId, b: CharId): string {
