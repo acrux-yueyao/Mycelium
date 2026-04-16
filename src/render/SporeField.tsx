@@ -92,7 +92,8 @@ function initSpores(species: SpeciesParams, rng: Rng, aspect: number): Spore[] {
       driftAmp: rng.range(0.018, 0.038),
       breathFreq: rng.range(0.35, 0.85),
       breathPhase: rng.range(0, Math.PI * 2),
-      archetype: i < SPORE_COUNT - 2 ? archetype : (archetype + rng.int(1, 5)) % 5,
+      // Morphological diversity: ~half primary archetype, rest cycle through others
+      archetype: i < 4 ? archetype : (archetype + i - 3) % 5,
       trailOffX: rng.range(0.1, 0.9),
       trailOffY: rng.range(0.1, 0.9),
       hopTimer: rng.range(4, 10),
