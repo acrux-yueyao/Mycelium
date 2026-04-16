@@ -4,6 +4,8 @@
   --cream-edge:  #D9C9AF;
   --ink:         #2F2A22;
   --ink-dim:     #8A7D6C;
+  --ink-soft:    #6A5E50;
+  --accent:      #D27B4E;
   --serif:       'Fraunces', 'EB Garamond', Georgia, serif;
 }
 
@@ -73,11 +75,8 @@ body,
 }
 
 /* ---- Entity (character sprite) ---- */
-.entity {
-  z-index: 3;
-}
+.entity { z-index: 3; }
 
-/* Soft ground shadow drawn as a blurred ellipse below the sprite */
 .entity::after {
   content: '';
   position: absolute;
@@ -95,4 +94,177 @@ body,
   filter: blur(4px);
   z-index: -1;
   pointer-events: none;
+}
+
+/* ---- TreeHoleInput (totem portal) ---- */
+.totem {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(640px, 80vw);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 10;
+  pointer-events: auto;
+  transition: opacity 0.5s ease;
+}
+
+.totem.dimmed { opacity: 0.6; }
+
+.totem-inner {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.totem-eyebrow {
+  font-size: 0.72rem;
+  font-style: italic;
+  color: var(--ink-dim);
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  margin-bottom: 2rem;
+  opacity: 0.7;
+}
+
+.totem-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(47, 42, 34, 0.18);
+  outline: none;
+  color: var(--ink);
+  font-family: var(--serif);
+  font-weight: 300;
+  font-size: clamp(1.1rem, 2vw, 1.5rem);
+  line-height: 1.7;
+  text-align: center;
+  resize: none;
+  caret-color: var(--accent);
+  padding: 0.8rem 0;
+  max-height: 200px;
+  overflow-y: auto;
+  transition: border-color 0.6s ease;
+}
+
+.totem-input::placeholder {
+  color: var(--ink-dim);
+  font-style: italic;
+  opacity: 0.5;
+}
+
+.totem-input:focus {
+  border-bottom-color: rgba(47, 42, 34, 0.45);
+}
+
+.totem-input:disabled { cursor: wait; }
+
+.totem-hint {
+  margin-top: 1.8rem;
+  font-size: 0.72rem;
+  font-style: italic;
+  color: var(--ink-dim);
+  letter-spacing: 0.12em;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+.totem-hint.visible { opacity: 0.55; }
+
+.totem-hint kbd {
+  font-family: var(--serif);
+  font-size: 0.72rem;
+  background: transparent;
+  border: 1px solid rgba(47, 42, 34, 0.25);
+  border-radius: 2px;
+  padding: 0.06em 0.45em;
+  margin: 0 0.2em;
+  color: var(--ink-soft);
+}
+
+.totem-reading {
+  width: 100%;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.totem-reading-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-style: italic;
+  color: var(--ink-dim);
+  letter-spacing: 0.2em;
+  font-size: 1rem;
+}
+
+.dots { display: inline-flex; gap: 0.2em; }
+.dots span {
+  opacity: 0.2;
+  animation: dotPulse 1.6s ease-in-out infinite;
+}
+.dots span:nth-child(2) { animation-delay: 0.25s; }
+.dots span:nth-child(3) { animation-delay: 0.5s; }
+
+@keyframes dotPulse {
+  0%, 100% { opacity: 0.2; }
+  40%      { opacity: 1; }
+}
+
+/* ---- Error toast ---- */
+.error-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 10vh;
+  transform: translateX(-50%);
+  max-width: 80vw;
+  padding: 1rem 1.4rem;
+  background: rgba(244, 237, 224, 0.95);
+  border: 1px solid rgba(47, 42, 34, 0.18);
+  border-radius: 8px;
+  color: var(--ink-dim);
+  font-style: italic;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  z-index: 20;
+  backdrop-filter: blur(6px);
+}
+
+.error-toast > div:first-child {
+  font-style: italic;
+  letter-spacing: 0.15em;
+  color: var(--ink);
+}
+
+.error-detail {
+  font-size: 0.72rem;
+  opacity: 0.6;
+  max-width: 60vw;
+  word-break: break-all;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.error-toast button {
+  background: transparent;
+  border: 1px solid rgba(47, 42, 34, 0.25);
+  color: var(--ink-soft);
+  font-family: var(--serif);
+  font-style: italic;
+  padding: 0.45rem 1.4rem;
+  cursor: pointer;
+  letter-spacing: 0.2em;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  transition: border-color 0.3s, color 0.3s;
+}
+.error-toast button:hover {
+  border-color: var(--ink);
+  color: var(--ink);
 }
