@@ -9,15 +9,15 @@
  *   5. Breathe     scale [1, 1.04, 1] infinite (3.5s)
  *
  * Phase C: CSS `saturate(...)` filter applied to img for loneliness.
- * Phase D: isHybrid swaps to HYBRID_ASSET, skips FaceOverlay, plays a
- *          one-shot aura ring on birth.
+ * Phase D: isHybrid swaps to the pair-specific hybridAsset(parentIds),
+ *          skips FaceOverlay, plays a one-shot aura ring on birth.
  */
 import { useEffect, useRef, useState } from 'react';
 import { motion, useAnimationControls } from 'framer-motion';
 import {
   CHARACTERS,
   charAsset,
-  HYBRID_ASSET,
+  hybridAsset,
   type CharId,
 } from '../data/characters';
 import { FaceOverlay, type ExpressionKind } from './FaceOverlay';
@@ -34,8 +34,10 @@ export interface EntityProps {
   greetingPulse?: number;
   /** 0..1 CSS saturate() factor. Phase C desaturates on lonely exposure. */
   saturation?: number;
-  /** Phase D: rainbow hybrid spawned when a compatible pair fuses. */
+  /** Phase D: hand-drawn pair hybrid spawned when a compatible pair fuses. */
   isHybrid?: boolean;
+  /** Parent CharIds for hybrid sprite lookup (required when isHybrid). */
+  parentIds?: [CharId, CharId];
   onMount?: () => void;
 }
 
@@ -66,6 +68,7 @@ export function Entity({
   greetingPulse = 0,
   saturation = 1,
   isHybrid = false,
+  parentIds,
   onMount,
 }: EntityProps) {
   const character = CHARACTERS[charId];
@@ -131,7 +134,9 @@ export function Entity({
 
   const growScale = isHybrid ? [0, 1.25, 1] : [0, 1.1, 1];
   const growDuration = isHybrid ? 2.2 : 1.8;
-  const src = isHybrid ? HYBRID_ASSET : charAsset(charId);
+  const src = isHybrid && parentIds
+    ? hybridAsset(parentIds[0], parentIds[1])
+    : charAsset(charId);
 
   return (
     <motion.div

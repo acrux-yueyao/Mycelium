@@ -79,10 +79,15 @@ export const CHARACTERS: Record<CharId, Character> = {
   },
 };
 
-export const HYBRID_ASSET = '/assets/characters/hybrid_rainbow.png';
-
 export function charAsset(id: CharId): string {
   return `/assets/characters/${CHARACTERS[id].slug}.png`;
+}
+
+const HYBRID_LETTER: Record<CharId, string> = { 0: 'A', 1: 'B', 2: 'C', 3: 'D', 4: 'E', 5: 'F' };
+
+export function hybridAsset(a: CharId, b: CharId): string {
+  const [lo, hi] = a <= b ? [a, b] : [b, a];
+  return `/assets/characters/hybrid_${HYBRID_LETTER[lo]}_${HYBRID_LETTER[hi]}.png`;
 }
 
 /** Lookup charId from an emotion label; defaults to 0 if unknown. */
