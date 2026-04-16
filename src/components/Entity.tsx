@@ -210,13 +210,24 @@ export function Entity({
                 transition={{ duration: 1.2, ease: 'easeOut' }}
               />
               {!isHybrid && (
-                <FaceOverlay
-                  face={character.face}
-                  triggerKey={exprKey}
-                  kind={expr}
-                  gazeX={gazeX}
-                  gazeY={gazeY}
-                />
+                <>
+                  <FaceOverlay
+                    face={character.face}
+                    triggerKey={exprKey}
+                    kind={expr}
+                    gazeX={gazeX}
+                    gazeY={gazeY}
+                  />
+                  {character.secondaryFace && (
+                    <FaceOverlay
+                      face={character.secondaryFace}
+                      triggerKey={exprKey}
+                      kind={expr}
+                      gazeX={gazeX}
+                      gazeY={gazeY}
+                    />
+                  )}
+                </>
               )}
             </motion.div>
           </motion.div>

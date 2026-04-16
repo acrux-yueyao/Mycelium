@@ -99,6 +99,9 @@ export default function App() {
           const eb = entityById.get(c.b.id);
           // Hybrids are sterile \u2014 visual connections only, no fusion.
           if (ea?.isHybrid || eb?.isHybrid) continue;
+          // Same-kind pairs bond deeply but don't fuse — we only have art
+          // for the 15 cross-kind combinations (A_B .. E_F).
+          if (ea && eb && ea.charId === eb.charId) continue;
           if (c.compat < FUSION_MIN_COMPAT) continue;
           if (now - c.bornAt < FUSION_HOLD_MS) continue;
           const lastFused = fusedPairsRef.current.get(c.id);
