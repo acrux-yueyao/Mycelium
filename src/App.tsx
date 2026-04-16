@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Background } from './components/Background';
 import { Entity } from './components/Entity';
@@ -7,7 +7,7 @@ import { TendrilLayer } from './components/TendrilLayer';
 import { TreeHoleInput } from './components/TreeHoleInput';
 import { useEmotion } from './hooks/useEmotion';
 import type { CharId } from './data/characters';
-import { stepField } from './core/field';
+import { findNearestBody, stepField } from './core/field';
 
 interface LiveEntity {
   id: string;
@@ -18,17 +18,20 @@ interface LiveEntity {
   vy: number;
   size: number;
   bornAt: number;
+  /** Incremented whenever a new neighbor arrives — fires a greeting bounce. */
+  greetingPulse: number;
   rationale?: string;
 }
+
+const GAZE_MAX_RANGE = 450;
+const GREETING_RADIUS = 320;
 
 /**
  * Root stage.
  *
- * Step 4 + Phase A:
- *  - TreeHoleInput wired to useEmotion
- *  - Entity list with per-body (vx, vy) physics state
- *  - RAF loop runs stepField() every frame: attract / repel / wall / center
- *  - Entity components only render — positions flow from physics state
+ * Phases active:
+ *   A · physics field (attract / repel / walls / center-repel)
+ *   B · eye tracking + newcomer greeting
  */
 export default function App() {
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
@@ -42,7 +45,6 @@ export default function App() {
     return () => window.removeEventListener('resize', update);
   }, []);
 
-  // ==== Phase A physics loop ====
   const vpRef = useRef(viewport);
   useEffect(() => { vpRef.current = viewport; }, [viewport]);
 
@@ -58,6 +60,16 @@ export default function App() {
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
   }, []);
+
+  // Per-entity gaze targets — nearest other within GAZE_MAX_RANGE.
+  const gazeMap = useMemo(() => {
+    const map = new Map<string, { x: number; y: number } | null>();
+    for (const e of entities) {
+      const t = findNearestBody(e, entities, GAZE_MAX_RANGE);
+      map.set(e.id, t ? { x: t.x, y: t.y } : null);
+    }
+    return map;
+  }, [entities]);
 
   const spawnAt = (): { x: number; y: number } => {
     const w = vpRef.current.w || window.innerWidth;
@@ -81,20 +93,27 @@ export default function App() {
     const size = 180;
     const a = Math.random() * Math.PI * 2;
     const v0 = 0.4;
-    setEntities((prev) => [
-      ...prev,
-      {
-        id: `e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        charId: result.charId,
-        x,
-        y,
-        vx: Math.cos(a) * v0,
-        vy: Math.sin(a) * v0,
-        size,
-        bornAt: Date.now(),
-        rationale: result.reading.rationale,
-      },
-    ]);
+    const newEntity: LiveEntity = {
+      id: `e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      charId: result.charId,
+      x,
+      y,
+      vx: Math.cos(a) * v0,
+      vy: Math.sin(a) * v0,
+      size,
+      bornAt: Date.now(),
+      greetingPulse: 0,
+      rationale: result.reading.rationale,
+    };
+    setEntities((prev) => {
+      const bumped = prev.map((e) => {
+        const d = Math.hypot(e.x - x, e.y - y);
+        return d < GREETING_RADIUS
+          ? { ...e, greetingPulse: e.greetingPulse + 1 }
+          : e;
+      });
+      return [...bumped, newEntity];
+    });
   };
 
   return (
@@ -102,17 +121,23 @@ export default function App() {
       <Background />
       <TendrilLayer entities={[]} connections={[]} />
 
-      {entities.map((e, i) => (
-        <Entity
-          key={e.id}
-          id={e.id}
-          charId={e.charId}
-          x={e.x}
-          y={e.y}
-          size={e.size}
-          phaseOffset={(i * 0.17) % 1}
-        />
-      ))}
+      {entities.map((e, i) => {
+        const t = gazeMap.get(e.id);
+        return (
+          <Entity
+            key={e.id}
+            id={e.id}
+            charId={e.charId}
+            x={e.x}
+            y={e.y}
+            size={e.size}
+            phaseOffset={(i * 0.17) % 1}
+            gazeTargetX={t ? t.x : null}
+            gazeTargetY={t ? t.y : null}
+            greetingPulse={e.greetingPulse}
+          />
+        );
+      })}
 
       <SparkleLayer />
 
