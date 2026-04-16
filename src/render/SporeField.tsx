@@ -1,4 +1,6 @@
+import { Canvas, useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import * as THREE from 'three';
 import type { ResolvedOrganismSpec } from '../core/species';
 import { Rng } from '../core/seed';
 
@@ -7,367 +9,378 @@ interface SporeFieldProps {
   seed: number;
 }
 
-interface ColonyState {
-  x: number;
-  y: number;
-  radius: number;
-  colorIndex: number;
-}
-
-interface SporeState {
-  colonyIndex: number;
-  colorIndex: number;
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  homeX: number;
-  homeY: number;
-  targetRadius: number;
+interface Particle {
+  colony: number;
+  home: THREE.Vector3;
+  pos: THREE.Vector3;
+  vel: THREE.Vector3;
   size: number;
-  birthDelayMs: number;
   phase: number;
+  birthDelay: number;
+  colorIndex: number;
 }
 
-interface PointerState {
+interface Colony {
+  center: THREE.Vector3;
+  radius: number;
+}
+
+interface ModelData {
+  particles: Particle[];
+  colonies: Colony[];
+  pointPositions: Float32Array;
+  pointColors: Float32Array;
+  linePositions: Float32Array;
+}
+
+interface DragState {
   active: boolean;
   x: number;
   y: number;
+}
+
+interface PointerFieldState {
+  active: boolean;
+  world: THREE.Vector3;
   pulse: number;
 }
 
-interface FieldState {
-  colonies: ColonyState[];
-  spores: SporeState[];
-}
-
 export function SporeField({ spec, seed }: SporeFieldProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const pointerRef = useRef<PointerState>({ active: false, x: 0, y: 0, pulse: 0 });
-  const [size, setSize] = useState({ width: 0, height: 0 });
-
-  useEffect(() => {
-    const node = containerRef.current;
-    if (!node) return;
-
-    const updateSize = () => {
-      const rect = node.getBoundingClientRect();
-      setSize({
-        width: Math.max(1, Math.floor(rect.width)),
-        height: Math.max(1, Math.floor(rect.height)),
-      });
-    };
-    updateSize();
-
-    const observer = new ResizeObserver(updateSize);
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
-
-  const field = useMemo(() => {
-    if (size.width <= 0 || size.height <= 0) {
-      return null;
-    }
-    return buildField(spec, seed, size.width, size.height);
-  }, [seed, size.height, size.width, spec]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !field) return;
-    const context = canvas.getContext('2d');
-    if (!context) return;
-
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.floor(size.width * dpr);
-    canvas.height = Math.floor(size.height * dpr);
-    canvas.style.width = `${size.width}px`;
-    canvas.style.height = `${size.height}px`;
-    context.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-    let raf = 0;
-    let lastTs = performance.now();
-    const bornAt = performance.now();
-    const spores = field.spores.map((spore) => ({ ...spore }));
-    const pointer = pointerRef.current;
-
-    const tick = (ts: number) => {
-      const dt = Math.min(0.033, (ts - lastTs) / 1000);
-      const dtScale = dt * 60;
-      lastTs = ts;
-      const elapsedMs = ts - bornAt;
-
-      pointer.pulse = Math.max(0, pointer.pulse - dt * 0.72);
-
-      context.clearRect(0, 0, size.width, size.height);
-      drawColonies(context, field.colonies, spec, elapsedMs / 1000);
-
-      for (let i = 0; i < spores.length; i++) {
-        const spore = spores[i];
-        const colony = field.colonies[spore.colonyIndex];
-        if (!colony) continue;
-        const ageMs = elapsedMs - spore.birthDelayMs;
-        if (ageMs < 0) continue;
-
-        const t = elapsedMs / 1000;
-        const pulseWave = (Math.sin(t * (0.8 + spec.pulse * 2.8) + spore.phase) + 1) * 0.5;
-        const driftAngle = spore.phase + t * (0.2 + spec.swirl * 1.4);
-
-        let ax = Math.cos(driftAngle) * (0.002 + spec.drift * 0.017);
-        let ay = Math.sin(driftAngle * 1.07) * (0.002 + spec.drift * 0.017);
-
-        ax += Math.sin(t * 0.9 + spore.phase * 3.7) * spec.jitter * 0.007;
-        ay += Math.cos(t * 1.1 + spore.phase * 3.1) * spec.jitter * 0.007;
-
-        const toHomeX = spore.homeX - spore.x;
-        const toHomeY = spore.homeY - spore.y;
-        const recoverySpring = 0.003 + spec.recovery * 0.018;
-        ax += toHomeX * recoverySpring;
-        ay += toHomeY * (recoverySpring + spec.droop * 0.002);
-
-        const toColonyX = spore.x - colony.x;
-        const toColonyY = spore.y - colony.y;
-        const distFromColony = Math.hypot(toColonyX, toColonyY) || 1;
-        const distError = spore.targetRadius - distFromColony;
-        const shellForce = (0.001 + spec.scatter * 0.01) * (0.4 + pulseWave * 0.6);
-        ax += (toColonyX / distFromColony) * distError * shellForce;
-        ay += (toColonyY / distFromColony) * distError * shellForce;
-
-        ax += (colony.x - spore.x) * (0.0007 + spec.cohesion * 0.0065);
-        ay += (colony.y - spore.y) * (0.0007 + spec.cohesion * 0.0065);
-
-        ay += spec.droop * 0.0022;
-
-        const pointerRadius = 72 + spec.pointerRadius * 280;
-        const pointerDx = pointer.x - spore.x;
-        const pointerDy = pointer.y - spore.y;
-        const pointerDist = Math.hypot(pointerDx, pointerDy) || 1;
-        const pointerInRange = pointer.active && pointerDist < pointerRadius;
-        const pulseInRange = pointer.pulse > 0.001 && pointerDist < pointerRadius * 1.1;
-
-        if (pointerInRange || pulseInRange) {
-          const falloff = Math.max(0, 1 - pointerDist / pointerRadius);
-          const base = (0.003 + spec.pointerStrength * 0.028) * falloff * falloff;
-          const pulseBoost =
-            spec.interaction.pointerResponse === 'repel-burst' ? 1 + pointer.pulse * 2.8 : 1 + pointer.pulse;
-          const response = responseSign(spec.interaction.pointerResponse);
-          const strength = base * pulseBoost * response;
-          ax += (pointerDx / pointerDist) * strength;
-          ay += (pointerDy / pointerDist) * strength;
-        }
-
-        const damping =
-          (0.84 + spec.collisionSoftness * 0.12) - (1 - spec.interaction.pointerRecovery) * 0.03;
-        spore.vx = (spore.vx + ax * dtScale) * damping;
-        spore.vy = (spore.vy + ay * dtScale) * damping;
-        spore.x += spore.vx * dtScale;
-        spore.y += spore.vy * dtScale;
-
-        const birthFade = Math.min(1, ageMs / (260 + spec.birthStagger * 800));
-        drawSpore(context, spore, colony, spec, pulseWave, birthFade);
-      }
-
-      raf = window.requestAnimationFrame(tick);
-    };
-
-    raf = window.requestAnimationFrame(tick);
-    return () => {
-      window.cancelAnimationFrame(raf);
-    };
-  }, [field, size.height, size.width, spec]);
-
   return (
-    <div
-      className="spore-field"
-      ref={containerRef}
-      onPointerMove={(event) => {
-        const rect = event.currentTarget.getBoundingClientRect();
-        pointerRef.current.active = true;
-        pointerRef.current.x = event.clientX - rect.left;
-        pointerRef.current.y = event.clientY - rect.top;
-      }}
-      onPointerLeave={() => {
-        pointerRef.current.active = false;
-      }}
-      onPointerDown={() => {
-        pointerRef.current.pulse = 1;
-      }}
-    >
-      <canvas ref={canvasRef} />
+    <div className="spore-field">
+      <Canvas
+        dpr={[1, 2]}
+        camera={{ position: [0, 0, 9.8], fov: 46 }}
+        gl={{ antialias: true, alpha: true }}
+      >
+        <color attach="background" args={['#f4ede0']} />
+        <ambientLight intensity={0.4} />
+        <directionalLight position={[2, 3, 4]} intensity={0.55} color="#f6ead4" />
+        <pointLight position={[-3, 2, 2]} intensity={0.75} color="#d7f1ee" />
+        <pointLight position={[3, -2, 2]} intensity={0.45} color="#f1dac8" />
+        <SporeCluster spec={spec} seed={seed} />
+      </Canvas>
     </div>
   );
 }
 
-function buildField(spec: ResolvedOrganismSpec, seed: number, width: number, height: number): FieldState {
-  const rng = new Rng(seed ^ 0x85ebca6b);
-  const colonies: ColonyState[] = [];
-  const spores: SporeState[] = [];
-  const cx = width * 0.5;
-  const cy = height * 0.52;
-  const spread = Math.min(width, height) * (0.12 + spec.spawnRadius * 0.28);
+function SporeCluster({ spec, seed }: SporeFieldProps) {
+  const model = useMemo(() => buildModel(spec, seed), [seed, spec]);
+  const pointsGeometry = useMemo(() => new THREE.BufferGeometry(), []);
+  const linesGeometry = useMemo(() => new THREE.BufferGeometry(), []);
+  const pointsRef = useRef<THREE.Points>(null);
+  const linesRef = useRef<THREE.LineSegments>(null);
+  const groupRef = useRef<THREE.Group>(null);
+
+  const pointer = useRef<PointerFieldState>({
+    active: false,
+    world: new THREE.Vector3(),
+    pulse: 0,
+  });
+  const drag = useRef<DragState>({ active: false, x: 0, y: 0 });
+  const rotationTarget = useRef(new THREE.Vector2(0, 0));
+  const [dragging, setDragging] = useState(false);
+
+  useMemo(() => {
+    pointsGeometry.setAttribute('position', new THREE.BufferAttribute(model.pointPositions, 3));
+    pointsGeometry.setAttribute('color', new THREE.BufferAttribute(model.pointColors, 3));
+    linesGeometry.setAttribute('position', new THREE.BufferAttribute(model.linePositions, 3));
+    return undefined;
+  }, [linesGeometry, model.linePositions, model.pointColors, model.pointPositions, pointsGeometry]);
+
+  useFrame(({ clock }, delta) => {
+    const dt = Math.min(0.033, delta);
+    const t = clock.elapsedTime;
+    pointer.current.pulse = Math.max(0, pointer.current.pulse - dt * 0.8);
+
+    const pullStrength = 0.08 + spec.pointerStrength * 0.34;
+    const pullRadius = 0.65 + spec.pointerRadius * 3.8;
+    const recovery = 0.2 + spec.recovery * 1.6;
+    const damping = 0.92 + spec.collisionSoftness * 0.06;
+
+    for (let i = 0; i < model.particles.length; i++) {
+      const p = model.particles[i];
+      const c = model.colonies[p.colony];
+      const alive = t * 1000 >= p.birthDelay;
+      if (!alive) {
+        continue;
+      }
+
+      const sway = new THREE.Vector3(
+        Math.sin(t * (0.6 + spec.swirl * 1.8) + p.phase) * (0.005 + spec.jitter * 0.02),
+        Math.cos(t * (0.7 + spec.swirl * 1.6) + p.phase * 0.7) * (0.005 + spec.jitter * 0.02),
+        Math.sin(t * (0.5 + spec.drift * 1.7) + p.phase * 1.9) * (0.004 + spec.drift * 0.02)
+      );
+
+      const toHome = p.home.clone().sub(p.pos).multiplyScalar(0.02 + recovery * 0.03);
+      const toColony = c.center.clone().sub(p.pos).multiplyScalar(0.003 + spec.cohesion * 0.015);
+      const swirl = p.pos
+        .clone()
+        .sub(c.center)
+        .cross(new THREE.Vector3(0, 1, 0))
+        .multiplyScalar(0.0008 + spec.swirl * 0.008);
+
+      const pulseScale = 0.5 + 0.5 * Math.sin(t * (0.8 + spec.pulse * 2.4) + p.phase);
+      const scatter = p.pos
+        .clone()
+        .sub(c.center)
+        .normalize()
+        .multiplyScalar((0.001 + spec.scatter * 0.01) * pulseScale);
+
+      let pointerForce = new THREE.Vector3();
+      if (pointer.current.active || pointer.current.pulse > 0.01) {
+        const deltaToPointer = pointer.current.world.clone().sub(p.pos);
+        const dist = Math.max(0.001, deltaToPointer.length());
+        if (dist < pullRadius) {
+          const falloff = 1 - dist / pullRadius;
+          const modeSign =
+            spec.interaction.pointerResponse === 'attract' || spec.interaction.pointerResponse === 'follow'
+              ? 1
+              : -1;
+          const burstBoost =
+            spec.interaction.pointerResponse === 'repel-burst' ? 1 + pointer.current.pulse * 2.4 : 1 + pointer.current.pulse;
+          pointerForce = deltaToPointer
+            .normalize()
+            .multiplyScalar(modeSign * pullStrength * falloff * falloff * burstBoost);
+        }
+      }
+
+      p.vel.addScaledVector(sway, dt * 60);
+      p.vel.addScaledVector(toHome, dt * 60);
+      p.vel.addScaledVector(toColony, dt * 60);
+      p.vel.addScaledVector(swirl, dt * 60);
+      p.vel.addScaledVector(scatter, dt * 60);
+      p.vel.addScaledVector(pointerForce, dt * 60);
+      p.vel.multiplyScalar(damping);
+      p.pos.addScaledVector(p.vel, dt * 60);
+
+      const pi = i * 3;
+      model.pointPositions[pi] = p.pos.x;
+      model.pointPositions[pi + 1] = p.pos.y;
+      model.pointPositions[pi + 2] = p.pos.z;
+
+      const li = i * 6;
+      model.linePositions[li] = c.center.x;
+      model.linePositions[li + 1] = c.center.y;
+      model.linePositions[li + 2] = c.center.z;
+      model.linePositions[li + 3] = p.pos.x;
+      model.linePositions[li + 4] = p.pos.y;
+      model.linePositions[li + 5] = p.pos.z;
+    }
+
+    const px = pointsGeometry.getAttribute('position') as THREE.BufferAttribute;
+    const lx = linesGeometry.getAttribute('position') as THREE.BufferAttribute;
+    px.needsUpdate = true;
+    lx.needsUpdate = true;
+
+    const targetX = rotationTarget.current.y;
+    const targetY = rotationTarget.current.x;
+    if (groupRef.current) {
+      groupRef.current.rotation.x = THREE.MathUtils.lerp(groupRef.current.rotation.x, targetX, 0.08);
+      groupRef.current.rotation.y = THREE.MathUtils.lerp(groupRef.current.rotation.y, targetY, 0.08);
+      groupRef.current.rotation.z = Math.sin(t * 0.15) * (0.03 + spec.asymmetry * 0.05);
+    }
+
+    if (pointsRef.current) {
+      const mat = pointsRef.current.material as THREE.PointsMaterial;
+      mat.opacity = 0.65 + spec.translucency * 0.35;
+    }
+  });
+
+  return (
+    <group
+      ref={groupRef}
+      onPointerDown={(event) => {
+        event.stopPropagation();
+        drag.current.active = true;
+        drag.current.x = event.nativeEvent.clientX;
+        drag.current.y = event.nativeEvent.clientY;
+        pointer.current.active = true;
+        pointer.current.world.copy(event.point);
+        pointer.current.pulse = 1;
+        setDragging(true);
+      }}
+      onPointerMove={(event) => {
+        event.stopPropagation();
+        pointer.current.active = true;
+        pointer.current.world.copy(event.point);
+
+        if (!drag.current.active) return;
+        const dx = event.nativeEvent.clientX - drag.current.x;
+        const dy = event.nativeEvent.clientY - drag.current.y;
+        drag.current.x = event.nativeEvent.clientX;
+        drag.current.y = event.nativeEvent.clientY;
+
+        rotationTarget.current.x += dx * 0.005;
+        rotationTarget.current.y += dy * 0.005;
+        rotationTarget.current.y = THREE.MathUtils.clamp(rotationTarget.current.y, -1.2, 1.2);
+      }}
+      onPointerUp={(event) => {
+        event.stopPropagation();
+        drag.current.active = false;
+        setDragging(false);
+      }}
+      onPointerLeave={() => {
+        drag.current.active = false;
+        pointer.current.active = false;
+        setDragging(false);
+      }}
+    >
+      <mesh position={[0, 0, -0.2]}>
+        <sphereGeometry args={[0.25 + spec.hollowness * 0.35, 24, 24]} />
+        <meshStandardMaterial
+          color={spec.palette[0] ?? '#d9c7ac'}
+          transparent
+          opacity={0.16 + spec.wetness * 0.22}
+          roughness={0.32 + spec.grain * 0.5}
+          metalness={0.08 + spec.wetness * 0.12}
+        />
+      </mesh>
+
+      {model.colonies.map((colony, idx) => (
+        <mesh key={idx} position={colony.center}>
+          <sphereGeometry args={[0.08 + colony.radius * 0.07, 16, 16]} />
+          <meshStandardMaterial
+            color={spec.palette[idx % spec.palette.length] ?? '#ece2d0'}
+            emissive={spec.palette[idx % spec.palette.length] ?? '#ece2d0'}
+            emissiveIntensity={0.08 + spec.glow * 0.2}
+            transparent
+            opacity={0.2 + spec.translucency * 0.3}
+            roughness={0.4}
+          />
+        </mesh>
+      ))}
+
+      <lineSegments ref={linesRef} geometry={linesGeometry}>
+        <lineBasicMaterial
+          color={spec.palette[1] ?? '#c8b79a'}
+          transparent
+          opacity={0.08 + spec.filamentLength * 0.25}
+        />
+      </lineSegments>
+
+      <points ref={pointsRef} geometry={pointsGeometry}>
+        <pointsMaterial
+          size={0.05 + spec.scaleVariance * 0.07}
+          transparent
+          opacity={0.78}
+          sizeAttenuation
+          vertexColors
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </points>
+
+      <mesh
+        position={[0, 0, -0.6]}
+        onPointerMove={(event) => {
+          pointer.current.active = true;
+          pointer.current.world.copy(event.point);
+        }}
+        onPointerDown={(event) => {
+          pointer.current.active = true;
+          pointer.current.world.copy(event.point);
+          pointer.current.pulse = 1;
+        }}
+      >
+        <planeGeometry args={[30, 20]} />
+        <meshBasicMaterial transparent opacity={0} />
+      </mesh>
+
+      <HtmlCursor dragging={dragging} />
+    </group>
+  );
+}
+
+function buildModel(spec: ResolvedOrganismSpec, seed: number): ModelData {
+  const rng = new Rng(seed ^ 0x51f15d9f);
   const colonyCount = Math.max(1, spec.colonyCount);
+  const colonies: Colony[] = [];
+  const spread = 0.5 + spec.spawnRadius * 2.2;
+  const particles: Particle[] = [];
 
   for (let i = 0; i < colonyCount; i++) {
-    const orbit = colonyCount === 1 ? 0 : (i / colonyCount) * Math.PI * 2;
-    const asymBias = (rng.next() - 0.5) * 2 * spec.asymmetry;
-    const angle = orbit + asymBias * 0.85 + Math.sin(i * 1.7) * spec.branching * 0.2;
-    const radial = colonyCount === 1 ? 0 : spread * (0.35 + rng.next() * 0.65);
-    const x = cx + Math.cos(angle) * radial * (0.8 + spec.asymmetry * 0.5);
-    const y = cy + Math.sin(angle) * radial * (0.78 + (1 - spec.asymmetry) * 0.28);
-    const radius =
-      Math.min(width, height) *
-      (0.055 + spec.spawnRadius * 0.12) *
-      (0.72 + rng.next() * (0.35 + spec.scaleVariance * 0.45));
+    const angle = (i / colonyCount) * Math.PI * 2 + (rng.next() - 0.5) * spec.asymmetry;
+    const radial = colonyCount === 1 ? 0 : spread * (0.4 + rng.next() * 0.6);
+    const lift = (rng.next() - 0.5) * (0.5 + spec.asymmetry * 0.8);
     colonies.push({
-      x,
-      y,
-      radius: Math.max(18, radius),
-      colorIndex: i % spec.palette.length,
+      center: new THREE.Vector3(Math.cos(angle) * radial, lift, Math.sin(angle) * radial * 0.75),
+      radius: 0.45 + spec.spawnRadius * 0.95 + rng.next() * 0.55,
     });
   }
 
-  const weights = colonies.map(
-    () => 0.8 + rng.next() * 0.4 + (rng.next() - 0.5) * spec.scaleVariance * 0.9
-  );
-  const totalWeight = weights.reduce((sum, value) => sum + value, 0);
-
-  const counts = weights.map((weight) =>
-    Math.max(8, Math.floor((weight / totalWeight) * Math.max(24, spec.sporeCount)))
-  );
-  let counted = counts.reduce((sum, value) => sum + value, 0);
-  while (counted < spec.sporeCount) {
-    const index = rng.int(0, counts.length);
-    counts[index] += 1;
-    counted += 1;
-  }
-  while (counted > spec.sporeCount) {
-    const index = rng.int(0, counts.length);
-    if (counts[index] > 8) {
-      counts[index] -= 1;
-      counted -= 1;
-    } else {
-      break;
-    }
-  }
-
+  const perColony = Math.max(18, Math.floor(spec.sporeCount / colonyCount));
   let order = 0;
-  for (let c = 0; c < colonies.length; c++) {
+  for (let c = 0; c < colonyCount; c++) {
     const colony = colonies[c];
-    const colonySporeCount = counts[c] ?? 8;
-    for (let i = 0; i < colonySporeCount; i++) {
+    for (let i = 0; i < perColony; i++) {
       const theta = rng.next() * Math.PI * 2;
-      const branchWarp = spec.branching * 0.9 * Math.sin(theta * (2 + spec.latticeDensity * 7));
-      const angle = theta + branchWarp;
-      const centerHole = spec.hollowness * 0.7;
-      const radialPow = 0.45 + (1 - spec.latticeDensity) * 1.15;
-      const radialUnit = centerHole + (1 - centerHole) * Math.pow(rng.next(), radialPow);
+      const phi = Math.acos(1 - 2 * rng.next());
+      const radialUnit = 0.18 + (1 - spec.hollowness * 0.75) * 0.82 * Math.pow(rng.next(), 0.7);
       const radial = colony.radius * radialUnit;
-      const asymSkew = 1 + (rng.next() - 0.5) * spec.asymmetry * 0.7;
-      const homeX = colony.x + Math.cos(angle) * radial * asymSkew;
-      const homeY =
-        colony.y +
-        Math.sin(angle) * radial * (1 - spec.asymmetry * 0.22) +
-        spec.droop * colony.radius * 0.12 * radialUnit;
-      const initX = colony.x + (rng.next() - 0.5) * 8;
-      const initY = colony.y + (rng.next() - 0.5) * 8;
-      const stemBoost = 0.6 + spec.stemLength * 1.25;
-      const sizeScale = 0.9 + spec.scaleVariance * 2.2;
-      const size = (0.6 + rng.next() * sizeScale) * stemBoost;
-      const birthDelayMs = order * (4 + spec.birthStagger * 24) + rng.range(0, 260);
-      const phase = rng.next() * Math.PI * 2;
-      spores.push({
-        colonyIndex: c,
-        colorIndex: (colony.colorIndex + i + Math.floor(rng.next() * spec.palette.length)) % spec.palette.length,
-        x: initX,
-        y: initY,
-        vx: (rng.next() - 0.5) * 0.2,
-        vy: (rng.next() - 0.5) * 0.2,
-        homeX,
-        homeY,
-        targetRadius: radial,
-        size,
-        birthDelayMs,
-        phase,
+      const branch = 1 + Math.sin(theta * (2 + spec.branching * 5)) * spec.branching * 0.35;
+      const local = new THREE.Vector3(
+        Math.sin(phi) * Math.cos(theta) * radial * branch,
+        Math.cos(phi) * radial * (0.8 + spec.shellOpenness * 0.4),
+        Math.sin(phi) * Math.sin(theta) * radial * (0.8 + spec.asymmetry * 0.45)
+      );
+      const home = colony.center.clone().add(local);
+      const pos = colony.center.clone().addScaledVector(local, 0.06 + rng.next() * 0.08);
+      particles.push({
+        colony: c,
+        home,
+        pos,
+        vel: new THREE.Vector3((rng.next() - 0.5) * 0.02, (rng.next() - 0.5) * 0.02, (rng.next() - 0.5) * 0.02),
+        size: 0.6 + rng.next() * (0.5 + spec.scaleVariance * 1.1),
+        phase: rng.next() * Math.PI * 2,
+        birthDelay: order * (3 + spec.birthStagger * 20) + rng.range(0, 260),
+        colorIndex: (c + i + Math.floor(rng.next() * spec.palette.length)) % spec.palette.length,
       });
       order += 1;
     }
   }
 
-  return { colonies, spores };
+  const pointPositions = new Float32Array(particles.length * 3);
+  const pointColors = new Float32Array(particles.length * 3);
+  const linePositions = new Float32Array(particles.length * 6);
+
+  for (let i = 0; i < particles.length; i++) {
+    const p = particles[i];
+    const pi = i * 3;
+    pointPositions[pi] = p.pos.x;
+    pointPositions[pi + 1] = p.pos.y;
+    pointPositions[pi + 2] = p.pos.z;
+
+    const color = new THREE.Color(spec.palette[p.colorIndex] ?? '#d9c7ac');
+    pointColors[pi] = color.r;
+    pointColors[pi + 1] = color.g;
+    pointColors[pi + 2] = color.b;
+
+    const colony = colonies[p.colony];
+    const li = i * 6;
+    linePositions[li] = colony.center.x;
+    linePositions[li + 1] = colony.center.y;
+    linePositions[li + 2] = colony.center.z;
+    linePositions[li + 3] = p.pos.x;
+    linePositions[li + 4] = p.pos.y;
+    linePositions[li + 5] = p.pos.z;
+  }
+
+  return {
+    particles,
+    colonies,
+    pointPositions,
+    pointColors,
+    linePositions,
+  };
 }
 
-function responseSign(mode: ResolvedOrganismSpec['interaction']['pointerResponse']): number {
-  if (mode === 'attract' || mode === 'follow') {
-    return 1;
-  }
-  return -1;
-}
-
-function drawColonies(
-  ctx: CanvasRenderingContext2D,
-  colonies: ColonyState[],
-  spec: ResolvedOrganismSpec,
-  t: number
-) {
-  for (let i = 0; i < colonies.length; i++) {
-    const colony = colonies[i];
-    const color = spec.palette[colony.colorIndex % spec.palette.length] ?? '#8fa8a8';
-    const shimmer = 0.06 + spec.glow * 0.14 + (Math.sin(t * 0.7 + i) + 1) * 0.02;
-    ctx.beginPath();
-    ctx.arc(colony.x, colony.y, colony.radius * (0.58 + spec.shellOpenness * 0.42), 0, Math.PI * 2);
-    ctx.fillStyle = hexToRgba(color, shimmer * (0.4 + spec.translucency));
-    ctx.fill();
-  }
-}
-
-function drawSpore(
-  ctx: CanvasRenderingContext2D,
-  spore: SporeState,
-  colony: ColonyState,
-  spec: ResolvedOrganismSpec,
-  pulseWave: number,
-  birthFade: number
-) {
-  const color = spec.palette[spore.colorIndex % spec.palette.length] ?? '#d9c7ac';
-  const alpha = (0.18 + spec.translucency * 0.55 + spec.glow * 0.08) * birthFade;
-  const radius = spore.size * (0.9 + spec.wetness * 0.5 + pulseWave * spec.pulse * 0.26);
-
-  if (spec.stemLength > 0.08) {
-    const stemAlpha = (0.07 + spec.filamentLength * 0.2) * birthFade;
-    ctx.beginPath();
-    ctx.moveTo(colony.x, colony.y);
-    ctx.lineTo(spore.x, spore.y);
-    ctx.strokeStyle = hexToRgba(color, stemAlpha);
-    ctx.lineWidth = 0.35 + spec.filamentLength * 1.8;
-    ctx.stroke();
-  }
-
-  ctx.beginPath();
-  ctx.arc(spore.x, spore.y, radius, 0, Math.PI * 2);
-  ctx.fillStyle = hexToRgba(color, alpha);
-  ctx.fill();
-
-  if (spec.glow > 0.1) {
-    ctx.beginPath();
-    ctx.arc(spore.x, spore.y, radius * (1.4 + spec.glow), 0, Math.PI * 2);
-    ctx.fillStyle = hexToRgba(color, alpha * 0.24 * (0.4 + spec.glow));
-    ctx.fill();
-  }
-}
-
-function hexToRgba(hex: string, alpha: number): string {
-  const normalized = hex.trim();
-  if (/^#[0-9a-fA-F]{3}$/.test(normalized)) {
-    const r = parseInt(normalized[1] + normalized[1], 16);
-    const g = parseInt(normalized[2] + normalized[2], 16);
-    const b = parseInt(normalized[3] + normalized[3], 16);
-    return `rgba(${r}, ${g}, ${b}, ${Math.max(0, Math.min(1, alpha))})`;
-  }
-  if (/^#[0-9a-fA-F]{6}$/.test(normalized)) {
-    const r = parseInt(normalized.slice(1, 3), 16);
-    const g = parseInt(normalized.slice(3, 5), 16);
-    const b = parseInt(normalized.slice(5, 7), 16);
-    return `rgba(${r}, ${g}, ${b}, ${Math.max(0, Math.min(1, alpha))})`;
-  }
-  return `rgba(140, 140, 140, ${Math.max(0, Math.min(1, alpha))})`;
+function HtmlCursor({ dragging }: { dragging: boolean }) {
+  useEffect(() => {
+    document.body.style.cursor = dragging ? 'grabbing' : 'grab';
+    return () => {
+      document.body.style.cursor = '';
+    };
+  }, [dragging]);
+  return null;
 }
