@@ -9,28 +9,36 @@ interface SporeFieldProps {
   seed: number;
 }
 
-interface Particle {
-  colony: number;
-  home: THREE.Vector3;
-  pos: THREE.Vector3;
-  vel: THREE.Vector3;
-  size: number;
-  phase: number;
-  birthDelay: number;
-  colorIndex: number;
-}
-
 interface Colony {
   center: THREE.Vector3;
   radius: number;
+  color: THREE.Color;
 }
 
-interface ModelData {
-  particles: Particle[];
+interface Fluff {
+  colony: number;
+  baseRest: THREE.Vector3;
+  base: THREE.Vector3;
+  tipRest: THREE.Vector3;
+  tip: THREE.Vector3;
+  vel: THREE.Vector3;
+  normal: THREE.Vector3;
+  size: number;
+  color: THREE.Color;
+  phase: number;
+  birthDelayMs: number;
+}
+
+interface Model {
   colonies: Colony[];
-  pointPositions: Float32Array;
-  pointColors: Float32Array;
+  fluffs: Fluff[];
   linePositions: Float32Array;
+}
+
+interface PointerState {
+  active: boolean;
+  world: THREE.Vector3;
+  pulse: number;
 }
 
 interface DragState {
@@ -39,343 +47,330 @@ interface DragState {
   y: number;
 }
 
-interface PointerFieldState {
-  active: boolean;
-  world: THREE.Vector3;
-  pulse: number;
-}
-
 export function SporeField({ spec, seed }: SporeFieldProps) {
   return (
     <div className="spore-field">
-      <Canvas
-        dpr={[1, 2]}
-        camera={{ position: [0, 0, 9.8], fov: 46 }}
-        gl={{ antialias: true, alpha: true }}
-      >
+      <Canvas camera={{ position: [0, 0, 8.8], fov: 44 }} dpr={[1, 2]} gl={{ antialias: true, alpha: true }}>
         <color attach="background" args={['#f4ede0']} />
-        <ambientLight intensity={0.4} />
-        <directionalLight position={[2, 3, 4]} intensity={0.55} color="#f6ead4" />
-        <pointLight position={[-3, 2, 2]} intensity={0.75} color="#d7f1ee" />
-        <pointLight position={[3, -2, 2]} intensity={0.45} color="#f1dac8" />
-        <SporeCluster spec={spec} seed={seed} />
+        <fog attach="fog" args={['#f4ede0', 8, 16]} />
+        <ambientLight intensity={0.36} />
+        <directionalLight position={[2.5, 3.2, 4]} intensity={0.82} color="#fff3e3" />
+        <pointLight position={[-3, 2, 2]} intensity={0.5} color="#d6f0ee" />
+        <pointLight position={[3, -1.6, 2]} intensity={0.5} color="#f3ddd0" />
+        <DreamSporeCluster spec={spec} seed={seed} />
       </Canvas>
     </div>
   );
 }
 
-function SporeCluster({ spec, seed }: SporeFieldProps) {
-  const model = useMemo(() => buildModel(spec, seed), [seed, spec]);
-  const pointsGeometry = useMemo(() => new THREE.BufferGeometry(), []);
-  const linesGeometry = useMemo(() => new THREE.BufferGeometry(), []);
-  const pointsRef = useRef<THREE.Points>(null);
-  const linesRef = useRef<THREE.LineSegments>(null);
+function DreamSporeCluster({ spec, seed }: SporeFieldProps) {
+  const model = useMemo(() => createModel(spec, seed), [seed, spec]);
   const groupRef = useRef<THREE.Group>(null);
+  const linesRef = useRef<THREE.LineSegments>(null);
+  const tipsRef = useRef<THREE.InstancedMesh>(null);
 
-  const pointer = useRef<PointerFieldState>({
-    active: false,
-    world: new THREE.Vector3(),
-    pulse: 0,
-  });
-  const drag = useRef<DragState>({ active: false, x: 0, y: 0 });
-  const rotationTarget = useRef(new THREE.Vector2(0, 0));
+  const pointerRef = useRef<PointerState>({ active: false, world: new THREE.Vector3(), pulse: 0 });
+  const dragRef = useRef<DragState>({ active: false, x: 0, y: 0 });
+  const windRef = useRef(new THREE.Vector3());
+  const rotTargetRef = useRef(new THREE.Vector2(0, 0));
   const [dragging, setDragging] = useState(false);
 
-  useMemo(() => {
-    pointsGeometry.setAttribute('position', new THREE.BufferAttribute(model.pointPositions, 3));
-    pointsGeometry.setAttribute('color', new THREE.BufferAttribute(model.pointColors, 3));
-    linesGeometry.setAttribute('position', new THREE.BufferAttribute(model.linePositions, 3));
-    return undefined;
-  }, [linesGeometry, model.linePositions, model.pointColors, model.pointPositions, pointsGeometry]);
+  const linesGeometry = useMemo(() => {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(model.linePositions, 3));
+    return geometry;
+  }, [model.linePositions]);
 
   useFrame(({ clock }, delta) => {
     const dt = Math.min(0.033, delta);
     const t = clock.elapsedTime;
-    pointer.current.pulse = Math.max(0, pointer.current.pulse - dt * 0.8);
+    const pointer = pointerRef.current;
+    const wind = windRef.current;
 
-    const pullStrength = 0.08 + spec.pointerStrength * 0.34;
-    const pullRadius = 0.65 + spec.pointerRadius * 3.8;
-    const recovery = 0.2 + spec.recovery * 1.6;
-    const damping = 0.92 + spec.collisionSoftness * 0.06;
+    pointer.pulse = Math.max(0, pointer.pulse - dt * 0.9);
+    wind.multiplyScalar(0.94);
 
-    for (let i = 0; i < model.particles.length; i++) {
-      const p = model.particles[i];
-      const c = model.colonies[p.colony];
-      const alive = t * 1000 >= p.birthDelay;
-      if (!alive) {
-        continue;
-      }
+    const pointerRadius = 0.7 + spec.pointerRadius * 4.8;
+    const pointerStrength = 0.06 + spec.pointerStrength * 0.52;
+    const spring = 0.03 + spec.recovery * 0.1;
+    const damping = 0.84 + spec.collisionSoftness * 0.12;
 
-      const sway = new THREE.Vector3(
-        Math.sin(t * (0.6 + spec.swirl * 1.8) + p.phase) * (0.005 + spec.jitter * 0.02),
-        Math.cos(t * (0.7 + spec.swirl * 1.6) + p.phase * 0.7) * (0.005 + spec.jitter * 0.02),
-        Math.sin(t * (0.5 + spec.drift * 1.7) + p.phase * 1.9) * (0.004 + spec.drift * 0.02)
-      );
+    const tipMesh = tipsRef.current;
+    const dummy = new THREE.Object3D();
 
-      const toHome = p.home.clone().sub(p.pos).multiplyScalar(0.02 + recovery * 0.03);
-      const toColony = c.center.clone().sub(p.pos).multiplyScalar(0.003 + spec.cohesion * 0.015);
-      const swirl = p.pos
+    for (let i = 0; i < model.fluffs.length; i++) {
+      const fluff = model.fluffs[i];
+      if (t * 1000 < fluff.birthDelayMs) continue;
+
+      const breath = Math.sin(t * (0.6 + spec.pulse * 2.2) + fluff.phase) * (0.02 + spec.pulse * 0.08);
+      fluff.base.copy(fluff.baseRest).addScaledVector(fluff.normal, breath * 0.2);
+
+      const toRest = fluff.tipRest.clone().sub(fluff.tip).multiplyScalar(spring);
+      const drift = new THREE.Vector3(
+        Math.sin(t * (0.5 + spec.drift * 1.8) + fluff.phase * 1.9),
+        Math.cos(t * (0.65 + spec.swirl * 1.4) + fluff.phase * 0.8),
+        Math.sin(t * (0.58 + spec.swirl * 1.7) + fluff.phase * 1.3)
+      ).multiplyScalar(0.004 + spec.jitter * 0.024);
+
+      const swirl = fluff.tip
         .clone()
-        .sub(c.center)
+        .sub(fluff.base)
         .cross(new THREE.Vector3(0, 1, 0))
-        .multiplyScalar(0.0008 + spec.swirl * 0.008);
+        .multiplyScalar(0.004 + spec.swirl * 0.018);
 
-      const pulseScale = 0.5 + 0.5 * Math.sin(t * (0.8 + spec.pulse * 2.4) + p.phase);
-      const scatter = p.pos
-        .clone()
-        .sub(c.center)
-        .normalize()
-        .multiplyScalar((0.001 + spec.scatter * 0.01) * pulseScale);
+      const windPush = wind.clone().multiplyScalar(0.45 + spec.filamentLength * 0.9);
 
       let pointerForce = new THREE.Vector3();
-      if (pointer.current.active || pointer.current.pulse > 0.01) {
-        const deltaToPointer = pointer.current.world.clone().sub(p.pos);
-        const dist = Math.max(0.001, deltaToPointer.length());
-        if (dist < pullRadius) {
-          const falloff = 1 - dist / pullRadius;
-          const modeSign =
+      if (pointer.active || pointer.pulse > 0.01) {
+        const deltaPointer = pointer.world.clone().sub(fluff.tip);
+        const dist = deltaPointer.length();
+        if (dist < pointerRadius) {
+          const falloff = Math.max(0, 1 - dist / pointerRadius);
+          const burst = spec.interaction.pointerResponse === 'repel-burst' ? 1 + pointer.pulse * 2.4 : 1 + pointer.pulse;
+          const sign =
             spec.interaction.pointerResponse === 'attract' || spec.interaction.pointerResponse === 'follow'
               ? 1
               : -1;
-          const burstBoost =
-            spec.interaction.pointerResponse === 'repel-burst' ? 1 + pointer.current.pulse * 2.4 : 1 + pointer.current.pulse;
-          pointerForce = deltaToPointer
+          pointerForce = deltaPointer
             .normalize()
-            .multiplyScalar(modeSign * pullStrength * falloff * falloff * burstBoost);
+            .multiplyScalar(sign * pointerStrength * falloff * falloff * burst);
         }
       }
 
-      p.vel.addScaledVector(sway, dt * 60);
-      p.vel.addScaledVector(toHome, dt * 60);
-      p.vel.addScaledVector(toColony, dt * 60);
-      p.vel.addScaledVector(swirl, dt * 60);
-      p.vel.addScaledVector(scatter, dt * 60);
-      p.vel.addScaledVector(pointerForce, dt * 60);
-      p.vel.multiplyScalar(damping);
-      p.pos.addScaledVector(p.vel, dt * 60);
+      fluff.vel.addScaledVector(toRest, dt * 60);
+      fluff.vel.addScaledVector(drift, dt * 60);
+      fluff.vel.addScaledVector(swirl, dt * 60);
+      fluff.vel.addScaledVector(windPush, dt * 60);
+      fluff.vel.addScaledVector(pointerForce, dt * 60);
+      fluff.vel.multiplyScalar(damping);
+      fluff.tip.addScaledVector(fluff.vel, dt * 60);
 
-      const pi = i * 3;
-      model.pointPositions[pi] = p.pos.x;
-      model.pointPositions[pi + 1] = p.pos.y;
-      model.pointPositions[pi + 2] = p.pos.z;
+      const lineIdx = i * 6;
+      model.linePositions[lineIdx] = fluff.base.x;
+      model.linePositions[lineIdx + 1] = fluff.base.y;
+      model.linePositions[lineIdx + 2] = fluff.base.z;
+      model.linePositions[lineIdx + 3] = fluff.tip.x;
+      model.linePositions[lineIdx + 4] = fluff.tip.y;
+      model.linePositions[lineIdx + 5] = fluff.tip.z;
 
-      const li = i * 6;
-      model.linePositions[li] = c.center.x;
-      model.linePositions[li + 1] = c.center.y;
-      model.linePositions[li + 2] = c.center.z;
-      model.linePositions[li + 3] = p.pos.x;
-      model.linePositions[li + 4] = p.pos.y;
-      model.linePositions[li + 5] = p.pos.z;
+      if (tipMesh) {
+        dummy.position.copy(fluff.tip);
+        const s = fluff.size * (0.7 + spec.translucency * 0.45 + Math.sin(t * 1.3 + fluff.phase) * 0.05);
+        dummy.scale.setScalar(s);
+        dummy.rotation.y = t * 0.2 + fluff.phase;
+        dummy.updateMatrix();
+        tipMesh.setMatrixAt(i, dummy.matrix);
+        tipMesh.setColorAt(i, fluff.color);
+      }
     }
 
-    const px = pointsGeometry.getAttribute('position') as THREE.BufferAttribute;
-    const lx = linesGeometry.getAttribute('position') as THREE.BufferAttribute;
-    px.needsUpdate = true;
-    lx.needsUpdate = true;
+    const lineAttr = linesGeometry.getAttribute('position') as THREE.BufferAttribute;
+    lineAttr.needsUpdate = true;
+    if (tipMesh) {
+      tipMesh.instanceMatrix.needsUpdate = true;
+      if (tipMesh.instanceColor) tipMesh.instanceColor.needsUpdate = true;
+    }
 
-    const targetX = rotationTarget.current.y;
-    const targetY = rotationTarget.current.x;
     if (groupRef.current) {
-      groupRef.current.rotation.x = THREE.MathUtils.lerp(groupRef.current.rotation.x, targetX, 0.08);
-      groupRef.current.rotation.y = THREE.MathUtils.lerp(groupRef.current.rotation.y, targetY, 0.08);
-      groupRef.current.rotation.z = Math.sin(t * 0.15) * (0.03 + spec.asymmetry * 0.05);
-    }
-
-    if (pointsRef.current) {
-      const mat = pointsRef.current.material as THREE.PointsMaterial;
-      mat.opacity = 0.65 + spec.translucency * 0.35;
+      groupRef.current.rotation.x = THREE.MathUtils.lerp(groupRef.current.rotation.x, rotTargetRef.current.y, 0.07);
+      groupRef.current.rotation.y = THREE.MathUtils.lerp(groupRef.current.rotation.y, rotTargetRef.current.x, 0.07);
+      groupRef.current.rotation.z = Math.sin(t * 0.18) * (0.04 + spec.asymmetry * 0.08);
     }
   });
 
   return (
     <group
       ref={groupRef}
-      onPointerDown={(event) => {
-        event.stopPropagation();
-        drag.current.active = true;
-        drag.current.x = event.nativeEvent.clientX;
-        drag.current.y = event.nativeEvent.clientY;
-        pointer.current.active = true;
-        pointer.current.world.copy(event.point);
-        pointer.current.pulse = 1;
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        dragRef.current.active = true;
+        dragRef.current.x = e.nativeEvent.clientX;
+        dragRef.current.y = e.nativeEvent.clientY;
+        pointerRef.current.active = true;
+        pointerRef.current.world.copy(e.point);
+        pointerRef.current.pulse = 1;
         setDragging(true);
       }}
-      onPointerMove={(event) => {
-        event.stopPropagation();
-        pointer.current.active = true;
-        pointer.current.world.copy(event.point);
+      onPointerMove={(e) => {
+        e.stopPropagation();
+        pointerRef.current.active = true;
+        pointerRef.current.world.copy(e.point);
+        if (!dragRef.current.active) return;
+        const dx = e.nativeEvent.clientX - dragRef.current.x;
+        const dy = e.nativeEvent.clientY - dragRef.current.y;
+        dragRef.current.x = e.nativeEvent.clientX;
+        dragRef.current.y = e.nativeEvent.clientY;
 
-        if (!drag.current.active) return;
-        const dx = event.nativeEvent.clientX - drag.current.x;
-        const dy = event.nativeEvent.clientY - drag.current.y;
-        drag.current.x = event.nativeEvent.clientX;
-        drag.current.y = event.nativeEvent.clientY;
+        rotTargetRef.current.x += dx * 0.0046;
+        rotTargetRef.current.y += dy * 0.0046;
+        rotTargetRef.current.y = THREE.MathUtils.clamp(rotTargetRef.current.y, -1.1, 1.1);
 
-        rotationTarget.current.x += dx * 0.005;
-        rotationTarget.current.y += dy * 0.005;
-        rotationTarget.current.y = THREE.MathUtils.clamp(rotationTarget.current.y, -1.2, 1.2);
+        windRef.current.x += dx * 0.00035;
+        windRef.current.y -= dy * 0.00028;
+        windRef.current.z += dx * 0.0002;
       }}
-      onPointerUp={(event) => {
-        event.stopPropagation();
-        drag.current.active = false;
+      onPointerUp={(e) => {
+        e.stopPropagation();
+        dragRef.current.active = false;
         setDragging(false);
       }}
       onPointerLeave={() => {
-        drag.current.active = false;
-        pointer.current.active = false;
+        dragRef.current.active = false;
+        pointerRef.current.active = false;
         setDragging(false);
       }}
     >
-      <mesh position={[0, 0, -0.2]}>
-        <sphereGeometry args={[0.25 + spec.hollowness * 0.35, 24, 24]} />
-        <meshStandardMaterial
+      <mesh>
+        <sphereGeometry args={[0.34 + spec.hollowness * 0.28, 28, 28]} />
+        <meshPhysicalMaterial
           color={spec.palette[0] ?? '#d9c7ac'}
           transparent
-          opacity={0.16 + spec.wetness * 0.22}
-          roughness={0.32 + spec.grain * 0.5}
-          metalness={0.08 + spec.wetness * 0.12}
+          opacity={0.22 + spec.wetness * 0.22}
+          roughness={0.24 + spec.grain * 0.56}
+          transmission={0.24 + spec.translucency * 0.32}
+          thickness={0.6}
+          clearcoat={0.38}
+          clearcoatRoughness={0.35}
         />
       </mesh>
 
-      {model.colonies.map((colony, idx) => (
-        <mesh key={idx} position={colony.center}>
-          <sphereGeometry args={[0.08 + colony.radius * 0.07, 16, 16]} />
+      {model.colonies.map((c, idx) => (
+        <mesh key={idx} position={c.center}>
+          <sphereGeometry args={[0.12 + c.radius * 0.05, 20, 20]} />
           <meshStandardMaterial
-            color={spec.palette[idx % spec.palette.length] ?? '#ece2d0'}
-            emissive={spec.palette[idx % spec.palette.length] ?? '#ece2d0'}
-            emissiveIntensity={0.08 + spec.glow * 0.2}
+            color={spec.palette[idx % spec.palette.length] ?? '#e7d9c6'}
+            emissive={spec.palette[idx % spec.palette.length] ?? '#e7d9c6'}
+            emissiveIntensity={0.1 + spec.glow * 0.24}
             transparent
-            opacity={0.2 + spec.translucency * 0.3}
-            roughness={0.4}
+            opacity={0.18 + spec.translucency * 0.28}
+            roughness={0.35}
           />
         </mesh>
       ))}
 
       <lineSegments ref={linesRef} geometry={linesGeometry}>
         <lineBasicMaterial
-          color={spec.palette[1] ?? '#c8b79a'}
+          color={spec.palette[1] ?? '#c9baa4'}
           transparent
-          opacity={0.08 + spec.filamentLength * 0.25}
+          opacity={0.1 + spec.filamentLength * 0.25}
         />
       </lineSegments>
 
-      <points ref={pointsRef} geometry={pointsGeometry}>
-        <pointsMaterial
-          size={0.05 + spec.scaleVariance * 0.07}
+      <instancedMesh ref={tipsRef} args={[undefined, undefined, model.fluffs.length]}>
+        <sphereGeometry args={[0.05 + spec.scaleVariance * 0.04, 12, 12]} />
+        <meshPhysicalMaterial
           transparent
-          opacity={0.78}
-          sizeAttenuation
+          opacity={0.65 + spec.translucency * 0.28}
+          roughness={0.22 + spec.grain * 0.45}
+          metalness={0.04}
+          transmission={0.2 + spec.translucency * 0.28}
+          thickness={0.28}
+          clearcoat={0.5}
+          emissive={new THREE.Color(spec.palette[2] ?? '#f0e6d8')}
+          emissiveIntensity={0.07 + spec.glow * 0.22}
           vertexColors
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
         />
-      </points>
+      </instancedMesh>
 
       <mesh
-        position={[0, 0, -0.6]}
-        onPointerMove={(event) => {
-          pointer.current.active = true;
-          pointer.current.world.copy(event.point);
+        position={[0, 0, -0.8]}
+        onPointerMove={(e) => {
+          pointerRef.current.active = true;
+          pointerRef.current.world.copy(e.point);
         }}
-        onPointerDown={(event) => {
-          pointer.current.active = true;
-          pointer.current.world.copy(event.point);
-          pointer.current.pulse = 1;
+        onPointerDown={(e) => {
+          pointerRef.current.active = true;
+          pointerRef.current.world.copy(e.point);
+          pointerRef.current.pulse = 1;
         }}
       >
-        <planeGeometry args={[30, 20]} />
+        <planeGeometry args={[24, 16]} />
         <meshBasicMaterial transparent opacity={0} />
       </mesh>
 
-      <HtmlCursor dragging={dragging} />
+      <CursorHint dragging={dragging} />
     </group>
   );
 }
 
-function buildModel(spec: ResolvedOrganismSpec, seed: number): ModelData {
-  const rng = new Rng(seed ^ 0x51f15d9f);
-  const colonyCount = Math.max(1, spec.colonyCount);
+function createModel(spec: ResolvedOrganismSpec, seed: number): Model {
+  const rng = new Rng(seed ^ 0x7f4a7c15);
   const colonies: Colony[] = [];
-  const spread = 0.5 + spec.spawnRadius * 2.2;
-  const particles: Particle[] = [];
+  const fluffs: Fluff[] = [];
+  const colonyCount = Math.max(1, spec.colonyCount);
+  const spread = 0.55 + spec.spawnRadius * 2.15;
 
   for (let i = 0; i < colonyCount; i++) {
-    const angle = (i / colonyCount) * Math.PI * 2 + (rng.next() - 0.5) * spec.asymmetry;
-    const radial = colonyCount === 1 ? 0 : spread * (0.4 + rng.next() * 0.6);
-    const lift = (rng.next() - 0.5) * (0.5 + spec.asymmetry * 0.8);
+    const angle = (i / colonyCount) * Math.PI * 2 + (rng.next() - 0.5) * spec.asymmetry * 1.1;
+    const radial = colonyCount === 1 ? 0 : spread * (0.3 + rng.next() * 0.7);
+    const center = new THREE.Vector3(
+      Math.cos(angle) * radial,
+      (rng.next() - 0.5) * (0.6 + spec.asymmetry * 0.9),
+      Math.sin(angle) * radial * 0.85
+    );
+    const radius = 0.55 + spec.spawnRadius * 0.9 + rng.next() * 0.4;
     colonies.push({
-      center: new THREE.Vector3(Math.cos(angle) * radial, lift, Math.sin(angle) * radial * 0.75),
-      radius: 0.45 + spec.spawnRadius * 0.95 + rng.next() * 0.55,
+      center,
+      radius,
+      color: new THREE.Color(spec.palette[i % spec.palette.length] ?? '#d9c7ac'),
     });
   }
 
-  const perColony = Math.max(18, Math.floor(spec.sporeCount / colonyCount));
+  const totalFluffs = Math.max(120, spec.sporeCount);
+  const perColony = Math.floor(totalFluffs / colonyCount);
   let order = 0;
-  for (let c = 0; c < colonyCount; c++) {
-    const colony = colonies[c];
+
+  for (let ci = 0; ci < colonies.length; ci++) {
+    const colony = colonies[ci];
     for (let i = 0; i < perColony; i++) {
       const theta = rng.next() * Math.PI * 2;
       const phi = Math.acos(1 - 2 * rng.next());
-      const radialUnit = 0.18 + (1 - spec.hollowness * 0.75) * 0.82 * Math.pow(rng.next(), 0.7);
-      const radial = colony.radius * radialUnit;
-      const branch = 1 + Math.sin(theta * (2 + spec.branching * 5)) * spec.branching * 0.35;
-      const local = new THREE.Vector3(
-        Math.sin(phi) * Math.cos(theta) * radial * branch,
-        Math.cos(phi) * radial * (0.8 + spec.shellOpenness * 0.4),
-        Math.sin(phi) * Math.sin(theta) * radial * (0.8 + spec.asymmetry * 0.45)
-      );
-      const home = colony.center.clone().add(local);
-      const pos = colony.center.clone().addScaledVector(local, 0.06 + rng.next() * 0.08);
-      particles.push({
-        colony: c,
-        home,
-        pos,
-        vel: new THREE.Vector3((rng.next() - 0.5) * 0.02, (rng.next() - 0.5) * 0.02, (rng.next() - 0.5) * 0.02),
-        size: 0.6 + rng.next() * (0.5 + spec.scaleVariance * 1.1),
+      const n = new THREE.Vector3(
+        Math.sin(phi) * Math.cos(theta),
+        Math.cos(phi),
+        Math.sin(phi) * Math.sin(theta)
+      ).normalize();
+      const branchWarp = 1 + Math.sin(theta * (2 + spec.branching * 6)) * spec.branching * 0.24;
+      const shell = colony.radius * (0.56 + spec.shellOpenness * 0.46) * branchWarp;
+      const baseRest = colony.center.clone().addScaledVector(n, shell * 0.7);
+      const hairLen = (0.25 + spec.filamentLength * 0.72 + rng.next() * 0.2) * (1 + spec.scaleVariance * 0.4);
+      const tipRest = baseRest.clone().addScaledVector(n, hairLen);
+      const tip = baseRest.clone().lerp(tipRest, 0.3 + rng.next() * 0.18);
+      const color = new THREE.Color(spec.palette[(ci + i) % spec.palette.length] ?? '#d9c7ac');
+      const size = 0.07 + rng.next() * (0.08 + spec.scaleVariance * 0.08);
+      fluffs.push({
+        colony: ci,
+        baseRest,
+        base: baseRest.clone(),
+        tipRest,
+        tip,
+        vel: new THREE.Vector3((rng.next() - 0.5) * 0.01, (rng.next() - 0.5) * 0.01, (rng.next() - 0.5) * 0.01),
+        normal: n,
+        size,
+        color,
         phase: rng.next() * Math.PI * 2,
-        birthDelay: order * (3 + spec.birthStagger * 20) + rng.range(0, 260),
-        colorIndex: (c + i + Math.floor(rng.next() * spec.palette.length)) % spec.palette.length,
+        birthDelayMs: order * (1 + spec.birthStagger * 10) + rng.range(0, 160),
       });
       order += 1;
     }
   }
 
-  const pointPositions = new Float32Array(particles.length * 3);
-  const pointColors = new Float32Array(particles.length * 3);
-  const linePositions = new Float32Array(particles.length * 6);
-
-  for (let i = 0; i < particles.length; i++) {
-    const p = particles[i];
-    const pi = i * 3;
-    pointPositions[pi] = p.pos.x;
-    pointPositions[pi + 1] = p.pos.y;
-    pointPositions[pi + 2] = p.pos.z;
-
-    const color = new THREE.Color(spec.palette[p.colorIndex] ?? '#d9c7ac');
-    pointColors[pi] = color.r;
-    pointColors[pi + 1] = color.g;
-    pointColors[pi + 2] = color.b;
-
-    const colony = colonies[p.colony];
-    const li = i * 6;
-    linePositions[li] = colony.center.x;
-    linePositions[li + 1] = colony.center.y;
-    linePositions[li + 2] = colony.center.z;
-    linePositions[li + 3] = p.pos.x;
-    linePositions[li + 4] = p.pos.y;
-    linePositions[li + 5] = p.pos.z;
+  const linePositions = new Float32Array(fluffs.length * 6);
+  for (let i = 0; i < fluffs.length; i++) {
+    const fluff = fluffs[i];
+    const idx = i * 6;
+    linePositions[idx] = fluff.base.x;
+    linePositions[idx + 1] = fluff.base.y;
+    linePositions[idx + 2] = fluff.base.z;
+    linePositions[idx + 3] = fluff.tip.x;
+    linePositions[idx + 4] = fluff.tip.y;
+    linePositions[idx + 5] = fluff.tip.z;
   }
 
-  return {
-    particles,
-    colonies,
-    pointPositions,
-    pointColors,
-    linePositions,
-  };
+  return { colonies, fluffs, linePositions };
 }
 
-function HtmlCursor({ dragging }: { dragging: boolean }) {
+function CursorHint({ dragging }: { dragging: boolean }) {
   useEffect(() => {
     document.body.style.cursor = dragging ? 'grabbing' : 'grab';
     return () => {
