@@ -8,11 +8,10 @@
  *   4. Breathe     scale [1, 1.04, 1] infinite (3.5s) on img itself
  *   5. Expressions (scheduler):
  *      - blink       random every 2–5s, both eyelids close 160ms
- *      - wink-left   occasional at expression interval
+ *      - wink-left   occasional
  *      - wink-right  occasional
- *      - squint      occasional, longer half-close
- *
- * Eyelids are skin-colored ellipses drawn over the PNG's baked-in eye dots.
+ *      - squint      occasional, longer half-close (0.8s)
+ *      - happy       ^^ kawaii smile eyes (1.4s, weighted twice)
  */
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
@@ -25,7 +24,6 @@ export interface EntityProps {
   x: number;
   y: number;
   size?: number;
-  /** 0..1 phase offset so multiple entities de-sync their loops */
   phaseOffset?: number;
   onMount?: () => void;
 }
@@ -35,7 +33,13 @@ const BLINK_MAX_MS = 5000;
 const FACE_EXPR_MIN_MS = 9000;
 const FACE_EXPR_MAX_MS = 16000;
 
-const NON_BLINK_EXPRESSIONS: ExpressionKind[] = ['wink-left', 'wink-right', 'squint'];
+const NON_BLINK_EXPRESSIONS: ExpressionKind[] = [
+  'wink-left',
+  'wink-right',
+  'squint',
+  'happy',
+  'happy',
+];
 
 export function Entity({
   id,
@@ -51,7 +55,6 @@ export function Entity({
   const floatDelay = (phaseOffset % 1) * 5;
   const wobbleDelay = (phaseOffset % 1) * 8;
 
-  // Expression state: monotonic key that remounts FaceOverlay on change
   const [exprKey, setExprKey] = useState(0);
   const [expr, setExpr] = useState<ExpressionKind>('blink');
   const blinkTimer = useRef<number | null>(null);
