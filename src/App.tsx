@@ -20,8 +20,9 @@ interface LiveEntity {
   size: number;
   bornAt: number;
   greetingPulse: number;
-  /** Seconds spent currently connected to a char5 (lonely). */
   lonelyExposure: number;
+  isHybrid?: boolean;
+  parentIds?: [string, string];
   rationale?: string;
 }
 
@@ -31,6 +32,11 @@ const LONELY_EXPOSE_PER_S = 0.15;
 const LONELY_RECOVER_PER_S = 0.08;
 const LONELY_SAT_FLOOR = 0.55;
 
+// Phase D fusion tunables
+const FUSION_HOLD_MS = 4000;
+const FUSION_MIN_COMPAT = 0.5;
+const FUSION_COOLDOWN_MS = 15000;
+
 /**
  * Root stage.
  *
@@ -38,6 +44,7 @@ const LONELY_SAT_FLOOR = 0.55;
  *   A · physics (attract / repel / walls / center)
  *   B · eye tracking + newcomer greeting
  *   C · compatibility matrix + tendrils + loneliness desaturation
+ *   D.1 · hybrid fusion (compat > 0.5 held ≥ 4s → rainbow hybrid)
  */
 export default function App() {
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
@@ -57,6 +64,7 @@ export default function App() {
 
   const connectionMapRef = useRef<Map<string, Connection>>(new Map());
   const lastFrameTimeRef = useRef(performance.now());
+  const fusedPairsRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     let raf = 0;
@@ -78,12 +86,25 @@ export default function App() {
         const nextConn = stepConnections(stepped, connectionMapRef.current, now);
         connectionMapRef.current = nextConn;
 
-        const lonelyConnected = new Set<string>();
+        // === Phase D.1 fusion detection ===
+        const fusions: Array<{ pairId: string; a: Connection['a']; b: Connection['b'] }> = [];
         for (const c of nextConn.values()) {
+          if (c.compat < FUSION_MIN_COMPAT) continue;
+          if (now - c.bornAt < FUSION_HOLD_MS) continue;
+          const lastFused = fusedPairsRef.current.get(c.id);
+          if (lastFused != null && now - lastFused < FUSION_COOLDOWN_MS) continue;
+          fusions.push({ pairId: c.id, a: c.a, b: c.b });
+          fusedPairsRef.current.set(c.id, now);
+          connectionMapRef.current.delete(c.id);
+        }
+
+        const lonelyConnected = new Set<string>();
+        for (const c of connectionMapRef.current.values()) {
           if (c.a.charId === 5) lonelyConnected.add(c.b.id);
           if (c.b.charId === 5) lonelyConnected.add(c.a.id);
         }
-        const updated = stepped.map((e) => {
+
+        let updated = stepped.map((e) => {
           let exp = e.lonelyExposure;
           if (lonelyConnected.has(e.id)) {
             exp = Math.min(3, exp + LONELY_EXPOSE_PER_S * dt);
@@ -92,6 +113,44 @@ export default function App() {
           }
           return exp === e.lonelyExposure ? e : { ...e, lonelyExposure: exp };
         });
+
+        // Apply fusions: push parents outward, spawn hybrid at midpoint
+        for (const f of fusions) {
+          const dx = f.a.x - f.b.x;
+          const dy = f.a.y - f.b.y;
+          const d = Math.hypot(dx, dy) || 1;
+          const nx = dx / d;
+          const ny = dy / d;
+          const midX = (f.a.x + f.b.x) / 2;
+          const midY = (f.a.y + f.b.y) / 2;
+          updated = updated.map((e) => {
+            if (e.id === f.a.id) return { ...e, vx: e.vx + nx * 1.6, vy: e.vy + ny * 1.6 };
+            if (e.id === f.b.id) return { ...e, vx: e.vx - nx * 1.6, vy: e.vy - ny * 1.6 };
+            return e;
+          });
+          const hybrid: LiveEntity = {
+            id: `h-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            charId: 0,
+            x: midX,
+            y: midY,
+            vx: 0,
+            vy: -0.3,
+            size: 180,
+            bornAt: Date.now(),
+            greetingPulse: 0,
+            lonelyExposure: 0,
+            isHybrid: true,
+            parentIds: [f.a.id, f.b.id],
+          };
+          updated = [...updated, hybrid];
+        }
+
+        // Cleanup stale cooldown entries
+        for (const [key, ts] of fusedPairsRef.current) {
+          if (now - ts > FUSION_COOLDOWN_MS * 2 && !connectionMapRef.current.has(key)) {
+            fusedPairsRef.current.delete(key);
+          }
+        }
 
         return updated;
       });
@@ -187,6 +246,7 @@ export default function App() {
             gazeTargetY={t ? t.y : null}
             greetingPulse={e.greetingPulse}
             saturation={sat}
+            isHybrid={e.isHybrid}
           />
         );
       })}

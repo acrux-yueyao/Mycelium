@@ -8,12 +8,18 @@
  *   4. Greet       scale bounce on greetingPulse++
  *   5. Breathe     scale [1, 1.04, 1] infinite (3.5s)
  *
- * Saturation filter (Phase C): CSS `saturate(...)` applied to the img
- * tracks the parent-computed loneliness exposure.
+ * Phase C: CSS `saturate(...)` filter applied to img for loneliness.
+ * Phase D: isHybrid swaps to HYBRID_ASSET, skips FaceOverlay, plays a
+ *          one-shot aura ring on birth.
  */
 import { useEffect, useRef, useState } from 'react';
 import { motion, useAnimationControls } from 'framer-motion';
-import { CHARACTERS, charAsset, type CharId } from '../data/characters';
+import {
+  CHARACTERS,
+  charAsset,
+  HYBRID_ASSET,
+  type CharId,
+} from '../data/characters';
 import { FaceOverlay, type ExpressionKind } from './FaceOverlay';
 
 export interface EntityProps {
@@ -28,6 +34,8 @@ export interface EntityProps {
   greetingPulse?: number;
   /** 0..1 CSS saturate() factor. Phase C desaturates on lonely exposure. */
   saturation?: number;
+  /** Phase D: rainbow hybrid spawned when a compatible pair fuses. */
+  isHybrid?: boolean;
   onMount?: () => void;
 }
 
@@ -57,6 +65,7 @@ export function Entity({
   gazeTargetY,
   greetingPulse = 0,
   saturation = 1,
+  isHybrid = false,
   onMount,
 }: EntityProps) {
   const character = CHARACTERS[charId];
@@ -70,6 +79,7 @@ export function Entity({
   const funnyTimer = useRef<number | null>(null);
 
   useEffect(() => {
+    if (isHybrid) return;
     const scheduleBlink = () => {
       const delay = BLINK_MIN_MS + Math.random() * (BLINK_MAX_MS - BLINK_MIN_MS);
       blinkTimer.current = window.setTimeout(() => {
@@ -95,7 +105,7 @@ export function Entity({
       if (blinkTimer.current) window.clearTimeout(blinkTimer.current);
       if (funnyTimer.current) window.clearTimeout(funnyTimer.current);
     };
-  }, []);
+  }, [isHybrid]);
 
   let gazeX = 0;
   let gazeY = 0;
@@ -119,6 +129,10 @@ export function Entity({
     }
   }, [greetingPulse, greetControls]);
 
+  const growScale = isHybrid ? [0, 1.25, 1] : [0, 1.1, 1];
+  const growDuration = isHybrid ? 2.2 : 1.8;
+  const src = isHybrid ? HYBRID_ASSET : charAsset(charId);
+
   return (
     <motion.div
       className="entity"
@@ -133,13 +147,30 @@ export function Entity({
         willChange: 'transform',
       }}
       initial={{ scale: 0, opacity: 0 }}
-      animate={{ scale: [0, 1.1, 1], opacity: 1 }}
+      animate={{ scale: growScale, opacity: 1 }}
       transition={{
-        scale: { duration: 1.8, times: [0, 0.7, 1], ease: 'easeOut' },
+        scale: { duration: growDuration, times: [0, 0.7, 1], ease: 'easeOut' },
         opacity: { duration: 1.4, ease: 'easeOut' },
       }}
       onAnimationComplete={() => onMount?.()}
     >
+      {isHybrid && (
+        <motion.div
+          className="hybrid-aura"
+          initial={{ scale: 0.4, opacity: 0.85 }}
+          animate={{ scale: 2.6, opacity: 0 }}
+          transition={{ duration: 1.3, ease: 'easeOut' }}
+          style={{
+            position: 'absolute',
+            inset: '10%',
+            borderRadius: '50%',
+            border: '3px solid rgba(255, 230, 180, 0.75)',
+            pointerEvents: 'none',
+            zIndex: -1,
+          }}
+        />
+      )}
+
       <motion.div
         style={{ width: '100%', height: '100%', willChange: 'transform' }}
         animate={{ y: [0, -5, 0] }}
@@ -160,7 +191,7 @@ export function Entity({
               transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut', delay: breatheDelay }}
             >
               <motion.img
-                src={charAsset(charId)}
+                src={src}
                 alt=""
                 draggable={false}
                 style={{
@@ -173,13 +204,15 @@ export function Entity({
                 animate={{ filter: `saturate(${saturation})` }}
                 transition={{ duration: 1.2, ease: 'easeOut' }}
               />
-              <FaceOverlay
-                face={character.face}
-                triggerKey={exprKey}
-                kind={expr}
-                gazeX={gazeX}
-                gazeY={gazeY}
-              />
+              {!isHybrid && (
+                <FaceOverlay
+                  face={character.face}
+                  triggerKey={exprKey}
+                  kind={expr}
+                  gazeX={gazeX}
+                  gazeY={gazeY}
+                />
+              )}
             </motion.div>
           </motion.div>
         </motion.div>
