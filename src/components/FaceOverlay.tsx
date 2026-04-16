@@ -89,6 +89,23 @@ export function FaceOverlay({
     transformOrigin: 'center bottom',
   });
 
+  // Small Jellycat-style mouth: a short horizontal stitch centered
+  // between the eyes. Subtly widens into a smile when `happy`.
+  const mouthCenterX = (face.eyeLeftX + face.eyeRightX) / 2;
+  const mouthW = face.eyeSize * 1.5;
+  const mouthH = face.eyeSize * 0.32;
+  const mouthStyle: React.CSSProperties = {
+    position: 'absolute',
+    left: `${(mouthCenterX - mouthW / 2) * 100}%`,
+    top: `${(face.mouthY - mouthH / 2) * 100}%`,
+    width: `${mouthW * 100}%`,
+    height: `${mouthH * 100}%`,
+    background: PUPIL_COLOR,
+    borderRadius: '9999px',
+    pointerEvents: 'none',
+    transformOrigin: 'center center',
+  };
+
   const isLeftClosed =
     kind === 'blink' || kind === 'wink-left' || kind === 'squint' || kind === 'happy';
   const isRightClosed =
@@ -148,6 +165,22 @@ export function FaceOverlay({
           />
         </>
       )}
+
+      <motion.div
+        key={`mouth-${triggerKey}`}
+        style={mouthStyle}
+        initial={{ scaleX: 1, scaleY: 1 }}
+        animate={
+          kind === 'happy'
+            ? { scaleX: [1, 1.35, 1.35, 1], scaleY: [1, 1.4, 1.4, 1] }
+            : { scaleX: 1, scaleY: 1 }
+        }
+        transition={
+          kind === 'happy'
+            ? { duration: 1.4, times: [0, 0.2, 0.82, 1], ease: 'easeOut' }
+            : { duration: 0.3, ease: 'easeOut' }
+        }
+      />
     </div>
   );
 }

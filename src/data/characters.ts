@@ -4,9 +4,12 @@
  *   - display name
  *   - primary color (for tendril mixing, particle color, aura)
  *   - emotion labels that prefer this character
- *   - face coordinates (for blink eyelid overlay; all 0..1 of sprite box)
+ *   - face coordinates (eyes + mouth; all 0..1 of sprite box)
  *
- * Face coords verified by pixel-scanning baked eye dots in each sprite.
+ * Sprites are eye-less "clean" bases — FaceOverlay owns all facial
+ * features programmatically. Eye spacing is Jellycat-wide (eyes sit
+ * toward the outer edges of each head) and each character has a
+ * small stitched mouth below the eye line.
  */
 
 export type CharId = 0 | 1 | 2 | 3 | 4 | 5;
@@ -16,6 +19,8 @@ export interface FaceConfig {
   eyeLeftX: number;
   eyeRightX: number;
   eyeSize: number;
+  /** Vertical position of the small mouth (0..1 of sprite box). */
+  mouthY: number;
   skinColor: string;
 }
 
@@ -35,7 +40,7 @@ export const CHARACTERS: Record<CharId, Character> = {
     name: '放射星',
     color: '#E8A28A',
     emotions: ['tender', 'nostalgic', 'soft'],
-    face: { eyeY: 0.467, eyeLeftX: 0.512, eyeRightX: 0.649, eyeSize: 0.032, skinColor: '#F5EFE5' },
+    face: { eyeY: 0.46, eyeLeftX: 0.44, eyeRightX: 0.72, eyeSize: 0.042, mouthY: 0.57, skinColor: '#F5EFE5' },
   },
   1: {
     id: 1,
@@ -43,7 +48,7 @@ export const CHARACTERS: Record<CharId, Character> = {
     name: '水泡',
     color: '#A7C8D6',
     emotions: ['calm', 'clear', 'empty'],
-    face: { eyeY: 0.439, eyeLeftX: 0.459, eyeRightX: 0.643, eyeSize: 0.030, skinColor: '#F2F4F3' },
+    face: { eyeY: 0.44, eyeLeftX: 0.42, eyeRightX: 0.68, eyeSize: 0.040, mouthY: 0.56, skinColor: '#F2F4F3' },
   },
   2: {
     id: 2,
@@ -51,7 +56,7 @@ export const CHARACTERS: Record<CharId, Character> = {
     name: '蘑菇',
     color: '#E89A5C',
     emotions: ['curious', 'playful', 'clumsy'],
-    face: { eyeY: 0.394, eyeLeftX: 0.293, eyeRightX: 0.428, eyeSize: 0.028, skinColor: '#F3B478' },
+    face: { eyeY: 0.39, eyeLeftX: 0.24, eyeRightX: 0.48, eyeSize: 0.038, mouthY: 0.50, skinColor: '#F3B478' },
   },
   3: {
     id: 3,
@@ -59,7 +64,7 @@ export const CHARACTERS: Record<CharId, Character> = {
     name: '亮片',
     color: '#9AAEE0',
     emotions: ['dreamy', 'excited', 'romantic'],
-    face: { eyeY: 0.430, eyeLeftX: 0.455, eyeRightX: 0.550, eyeSize: 0.026, skinColor: '#A8B8D4' },
+    face: { eyeY: 0.43, eyeLeftX: 0.38, eyeRightX: 0.62, eyeSize: 0.034, mouthY: 0.54, skinColor: '#A8B8D4' },
   },
   4: {
     id: 4,
@@ -67,7 +72,7 @@ export const CHARACTERS: Record<CharId, Character> = {
     name: '双子杯',
     color: '#7CC8B8',
     emotions: ['companion', 'social', 'attached'],
-    face: { eyeY: 0.450, eyeLeftX: 0.349, eyeRightX: 0.752, eyeSize: 0.030, skinColor: '#9BD4C4' },
+    face: { eyeY: 0.45, eyeLeftX: 0.35, eyeRightX: 0.75, eyeSize: 0.038, mouthY: 0.56, skinColor: '#9BD4C4' },
   },
   5: {
     id: 5,
@@ -75,7 +80,7 @@ export const CHARACTERS: Record<CharId, Character> = {
     name: '枯枝',
     color: '#6E6C6A',
     emotions: ['lonely', 'restrained', 'quiet'],
-    face: { eyeY: 0.520, eyeLeftX: 0.455, eyeRightX: 0.545, eyeSize: 0.022, skinColor: '#D4D1C9' },
+    face: { eyeY: 0.52, eyeLeftX: 0.40, eyeRightX: 0.60, eyeSize: 0.030, mouthY: 0.61, skinColor: '#D4D1C9' },
   },
 };
 
