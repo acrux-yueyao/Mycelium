@@ -32,7 +32,6 @@ const LONELY_EXPOSE_PER_S = 0.15;
 const LONELY_RECOVER_PER_S = 0.08;
 const LONELY_SAT_FLOOR = 0.55;
 
-// Phase D fusion tunables
 const FUSION_HOLD_MS = 4000;
 const FUSION_MIN_COMPAT = 0.5;
 const FUSION_COOLDOWN_MS = 15000;
@@ -41,10 +40,11 @@ const FUSION_COOLDOWN_MS = 15000;
  * Root stage.
  *
  * Phases active:
- *   A · physics (attract / repel / walls / center)
- *   B · eye tracking + newcomer greeting
- *   C · compatibility matrix + tendrils + loneliness desaturation
- *   D.1 · hybrid fusion (compat > 0.5 held ≥ 4s → rainbow hybrid)
+ *   A \u00b7 physics (attract / repel / walls / center)
+ *   B \u00b7 eye tracking + newcomer greeting
+ *   C \u00b7 compatibility matrix + tendrils + loneliness desaturation
+ *   D.1 \u00b7 hybrid fusion (compat > 0.5 held \u2265 4s \u2192 rainbow hybrid)
+ *         hybrids are sterile \u2014 they can connect visually but never fuse
  */
 export default function App() {
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
@@ -86,9 +86,19 @@ export default function App() {
         const nextConn = stepConnections(stepped, connectionMapRef.current, now);
         connectionMapRef.current = nextConn;
 
+        // Lookup so fusion logic can skip hybrid endpoints. Hybrids keep
+        // their baked charId (0) to reuse palette / gaze / physics code,
+        // but they must NOT fuse \u2014 otherwise hybrid + parent keeps
+        // fusing into new hybrids and the population explodes.
+        const entityById = new Map(stepped.map((e) => [e.id, e]));
+
         // === Phase D.1 fusion detection ===
         const fusions: Array<{ pairId: string; a: Connection['a']; b: Connection['b'] }> = [];
         for (const c of nextConn.values()) {
+          const ea = entityById.get(c.a.id);
+          const eb = entityById.get(c.b.id);
+          // Hybrids are sterile \u2014 visual connections only, no fusion.
+          if (ea?.isHybrid || eb?.isHybrid) continue;
           if (c.compat < FUSION_MIN_COMPAT) continue;
           if (now - c.bornAt < FUSION_HOLD_MS) continue;
           const lastFused = fusedPairsRef.current.get(c.id);
@@ -114,7 +124,6 @@ export default function App() {
           return exp === e.lonelyExposure ? e : { ...e, lonelyExposure: exp };
         });
 
-        // Apply fusions: push parents outward, spawn hybrid at midpoint
         for (const f of fusions) {
           const dx = f.a.x - f.b.x;
           const dy = f.a.y - f.b.y;
@@ -145,7 +154,6 @@ export default function App() {
           updated = [...updated, hybrid];
         }
 
-        // Cleanup stale cooldown entries
         for (const [key, ts] of fusedPairsRef.current) {
           if (now - ts > FUSION_COOLDOWN_MS * 2 && !connectionMapRef.current.has(key)) {
             fusedPairsRef.current.delete(key);
@@ -265,9 +273,9 @@ export default function App() {
             exit={{ opacity: 0, y: 10 }}
             transition={{ duration: 0.35 }}
           >
-            <div>菌丝未能成形</div>
+            <div>\u83cc\u4e1d\u672a\u80fd\u6210\u5f62</div>
             <div className="error-detail">{error}</div>
-            <button onClick={clearError}>再呼出一次</button>
+            <button onClick={clearError}>\u518d\u547c\u51fa\u4e00\u6b21</button>
           </motion.div>
         )}
       </AnimatePresence>
