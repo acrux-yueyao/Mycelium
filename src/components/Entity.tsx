@@ -4,14 +4,12 @@
  * Composed animation layers (nested motion.divs so transforms don't clash):
  *   1. Grow        scale 0 → 1.1 → 1 on mount (1.8s ease-out)
  *   2. Float       y [0, -5, 0] infinite (5s)
- *   3. Wobble      rotate ±1.5° infinite (8s, slow lazy sway)
- *   4. Greet       scale bounce [1, 1.12, 0.96, 1.04, 1] on greetingPulse++
+ *   3. Wobble      rotate ±1.5° infinite (8s)
+ *   4. Greet       scale bounce on greetingPulse++
  *   5. Breathe     scale [1, 1.04, 1] infinite (3.5s)
  *
- * Face layer (FaceOverlay) handles:
- *   - permanent skin patches covering baked eyes
- *   - pupils that gaze toward gazeTarget via spring
- *   - blink / wink-left / wink-right / squint / happy expressions
+ * Saturation filter (Phase C): CSS `saturate(...)` applied to the img
+ * tracks the parent-computed loneliness exposure.
  */
 import { useEffect, useRef, useState } from 'react';
 import { motion, useAnimationControls } from 'framer-motion';
@@ -28,6 +26,8 @@ export interface EntityProps {
   gazeTargetX?: number | null;
   gazeTargetY?: number | null;
   greetingPulse?: number;
+  /** 0..1 CSS saturate() factor. Phase C desaturates on lonely exposure. */
+  saturation?: number;
   onMount?: () => void;
 }
 
@@ -56,6 +56,7 @@ export function Entity({
   gazeTargetX,
   gazeTargetY,
   greetingPulse = 0,
+  saturation = 1,
   onMount,
 }: EntityProps) {
   const character = CHARACTERS[charId];
@@ -158,7 +159,7 @@ export function Entity({
               animate={{ scale: [1, 1.04, 1] }}
               transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut', delay: breatheDelay }}
             >
-              <img
+              <motion.img
                 src={charAsset(charId)}
                 alt=""
                 draggable={false}
@@ -169,6 +170,8 @@ export function Entity({
                   display: 'block',
                   userSelect: 'none',
                 }}
+                animate={{ filter: `saturate(${saturation})` }}
+                transition={{ duration: 1.2, ease: 'easeOut' }}
               />
               <FaceOverlay
                 face={character.face}
