@@ -22,7 +22,7 @@ interface LiveEntity {
   greetingPulse: number;
   lonelyExposure: number;
   isHybrid?: boolean;
-  parentIds?: [string, string];
+  parentIds?: [CharId, CharId];
   rationale?: string;
 }
 
@@ -149,7 +149,7 @@ export default function App() {
             greetingPulse: 0,
             lonelyExposure: 0,
             isHybrid: true,
-            parentIds: [f.a.id, f.b.id],
+            parentIds: [f.a.charId, f.b.charId],
           };
           updated = [...updated, hybrid];
         }
@@ -255,6 +255,7 @@ export default function App() {
             greetingPulse={e.greetingPulse}
             saturation={sat}
             isHybrid={e.isHybrid}
+            parentIds={e.parentIds}
           />
         );
       })}
