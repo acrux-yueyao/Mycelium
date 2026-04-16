@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { InputTotem } from './InputTotem';
-import { PhysarumField } from '../render/PhysarumField';
+import { SporeField } from '../render/SporeField';
 import { readEmotion, type EmotionReading, EmotionApiError } from '../core/emotion';
 import { deriveSeed, type TypingRhythm } from '../core/seed';
 import {
@@ -45,14 +45,14 @@ export function GenesisScreen() {
     }
   };
 
-  // Blackout → growing transition.
+  // Blackout \u2192 growing transition.
   useEffect(() => {
     if (stage !== 'blackout') return;
     const t1 = window.setTimeout(() => setStage('growing'), 1600);
     return () => window.clearTimeout(t1);
   }, [stage]);
 
-  // Growth envelope: ease from 0 → 1 over ~14s after growing starts.
+  // Growth envelope: ease from 0 \u2192 1 over ~14s after growing starts.
   useEffect(() => {
     if (stage !== 'growing') {
       setGrowth(0);
@@ -80,10 +80,10 @@ export function GenesisScreen() {
 
   return (
     <div className="genesis-root">
-      {/* Physarum field lives behind everything once we have a species. */}
+      {/* Spore field lives behind everything once we have a species. */}
       {species && (stage === 'blackout' || stage === 'growing') && (
         <div className={`field ${stage === 'growing' ? 'visible' : ''}`}>
-          <PhysarumField species={species} seed={seedRef.current} growth={growth} />
+          <SporeField species={species} seed={seedRef.current} growth={growth} />
         </div>
       )}
 
@@ -108,11 +108,11 @@ export function GenesisScreen() {
 
       {stage === 'failure' && (
         <div className="failure">
-          <div>菌丝未能成形</div>
+          <div>\u83cc\u4e1d\u672a\u80fd\u6210\u5f62</div>
           <div style={{ fontSize: '0.72rem', opacity: 0.7, maxWidth: '80vw', wordBreak: 'break-all' }}>
             {errorMsg}
           </div>
-          <button onClick={reset}>再呼出一次</button>
+          <button onClick={reset}>\u518d\u547c\u51fa\u4e00\u6b21</button>
         </div>
       )}
     </div>
