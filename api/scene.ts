@@ -72,6 +72,7 @@ Schema:
 interface AnthropicRequest {
   model: string;
   max_tokens: number;
+  temperature?: number;
   system: Array<{ type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }>;
   messages: Array<{ role: 'user' | 'assistant'; content: string }>;
 }
@@ -96,43 +97,39 @@ export default async function handler(req: Request): Promise<Response> {
     return json({ error: 'invalid-text', detail: 'text must be 1..500 characters' }, 400);
   }
 
-  const payload: AnthropicRequest = {
-    model: MODEL,
-    max_tokens: 480,
-    system: [
-      {
-        type: 'text',
-        text: SYSTEM_PROMPT,
-        cache_control: { type: 'ephemeral' },
-      },
-    ],
-    messages: [{ role: 'user', content: text }],
-  };
+  let parsed: unknown | null = null;
+  let rawText = '';
 
-  let upstream: Response;
-  try {
-    upstream = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-beta': 'prompt-caching-2024-07-31',
-      },
-      body: JSON.stringify(payload),
-    });
-  } catch (error) {
-    return json({ error: 'upstream-unreachable', detail: String(error) }, 502);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let upstream: Response;
+    try {
+      upstream = await fetch(API_URL, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-beta': 'prompt-caching-2024-07-31',
+        },
+        body: JSON.stringify(buildPayload(text, attempt)),
+      });
+    } catch (error) {
+      return json({ error: 'upstream-unreachable', detail: String(error) }, 502);
+    }
+
+    if (!upstream.ok) {
+      const detail = await upstream.text();
+      return json({ error: `upstream-${upstream.status}`, detail }, 502);
+    }
+
+    const result = (await upstream.json()) as { content?: Array<{ type: string; text?: string }> };
+    rawText = result.content?.find((entry) => entry.type === 'text')?.text ?? '';
+    parsed = extractJson(rawText);
+    if (parsed) {
+      break;
+    }
   }
 
-  if (!upstream.ok) {
-    const detail = await upstream.text();
-    return json({ error: `upstream-${upstream.status}`, detail }, 502);
-  }
-
-  const result = (await upstream.json()) as { content?: Array<{ type: string; text?: string }> };
-  const rawText = result.content?.find((entry) => entry.type === 'text')?.text ?? '';
-  const parsed = extractJson(rawText);
   if (!parsed) {
     return json({ error: 'llm-bad-json', detail: rawText.slice(0, 800) }, 502);
   }
@@ -152,22 +149,59 @@ export default async function handler(req: Request): Promise<Response> {
   }
 }
 
+function buildPayload(text: string, attempt: number): AnthropicRequest {
+  const retry = attempt > 0;
+  return {
+    model: MODEL,
+    max_tokens: retry ? 1200 : 700,
+    temperature: 0,
+    system: [
+      {
+        type: 'text',
+        text: SYSTEM_PROMPT,
+        cache_control: { type: 'ephemeral' },
+      },
+    ],
+    messages: [
+      {
+        role: 'user',
+        content: retry
+          ? `${text}\n\nIMPORTANT: previous output was incomplete. Return one complete compact JSON object only. No markdown fences.`
+          : text,
+      },
+    ],
+  };
+}
+
 function extractJson(source: string): unknown | null {
+  const cleaned = stripFence(source).trim();
   try {
-    return JSON.parse(source);
+    return JSON.parse(cleaned);
   } catch {
     // Continue to bracket extraction fallback.
   }
-  const first = source.indexOf('{');
-  const last = source.lastIndexOf('}');
+  const first = cleaned.indexOf('{');
+  const last = cleaned.lastIndexOf('}');
   if (first >= 0 && last > first) {
     try {
-      return JSON.parse(source.slice(first, last + 1));
+      return JSON.parse(cleaned.slice(first, last + 1));
     } catch {
       return null;
     }
   }
   return null;
+}
+
+function stripFence(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('```')) return text;
+  const firstLineEnd = trimmed.indexOf('\n');
+  if (firstLineEnd < 0) return text;
+  const lastFence = trimmed.lastIndexOf('```');
+  if (lastFence <= firstLineEnd) {
+    return trimmed.slice(firstLineEnd + 1);
+  }
+  return trimmed.slice(firstLineEnd + 1, lastFence);
 }
 
 function json(payload: unknown, status: number): Response {
