@@ -1,15 +1,14 @@
 /**
- * FaceOverlay — replaces the PNG's baked eye dots with a programmatic
- * face so eyes can gaze, blink, wink, squint, and smile.
+ * FaceOverlay — programmatic eyes + tiny smile mouth drawn on top of
+ * an eye-less "clean" sprite. No skin patches: the bases have no
+ * baked features to occlude.
  *
  * Layer stack (bottom → top):
- *   1. Skin patches  — permanent skin-color ellipses that occlude the
- *      baked-in eye dots of the PNG.
- *   2. Pupils        — black dots placed at the baked eye positions,
- *      translated by (gazeX, gazeY) via motion values (spring), and
- *      scaleY-animated for blink / wink / squint.
- *   3. Smile arcs    — black upper-half-circles shown only during the
- *      'happy' expression.
+ *   1. Pupils     — round dots translated by (gazeX, gazeY) via spring
+ *                   motion values, scaleY-animated for blink / wink /
+ *                   squint / happy.
+ *   2. Smile arc  — a small SVG curve below the eyes; slightly widens
+ *                   on the 'happy' expression.
  */
 import { useEffect } from 'react';
 import { motion, useMotionValue, animate } from 'framer-motion';
@@ -40,10 +39,8 @@ export function FaceOverlay({
   gazeX = 0,
   gazeY = 0,
 }: FaceOverlayProps) {
-  const lidR = face.eyeSize;
   const pupilR = face.eyeSize * 0.72;
 
-  // Spring-driven gaze, decoupled from blink animations.
   const gxMv = useMotionValue(0);
   const gyMv = useMotionValue(0);
 
@@ -51,17 +48,6 @@ export function FaceOverlay({
     animate(gxMv, gazeX, { type: 'spring', stiffness: 90, damping: 18, mass: 1 });
     animate(gyMv, gazeY, { type: 'spring', stiffness: 90, damping: 18, mass: 1 });
   }, [gazeX, gazeY, gxMv, gyMv]);
-
-  const skinPatch = (cxFrac: number): React.CSSProperties => ({
-    position: 'absolute',
-    left: `${(cxFrac - lidR) * 100}%`,
-    top: `${(face.eyeY - lidR) * 100}%`,
-    width: `${lidR * 2 * 100}%`,
-    height: `${lidR * 2 * 100}%`,
-    background: face.skinColor,
-    borderRadius: '50%',
-    pointerEvents: 'none',
-  });
 
   const pupilStyle = (cxFrac: number): React.CSSProperties => ({
     position: 'absolute',
@@ -75,35 +61,21 @@ export function FaceOverlay({
     transformOrigin: 'center center',
   });
 
-  const arcW = face.eyeSize * 2.6;
-  const arcH = face.eyeSize * 1.5;
-  const arcStyle = (cxFrac: number): React.CSSProperties => ({
-    position: 'absolute',
-    left: `${(cxFrac - arcW / 2) * 100}%`,
-    top: `${(face.eyeY - arcH / 2) * 100}%`,
-    width: `${arcW * 100}%`,
-    height: `${arcH * 100}%`,
-    background: PUPIL_COLOR,
-    borderRadius: '50% 50% 0 0',
-    pointerEvents: 'none',
-    transformOrigin: 'center bottom',
-  });
-
-  // Small Jellycat-style mouth: a short horizontal stitch centered
-  // between the eyes. Subtly widens into a smile when `happy`.
+  // Small smile: a short curved line centered between the eyes.
+  // Width ≈ eye-spacing * 0.38 so it stays clearly smaller than the eyes.
   const mouthCenterX = (face.eyeLeftX + face.eyeRightX) / 2;
-  const mouthW = face.eyeSize * 1.5;
-  const mouthH = face.eyeSize * 0.32;
-  const mouthStyle: React.CSSProperties = {
+  const eyeSpread = face.eyeRightX - face.eyeLeftX;
+  const mouthW = Math.max(face.eyeSize * 1.6, eyeSpread * 0.38);
+  const mouthH = mouthW * 0.45;
+  const mouthBoxStyle: React.CSSProperties = {
     position: 'absolute',
     left: `${(mouthCenterX - mouthW / 2) * 100}%`,
     top: `${(face.mouthY - mouthH / 2) * 100}%`,
     width: `${mouthW * 100}%`,
     height: `${mouthH * 100}%`,
-    background: PUPIL_COLOR,
-    borderRadius: '9999px',
     pointerEvents: 'none',
     transformOrigin: 'center center',
+    overflow: 'visible',
   };
 
   const isLeftClosed =
@@ -129,9 +101,6 @@ export function FaceOverlay({
 
   return (
     <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-      <div style={skinPatch(face.eyeLeftX)} />
-      <div style={skinPatch(face.eyeRightX)} />
-
       <motion.div
         key={`pupilL-${triggerKey}`}
         style={{ ...pupilStyle(face.eyeLeftX), x: gxMv, y: gyMv }}
@@ -147,32 +116,13 @@ export function FaceOverlay({
         transition={{ duration, times: timeline, ease: 'easeInOut' }}
       />
 
-      {kind === 'happy' && (
-        <>
-          <motion.div
-            key={`arcL-${triggerKey}`}
-            style={arcStyle(face.eyeLeftX)}
-            initial={{ scaleY: 0, opacity: 0 }}
-            animate={{ scaleY: [0, 1, 1, 0], opacity: [0, 1, 1, 0] }}
-            transition={{ duration: 1.4, times: [0, 0.2, 0.82, 1], ease: 'easeOut' }}
-          />
-          <motion.div
-            key={`arcR-${triggerKey}`}
-            style={arcStyle(face.eyeRightX)}
-            initial={{ scaleY: 0, opacity: 0 }}
-            animate={{ scaleY: [0, 1, 1, 0], opacity: [0, 1, 1, 0] }}
-            transition={{ duration: 1.4, times: [0, 0.2, 0.82, 1], ease: 'easeOut' }}
-          />
-        </>
-      )}
-
       <motion.div
         key={`mouth-${triggerKey}`}
-        style={mouthStyle}
+        style={mouthBoxStyle}
         initial={{ scaleX: 1, scaleY: 1 }}
         animate={
           kind === 'happy'
-            ? { scaleX: [1, 1.35, 1.35, 1], scaleY: [1, 1.4, 1.4, 1] }
+            ? { scaleX: [1, 1.25, 1.25, 1], scaleY: [1, 1.35, 1.35, 1] }
             : { scaleX: 1, scaleY: 1 }
         }
         transition={
@@ -180,7 +130,21 @@ export function FaceOverlay({
             ? { duration: 1.4, times: [0, 0.2, 0.82, 1], ease: 'easeOut' }
             : { duration: 0.3, ease: 'easeOut' }
         }
-      />
+      >
+        <svg
+          viewBox="0 0 20 10"
+          preserveAspectRatio="none"
+          style={{ width: '100%', height: '100%', display: 'block', overflow: 'visible' }}
+        >
+          <path
+            d="M 2 2 Q 10 10 18 2"
+            fill="none"
+            stroke={PUPIL_COLOR}
+            strokeWidth={1.8}
+            strokeLinecap="round"
+          />
+        </svg>
+      </motion.div>
     </div>
   );
 }

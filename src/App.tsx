@@ -6,9 +6,11 @@ import { SparkleLayer } from './components/SparkleLayer';
 import { TendrilLayer } from './components/TendrilLayer';
 import { TreeHoleInput } from './components/TreeHoleInput';
 import { useEmotion } from './hooks/useEmotion';
-import type { CharId } from './data/characters';
+import { CHARACTERS, type CharId } from './data/characters';
 import { findNearestBody, stepField } from './core/field';
 import { stepConnections, type Connection } from './core/connections';
+
+export type InfectionState = 'normal' | 'infecting' | 'transforming' | 'hybrid';
 
 interface LiveEntity {
   id: string;
@@ -21,8 +23,14 @@ interface LiveEntity {
   bornAt: number;
   greetingPulse: number;
   lonelyExposure: number;
-  isHybrid?: boolean;
-  parentIds?: [CharId, CharId];
+  /** State-machine for hybrid transformation. Default 'normal'. */
+  infectionState: InfectionState;
+  /** Wall-clock ms when the current infectionState was entered. */
+  infectionStart?: number;
+  /** Sorted [lo, hi] CharIds of the hybrid PNG this entity will morph into. */
+  infectionPair?: [CharId, CharId];
+  /** Entity id of the neighbor currently influencing this one. */
+  partnerId?: string;
   rationale?: string;
 }
 
@@ -32,19 +40,32 @@ const LONELY_EXPOSE_PER_S = 0.15;
 const LONELY_RECOVER_PER_S = 0.08;
 const LONELY_SAT_FLOOR = 0.55;
 
-const FUSION_HOLD_MS = 4000;
-const FUSION_MIN_COMPAT = 0.5;
-const FUSION_COOLDOWN_MS = 15000;
+// === Infection / transformation state machine ===
+// Contact → hold → roll outcome → infecting → transforming → hybrid.
+// No extra entities ever spawned: the original entity IS the hybrid once
+// its state flips to 'hybrid'.
+const INFECT_HOLD_MS = 3500;         // connection must hold this long before rolling
+const INFECTING_MS = 3500;           // color / texture drift phase (tint pulse)
+const TRANSFORM_MS = 2400;           // sprite + face crossfade phase
+const INFECTION_MIN_COMPAT = 0.5;    // below this, pairs bond but never infect
+// Base chance an eligible pair actually rolls for infection on any given
+// frame (gated by compat on top, so likely infection is ≈ BASE * compat).
+// Lower → rarer hybrid events, closer bonds without transforming.
+const BASE_INFECTION_PROB = 0.015;   // per-frame chance once HOLD is satisfied
+const ROLL_COOLDOWN_MS = 9000;       // after a "didn't fire" roll, wait this long
+const MUTUAL_COMPAT_CUTOFF = 0.85;   // at or above: both sides always transform
+const ONEWAY_COMPAT_CUTOFF = 0.65;   // at or above: 50/50 mutual vs one-way
 
 /**
  * Root stage.
  *
  * Phases active:
- *   A \u00b7 physics (attract / repel / walls / center)
- *   B \u00b7 eye tracking + newcomer greeting
- *   C \u00b7 compatibility matrix + tendrils + loneliness desaturation
- *   D.1 \u00b7 hybrid fusion (compat > 0.5 held \u2265 4s \u2192 rainbow hybrid)
- *         hybrids are sterile \u2014 they can connect visually but never fuse
+ *   A · physics (attract / repel / walls / center)
+ *   B · eye tracking + newcomer greeting
+ *   C · compatibility matrix + tendrils + loneliness desaturation
+ *   D · infection-based transformation (no new entities spawned):
+ *       two compatible mushrooms touch, influence each other, and one
+ *       or both morph in place into the pair-specific hybrid form.
  */
 export default function App() {
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
@@ -64,7 +85,9 @@ export default function App() {
 
   const connectionMapRef = useRef<Map<string, Connection>>(new Map());
   const lastFrameTimeRef = useRef(performance.now());
-  const fusedPairsRef = useRef<Map<string, number>>(new Map());
+  // Pair key → timestamp of the last "didn't fire" probability check.
+  // Prevents re-rolling the same bonded pair every frame while they linger.
+  const rolledPairsRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     let raf = 0;
@@ -86,26 +109,66 @@ export default function App() {
         const nextConn = stepConnections(stepped, connectionMapRef.current, now);
         connectionMapRef.current = nextConn;
 
-        // Lookup so fusion logic can skip hybrid endpoints. Hybrids keep
-        // their baked charId (0) to reuse palette / gaze / physics code,
-        // but they must NOT fuse \u2014 otherwise hybrid + parent keeps
-        // fusing into new hybrids and the population explodes.
         const entityById = new Map(stepped.map((e) => [e.id, e]));
 
-        // === Phase D.1 fusion detection ===
-        const fusions: Array<{ pairId: string; a: Connection['a']; b: Connection['b'] }> = [];
+        // === Infection roll: only pairs where both sides are still 'normal',
+        //     cross-kind, compat ≥ 0.5, and have held contact ≥ INFECT_HOLD_MS.
+        //     Outcome is rolled once; rolled sides flip to 'infecting'.
+        //     Same-kind pairs bond but never infect (no same-kind hybrid art).
+        interface InfectionRoll {
+          aId: string;
+          bId: string;
+          aInfected: boolean;
+          bInfected: boolean;
+          pair: [CharId, CharId];
+        }
+        const rolls: InfectionRoll[] = [];
         for (const c of nextConn.values()) {
           const ea = entityById.get(c.a.id);
           const eb = entityById.get(c.b.id);
-          // Hybrids are sterile \u2014 visual connections only, no fusion.
-          if (ea?.isHybrid || eb?.isHybrid) continue;
-          if (c.compat < FUSION_MIN_COMPAT) continue;
-          if (now - c.bornAt < FUSION_HOLD_MS) continue;
-          const lastFused = fusedPairsRef.current.get(c.id);
-          if (lastFused != null && now - lastFused < FUSION_COOLDOWN_MS) continue;
-          fusions.push({ pairId: c.id, a: c.a, b: c.b });
-          fusedPairsRef.current.set(c.id, now);
-          connectionMapRef.current.delete(c.id);
+          if (!ea || !eb) continue;
+          if (ea.infectionState !== 'normal' || eb.infectionState !== 'normal') continue;
+          if (ea.charId === eb.charId) continue;
+          if (c.compat < INFECTION_MIN_COMPAT) continue;
+          if (now - c.bornAt < INFECT_HOLD_MS) continue;
+
+          // Per-frame probability gate, scaled by compat. Pairs that don't
+          // fire enter a cooldown so we don't spam-roll them every frame.
+          const lastRoll = rolledPairsRef.current.get(c.id);
+          if (lastRoll != null && now - lastRoll < ROLL_COOLDOWN_MS) continue;
+          if (Math.random() > BASE_INFECTION_PROB * c.compat) {
+            rolledPairsRef.current.set(c.id, now);
+            continue;
+          }
+
+          const pair: [CharId, CharId] =
+            ea.charId < eb.charId ? [ea.charId, eb.charId] : [eb.charId, ea.charId];
+          let aInfected: boolean;
+          let bInfected: boolean;
+          if (c.compat >= MUTUAL_COMPAT_CUTOFF) {
+            aInfected = bInfected = true;
+          } else if (c.compat >= ONEWAY_COMPAT_CUTOFF) {
+            if (Math.random() < 0.5) {
+              aInfected = bInfected = true;
+            } else {
+              aInfected = Math.random() < 0.5;
+              bInfected = !aInfected;
+            }
+          } else {
+            if (Math.random() < 0.2) {
+              aInfected = bInfected = true;
+            } else {
+              aInfected = Math.random() < 0.5;
+              bInfected = !aInfected;
+            }
+          }
+          rolls.push({ aId: c.a.id, bId: c.b.id, aInfected, bInfected, pair });
+          rolledPairsRef.current.delete(c.id);
+        }
+
+        // GC old roll-cooldown entries for pairs that no longer exist.
+        for (const key of rolledPairsRef.current.keys()) {
+          if (!nextConn.has(key)) rolledPairsRef.current.delete(key);
         }
 
         const lonelyConnected = new Set<string>();
@@ -114,51 +177,61 @@ export default function App() {
           if (c.b.charId === 5) lonelyConnected.add(c.a.id);
         }
 
-        let updated = stepped.map((e) => {
-          let exp = e.lonelyExposure;
-          if (lonelyConnected.has(e.id)) {
+        // Apply: loneliness, infection roll start, state-machine advance.
+        const updated = stepped.map((e) => {
+          let next = e;
+
+          // Loneliness exposure.
+          let exp = next.lonelyExposure;
+          if (lonelyConnected.has(next.id)) {
             exp = Math.min(3, exp + LONELY_EXPOSE_PER_S * dt);
           } else {
             exp = Math.max(0, exp - LONELY_RECOVER_PER_S * dt);
           }
-          return exp === e.lonelyExposure ? e : { ...e, lonelyExposure: exp };
-        });
+          if (exp !== next.lonelyExposure) next = { ...next, lonelyExposure: exp };
 
-        for (const f of fusions) {
-          const dx = f.a.x - f.b.x;
-          const dy = f.a.y - f.b.y;
-          const d = Math.hypot(dx, dy) || 1;
-          const nx = dx / d;
-          const ny = dy / d;
-          const midX = (f.a.x + f.b.x) / 2;
-          const midY = (f.a.y + f.b.y) / 2;
-          updated = updated.map((e) => {
-            if (e.id === f.a.id) return { ...e, vx: e.vx + nx * 1.6, vy: e.vy + ny * 1.6 };
-            if (e.id === f.b.id) return { ...e, vx: e.vx - nx * 1.6, vy: e.vy - ny * 1.6 };
-            return e;
-          });
-          const hybrid: LiveEntity = {
-            id: `h-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            charId: 0,
-            x: midX,
-            y: midY,
-            vx: 0,
-            vy: -0.3,
-            size: 180,
-            bornAt: Date.now(),
-            greetingPulse: 0,
-            lonelyExposure: 0,
-            isHybrid: true,
-            parentIds: [f.a.charId, f.b.charId],
-          };
-          updated = [...updated, hybrid];
-        }
-
-        for (const [key, ts] of fusedPairsRef.current) {
-          if (now - ts > FUSION_COOLDOWN_MS * 2 && !connectionMapRef.current.has(key)) {
-            fusedPairsRef.current.delete(key);
+          // Start infection for freshly rolled sides.
+          for (const r of rolls) {
+            if (r.aId === next.id && r.aInfected) {
+              next = {
+                ...next,
+                infectionState: 'infecting',
+                infectionStart: now,
+                infectionPair: r.pair,
+                partnerId: r.bId,
+              };
+              break;
+            }
+            if (r.bId === next.id && r.bInfected) {
+              next = {
+                ...next,
+                infectionState: 'infecting',
+                infectionStart: now,
+                infectionPair: r.pair,
+                partnerId: r.aId,
+              };
+              break;
+            }
           }
-        }
+
+          // Advance state machine on the already-infected.
+          if (next.infectionState === 'infecting' && next.infectionStart != null) {
+            if (now - next.infectionStart >= INFECTING_MS) {
+              next = { ...next, infectionState: 'transforming', infectionStart: now };
+            }
+          } else if (next.infectionState === 'transforming' && next.infectionStart != null) {
+            if (now - next.infectionStart >= TRANSFORM_MS) {
+              next = {
+                ...next,
+                infectionState: 'hybrid',
+                infectionStart: now,
+                partnerId: undefined,
+              };
+            }
+          }
+
+          return next;
+        });
 
         return updated;
       });
@@ -220,6 +293,7 @@ export default function App() {
       bornAt: Date.now(),
       greetingPulse: 0,
       lonelyExposure: 0,
+      infectionState: 'normal',
       rationale: result.reading.rationale,
     };
     setEntities((prev) => {
@@ -241,6 +315,8 @@ export default function App() {
       {entities.map((e, i) => {
         const t = gazeMap.get(e.id);
         const sat = Math.max(LONELY_SAT_FLOOR, 1 - e.lonelyExposure * 0.35);
+        const partner = e.partnerId ? entities.find((x) => x.id === e.partnerId) : null;
+        const partnerColor = partner ? CHARACTERS[partner.charId].color : undefined;
         return (
           <Entity
             key={e.id}
@@ -254,8 +330,9 @@ export default function App() {
             gazeTargetY={t ? t.y : null}
             greetingPulse={e.greetingPulse}
             saturation={sat}
-            isHybrid={e.isHybrid}
-            parentIds={e.parentIds}
+            infectionState={e.infectionState}
+            infectionPair={e.infectionPair}
+            partnerColor={partnerColor}
           />
         );
       })}
