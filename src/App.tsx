@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Background } from './components/Background';
 import { Entity } from './components/Entity';
@@ -7,12 +7,15 @@ import { TendrilLayer } from './components/TendrilLayer';
 import { TreeHoleInput } from './components/TreeHoleInput';
 import { useEmotion } from './hooks/useEmotion';
 import type { CharId } from './data/characters';
+import { stepField } from './core/field';
 
 interface LiveEntity {
   id: string;
   charId: CharId;
   x: number;
   y: number;
+  vx: number;
+  vy: number;
   size: number;
   bornAt: number;
   rationale?: string;
@@ -21,14 +24,11 @@ interface LiveEntity {
 /**
  * Root stage.
  *
- * Step 4 adds:
+ * Step 4 + Phase A:
  *  - TreeHoleInput wired to useEmotion
- *  - Entity list state (append a new Entity each time user submits)
- *  - Error toast when API fails
- *
- * The old hardcoded-center demo entity is removed. Spawn positions
- * avoid the center third of the screen (reserved for input text area)
- * on first few spawns, then fill in randomly.
+ *  - Entity list with per-body (vx, vy) physics state
+ *  - RAF loop runs stepField() every frame: attract / repel / wall / center
+ *  - Entity components only render — positions flow from physics state
  */
 export default function App() {
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
@@ -42,9 +42,26 @@ export default function App() {
     return () => window.removeEventListener('resize', update);
   }, []);
 
+  // ==== Phase A physics loop ====
+  const vpRef = useRef(viewport);
+  useEffect(() => { vpRef.current = viewport; }, [viewport]);
+
+  useEffect(() => {
+    let raf = 0;
+    const loop = () => {
+      setEntities((prev) => {
+        if (prev.length === 0) return prev;
+        return stepField(prev, vpRef.current.w, vpRef.current.h);
+      });
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
   const spawnAt = (): { x: number; y: number } => {
-    const w = viewport.w;
-    const h = viewport.h;
+    const w = vpRef.current.w || window.innerWidth;
+    const h = vpRef.current.h || window.innerHeight;
     const centerX = w / 2;
     const centerY = h / 2;
     for (let attempt = 0; attempt < 20; attempt++) {
@@ -62,6 +79,8 @@ export default function App() {
     if (!result) return;
     const { x, y } = spawnAt();
     const size = 180;
+    const a = Math.random() * Math.PI * 2;
+    const v0 = 0.4;
     setEntities((prev) => [
       ...prev,
       {
@@ -69,6 +88,8 @@ export default function App() {
         charId: result.charId,
         x,
         y,
+        vx: Math.cos(a) * v0,
+        vy: Math.sin(a) * v0,
         size,
         bornAt: Date.now(),
         rationale: result.reading.rationale,
