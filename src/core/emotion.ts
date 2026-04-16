@@ -51,7 +51,9 @@ export async function readEmotion(text: string): Promise<EmotionReading> {
     throw new EmotionApiError('network-failed', e);
   }
   if (!res.ok) {
-    throw new EmotionApiError(`http-${res.status}`);
+    let detail = '';
+    try { detail = await res.text(); } catch { /* empty */ }
+    throw new EmotionApiError(`http-${res.status}: ${detail}`);
   }
   let data: unknown;
   try {
@@ -71,7 +73,7 @@ export async function readEmotion(text: string): Promise<EmotionReading> {
     !r.surfaceModifier ||
     !VALID_MODIFIERS.has(r.surfaceModifier)
   ) {
-    throw new EmotionApiError('schema-mismatch');
+    throw new EmotionApiError(`schema-mismatch: ${JSON.stringify(data).slice(0, 300)}`);
   }
   return r as EmotionReading;
 }

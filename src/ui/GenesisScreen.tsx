@@ -109,7 +109,7 @@ export function GenesisScreen() {
       {stage === 'failure' && (
         <div className="failure">
           <div>菌丝未能成形</div>
-          <div style={{ fontSize: '0.72rem', opacity: 0.5 }}>
+          <div style={{ fontSize: '0.72rem', opacity: 0.7, maxWidth: '80vw', wordBreak: 'break-all' }}>
             {errorMsg}
           </div>
           <button onClick={reset}>再呼出一次</button>

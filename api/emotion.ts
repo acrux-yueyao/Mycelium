@@ -15,7 +15,7 @@
 
 export const config = { runtime: 'edge' };
 
-const MODEL = 'claude-haiku-4-5-20251001';
+const MODEL = 'claude-3-5-haiku-20241022';
 const API_URL = 'https://api.anthropic.com/v1/messages';
 
 const SYSTEM_PROMPT = `You are the interpretive membrane for a biological art piece called Mycelium. A person has written a single sentence anonymously — a private confession, a passing thought, something they might not say aloud. Your task is to translate it into the morphology of a single slime mold or cup fungus that will grow on screen in response.
@@ -103,6 +103,7 @@ export default async function handler(req: Request): Promise<Response> {
         'content-type': 'application/json',
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'prompt-caching-2024-07-31',
       },
       body: JSON.stringify(payload),
     });
