@@ -23,6 +23,8 @@ interface Fluff {
   tip: THREE.Vector3;
   vel: THREE.Vector3;
   normal: THREE.Vector3;
+  bendAxis: THREE.Vector3;
+  bendPhase: number;
   size: number;
   color: THREE.Color;
   phase: number;
@@ -32,11 +34,9 @@ interface Fluff {
 interface Model {
   colonies: Colony[];
   fluffs: Fluff[];
-  linePositions: Float32Array;
 }
 
 interface PointerState {
-  active: boolean;
   world: THREE.Vector3;
   pulse: number;
 }
@@ -47,16 +47,19 @@ interface DragState {
   y: number;
 }
 
+const HAIR_SEGMENTS = 5;
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+
 export function SporeField({ spec, seed }: SporeFieldProps) {
   return (
     <div className="spore-field">
-      <Canvas camera={{ position: [0, 0, 8.8], fov: 44 }} dpr={[1, 2]} gl={{ antialias: true, alpha: true }}>
+      <Canvas camera={{ position: [0, 0.5, 8.8], fov: 44 }} dpr={[1, 2]} gl={{ antialias: true, alpha: true }}>
         <color attach="background" args={['#f4ede0']} />
         <fog attach="fog" args={['#f4ede0', 8, 16]} />
         <ambientLight intensity={0.36} />
         <directionalLight position={[2.5, 3.2, 4]} intensity={0.82} color="#fff3e3" />
-        <pointLight position={[-3, 2, 2]} intensity={0.5} color="#d6f0ee" />
-        <pointLight position={[3, -1.6, 2]} intensity={0.5} color="#f3ddd0" />
+        <pointLight position={[-3, 2, 2]} intensity={0.52} color="#d6f0ee" />
+        <pointLight position={[3, -1.6, 2]} intensity={0.48} color="#f3ddd0" />
         <DreamSporeCluster spec={spec} seed={seed} />
       </Canvas>
     </div>
@@ -66,26 +69,26 @@ export function SporeField({ spec, seed }: SporeFieldProps) {
 function DreamSporeCluster({ spec, seed }: SporeFieldProps) {
   const model = useMemo(() => createModel(spec, seed), [seed, spec]);
   const groupRef = useRef<THREE.Group>(null);
-  const linesRef = useRef<THREE.LineSegments>(null);
   const tipsRef = useRef<THREE.InstancedMesh>(null);
+  const hairRef = useRef<THREE.InstancedMesh>(null);
 
-  const pointerRef = useRef<PointerState>({ active: false, world: new THREE.Vector3(), pulse: 0 });
+  const pointerRef = useRef<PointerState>({ world: new THREE.Vector3(), pulse: 0 });
   const dragRef = useRef<DragState>({ active: false, x: 0, y: 0 });
   const windRef = useRef(new THREE.Vector3());
-  const rotTargetRef = useRef(new THREE.Vector2(0, 0));
+  const orbitRef = useRef({
+    azimuth: 0,
+    elevation: 0.08,
+    targetAzimuth: 0,
+    targetElevation: 0.08,
+    radius: 8.8,
+  });
   const [dragging, setDragging] = useState(false);
 
-  const linesGeometry = useMemo(() => {
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(model.linePositions, 3));
-    return geometry;
-  }, [model.linePositions]);
-
-  useFrame(({ clock }, delta) => {
+  useFrame(({ clock, camera }, delta) => {
     const dt = Math.min(0.033, delta);
     const t = clock.elapsedTime;
-    const pointer = pointerRef.current;
     const wind = windRef.current;
+    const pointer = pointerRef.current;
 
     pointer.pulse = Math.max(0, pointer.pulse - dt * 0.9);
     wind.multiplyScalar(0.94);
@@ -94,9 +97,12 @@ function DreamSporeCluster({ spec, seed }: SporeFieldProps) {
     const pointerStrength = 0.06 + spec.pointerStrength * 0.52;
     const spring = 0.03 + spec.recovery * 0.1;
     const damping = 0.84 + spec.collisionSoftness * 0.12;
+    const hairThicknessBase = 0.015 + spec.filamentLength * 0.018;
 
     const tipMesh = tipsRef.current;
-    const dummy = new THREE.Object3D();
+    const hairMesh = hairRef.current;
+    const tipDummy = new THREE.Object3D();
+    const segDummy = new THREE.Object3D();
 
     for (let i = 0; i < model.fluffs.length; i++) {
       const fluff = model.fluffs[i];
@@ -121,7 +127,8 @@ function DreamSporeCluster({ spec, seed }: SporeFieldProps) {
       const windPush = wind.clone().multiplyScalar(0.45 + spec.filamentLength * 0.9);
 
       let pointerForce = new THREE.Vector3();
-      if (pointer.active || pointer.pulse > 0.01) {
+      const interactionActive = dragRef.current.active || pointer.pulse > 0.01;
+      if (interactionActive) {
         const deltaPointer = pointer.world.clone().sub(fluff.tip);
         const dist = deltaPointer.length();
         if (dist < pointerRadius) {
@@ -145,36 +152,68 @@ function DreamSporeCluster({ spec, seed }: SporeFieldProps) {
       fluff.vel.multiplyScalar(damping);
       fluff.tip.addScaledVector(fluff.vel, dt * 60);
 
-      const lineIdx = i * 6;
-      model.linePositions[lineIdx] = fluff.base.x;
-      model.linePositions[lineIdx + 1] = fluff.base.y;
-      model.linePositions[lineIdx + 2] = fluff.base.z;
-      model.linePositions[lineIdx + 3] = fluff.tip.x;
-      model.linePositions[lineIdx + 4] = fluff.tip.y;
-      model.linePositions[lineIdx + 5] = fluff.tip.z;
+      const bendAmount =
+        (0.08 + spec.filamentLength * 0.38) *
+        (1 + Math.min(1.8, fluff.vel.length() * 28)) *
+        (0.7 + Math.sin(t * 1.3 + fluff.bendPhase) * 0.25);
+      const control = fluff.base
+        .clone()
+        .lerp(fluff.tip, 0.52)
+        .addScaledVector(fluff.bendAxis, bendAmount);
+
+      if (hairMesh) {
+        for (let seg = 0; seg < HAIR_SEGMENTS; seg++) {
+          const t0 = seg / HAIR_SEGMENTS;
+          const t1 = (seg + 1) / HAIR_SEGMENTS;
+          const a = quadraticPoint(fluff.base, control, fluff.tip, t0);
+          const b = quadraticPoint(fluff.base, control, fluff.tip, t1);
+          const segmentIndex = i * HAIR_SEGMENTS + seg;
+          const thickness = hairThicknessBase * (1 - seg / (HAIR_SEGMENTS + 1));
+          setCylinderTransform(segDummy, a, b, thickness);
+          hairMesh.setMatrixAt(segmentIndex, segDummy.matrix);
+          hairMesh.setColorAt(segmentIndex, fluff.color);
+        }
+      }
 
       if (tipMesh) {
-        dummy.position.copy(fluff.tip);
+        tipDummy.position.copy(fluff.tip);
         const s = fluff.size * (0.7 + spec.translucency * 0.45 + Math.sin(t * 1.3 + fluff.phase) * 0.05);
-        dummy.scale.setScalar(s);
-        dummy.rotation.y = t * 0.2 + fluff.phase;
-        dummy.updateMatrix();
-        tipMesh.setMatrixAt(i, dummy.matrix);
+        tipDummy.scale.setScalar(s);
+        tipDummy.rotation.y = t * 0.2 + fluff.phase;
+        tipDummy.updateMatrix();
+        tipMesh.setMatrixAt(i, tipDummy.matrix);
         tipMesh.setColorAt(i, fluff.color);
       }
     }
 
-    const lineAttr = linesGeometry.getAttribute('position') as THREE.BufferAttribute;
-    lineAttr.needsUpdate = true;
+    if (hairMesh) {
+      hairMesh.instanceMatrix.needsUpdate = true;
+      if (hairMesh.instanceColor) hairMesh.instanceColor.needsUpdate = true;
+    }
     if (tipMesh) {
       tipMesh.instanceMatrix.needsUpdate = true;
       if (tipMesh.instanceColor) tipMesh.instanceColor.needsUpdate = true;
     }
 
+    orbitRef.current.azimuth = THREE.MathUtils.lerp(
+      orbitRef.current.azimuth,
+      orbitRef.current.targetAzimuth,
+      0.08
+    );
+    orbitRef.current.elevation = THREE.MathUtils.lerp(
+      orbitRef.current.elevation,
+      orbitRef.current.targetElevation,
+      0.08
+    );
+    const r = orbitRef.current.radius;
+    const x = Math.sin(orbitRef.current.azimuth) * Math.cos(orbitRef.current.elevation) * r;
+    const y = Math.sin(orbitRef.current.elevation) * r;
+    const z = Math.cos(orbitRef.current.azimuth) * Math.cos(orbitRef.current.elevation) * r;
+    camera.position.set(x, y, z);
+    camera.lookAt(0, 0, 0);
+
     if (groupRef.current) {
-      groupRef.current.rotation.x = THREE.MathUtils.lerp(groupRef.current.rotation.x, rotTargetRef.current.y, 0.07);
-      groupRef.current.rotation.y = THREE.MathUtils.lerp(groupRef.current.rotation.y, rotTargetRef.current.x, 0.07);
-      groupRef.current.rotation.z = Math.sin(t * 0.18) * (0.04 + spec.asymmetry * 0.08);
+      groupRef.current.rotation.z = Math.sin(t * 0.18) * (0.03 + spec.asymmetry * 0.05);
     }
   });
 
@@ -186,14 +225,12 @@ function DreamSporeCluster({ spec, seed }: SporeFieldProps) {
         dragRef.current.active = true;
         dragRef.current.x = e.nativeEvent.clientX;
         dragRef.current.y = e.nativeEvent.clientY;
-        pointerRef.current.active = true;
         pointerRef.current.world.copy(e.point);
         pointerRef.current.pulse = 1;
         setDragging(true);
       }}
       onPointerMove={(e) => {
         e.stopPropagation();
-        pointerRef.current.active = true;
         pointerRef.current.world.copy(e.point);
         if (!dragRef.current.active) return;
         const dx = e.nativeEvent.clientX - dragRef.current.x;
@@ -201,9 +238,13 @@ function DreamSporeCluster({ spec, seed }: SporeFieldProps) {
         dragRef.current.x = e.nativeEvent.clientX;
         dragRef.current.y = e.nativeEvent.clientY;
 
-        rotTargetRef.current.x += dx * 0.0046;
-        rotTargetRef.current.y += dy * 0.0046;
-        rotTargetRef.current.y = THREE.MathUtils.clamp(rotTargetRef.current.y, -1.1, 1.1);
+        orbitRef.current.targetAzimuth += dx * 0.006;
+        orbitRef.current.targetElevation += dy * 0.004;
+        orbitRef.current.targetElevation = THREE.MathUtils.clamp(
+          orbitRef.current.targetElevation,
+          -0.62,
+          0.62
+        );
 
         windRef.current.x += dx * 0.00035;
         windRef.current.y -= dy * 0.00028;
@@ -216,7 +257,6 @@ function DreamSporeCluster({ spec, seed }: SporeFieldProps) {
       }}
       onPointerLeave={() => {
         dragRef.current.active = false;
-        pointerRef.current.active = false;
         setDragging(false);
       }}
     >
@@ -248,13 +288,16 @@ function DreamSporeCluster({ spec, seed }: SporeFieldProps) {
         </mesh>
       ))}
 
-      <lineSegments ref={linesRef} geometry={linesGeometry}>
-        <lineBasicMaterial
-          color={spec.palette[1] ?? '#c9baa4'}
+      <instancedMesh ref={hairRef} args={[undefined, undefined, model.fluffs.length * HAIR_SEGMENTS]}>
+        <cylinderGeometry args={[1, 1, 1, 6]} />
+        <meshStandardMaterial
           transparent
-          opacity={0.1 + spec.filamentLength * 0.25}
+          opacity={0.34 + spec.translucency * 0.25}
+          roughness={0.34 + spec.grain * 0.42}
+          metalness={0.05}
+          vertexColors
         />
-      </lineSegments>
+      </instancedMesh>
 
       <instancedMesh ref={tipsRef} args={[undefined, undefined, model.fluffs.length]}>
         <sphereGeometry args={[0.05 + spec.scaleVariance * 0.04, 12, 12]} />
@@ -274,12 +317,7 @@ function DreamSporeCluster({ spec, seed }: SporeFieldProps) {
 
       <mesh
         position={[0, 0, -0.8]}
-        onPointerMove={(e) => {
-          pointerRef.current.active = true;
-          pointerRef.current.world.copy(e.point);
-        }}
         onPointerDown={(e) => {
-          pointerRef.current.active = true;
           pointerRef.current.world.copy(e.point);
           pointerRef.current.pulse = 1;
         }}
@@ -346,6 +384,8 @@ function createModel(spec: ResolvedOrganismSpec, seed: number): Model {
         tip,
         vel: new THREE.Vector3((rng.next() - 0.5) * 0.01, (rng.next() - 0.5) * 0.01, (rng.next() - 0.5) * 0.01),
         normal: n,
+        bendAxis: new THREE.Vector3(rng.next() - 0.5, rng.next() - 0.5, rng.next() - 0.5).normalize(),
+        bendPhase: rng.next() * Math.PI * 2,
         size,
         color,
         phase: rng.next() * Math.PI * 2,
@@ -355,19 +395,32 @@ function createModel(spec: ResolvedOrganismSpec, seed: number): Model {
     }
   }
 
-  const linePositions = new Float32Array(fluffs.length * 6);
-  for (let i = 0; i < fluffs.length; i++) {
-    const fluff = fluffs[i];
-    const idx = i * 6;
-    linePositions[idx] = fluff.base.x;
-    linePositions[idx + 1] = fluff.base.y;
-    linePositions[idx + 2] = fluff.base.z;
-    linePositions[idx + 3] = fluff.tip.x;
-    linePositions[idx + 4] = fluff.tip.y;
-    linePositions[idx + 5] = fluff.tip.z;
-  }
+  return { colonies, fluffs };
+}
 
-  return { colonies, fluffs, linePositions };
+function quadraticPoint(a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, t: number): THREE.Vector3 {
+  const mt = 1 - t;
+  const p = new THREE.Vector3();
+  p.addScaledVector(a, mt * mt);
+  p.addScaledVector(b, 2 * mt * t);
+  p.addScaledVector(c, t * t);
+  return p;
+}
+
+function setCylinderTransform(
+  dummy: THREE.Object3D,
+  a: THREE.Vector3,
+  b: THREE.Vector3,
+  thickness: number
+): void {
+  const dir = b.clone().sub(a);
+  const len = Math.max(0.001, dir.length());
+  const mid = a.clone().addScaledVector(dir, 0.5);
+  dir.normalize();
+  dummy.position.copy(mid);
+  dummy.quaternion.setFromUnitVectors(Y_AXIS, dir);
+  dummy.scale.set(thickness, len * 0.5, thickness);
+  dummy.updateMatrix();
 }
 
 function CursorHint({ dragging }: { dragging: boolean }) {
