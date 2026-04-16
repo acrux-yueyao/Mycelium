@@ -27,13 +27,10 @@ export interface ConnectionEndpoint {
 }
 
 export interface Connection {
-  /** Stable id derived from sorted (a.id, b.id). */
   id: string;
   a: ConnectionEndpoint;
   b: ConnectionEndpoint;
-  /** epoch ms when the connection first formed */
   bornAt: number;
-  /** cached compat score so per-frame styling is cheap */
   compat: number;
 }
 
@@ -45,10 +42,6 @@ function snap(b: PhysBody): ConnectionEndpoint {
   return { id: b.id, charId: b.charId, x: b.x, y: b.y };
 }
 
-/**
- * Recompute the connection set from the current bodies. Existing pairs
- * keep their `bornAt`; only new pairs get a fresh timestamp.
- */
 export function stepConnections(
   bodies: PhysBody[],
   prev: Map<string, Connection>,
@@ -89,53 +82,39 @@ export function stepConnections(
 // === Tendril styling ===
 
 export interface TendrilStyle {
-  color: string;
+  /** Gradient stop color near endpoint a (sampled from a's character color). */
+  colorA: string;
+  /** Gradient stop color near endpoint b. */
+  colorB: string;
   width: number;
   opacity: number;
+  /** SVG stroke-dasharray; undefined = solid. Only negative compat dashes. */
   dash?: string;
 }
 
-function hexToRgb(hex: string): [number, number, number] {
-  const s = hex.replace('#', '');
-  const n = parseInt(s, 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-}
-
-function rgbToHex(r: number, g: number, b: number): string {
-  const c = (v: number) =>
-    Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0');
-  return `#${c(r)}${c(g)}${c(b)}`;
-}
-
-function blendColor(a: string, b: string, t: number): string {
-  const [ar, ag, ab] = hexToRgb(a);
-  const [br, bg, bb] = hexToRgb(b);
-  return rgbToHex(ar + (br - ar) * t, ag + (bg - ag) * t, ab + (bb - ab) * t);
-}
-
 /**
- * Pick stroke color/width/opacity/dash for a connection based on its
- * compat score. Three bands:
- *   compat > 0.6  → warm (peach/amber), thick, solid
- *   0..0.6        → blend the two characters' main colors
- *   < 0           → cool muted blue-purple, dashed, low opacity
+ * Tendril colors come from the two characters themselves — a gradient
+ * from a's color to b's color. Compat drives width / opacity / dash:
+ *   compat > 0.6  → thick, bright, solid
+ *   0..0.6        → medium, translucent, solid
+ *   < 0           → thin, dim, dashed
+ * No more warm-amber / cool-indigo overrides — the tendril must visibly
+ * belong to the two mushrooms it connects.
  */
 export function tendrilStyle(c: Connection): TendrilStyle {
+  const colorA = CHARACTERS[c.a.charId].color;
+  const colorB = CHARACTERS[c.b.charId].color;
   if (c.compat < 0) {
-    return { color: '#5a4a8a', width: 1.4, opacity: 0.32, dash: '5 7' };
+    return { colorA, colorB, width: 1.3, opacity: 0.3, dash: '5 7' };
   }
   if (c.compat > 0.6) {
     const t = (c.compat - 0.6) / 0.4;
     return {
-      color: '#E89A5C',
-      width: 2.0 + t * 1.2,
-      opacity: 0.55 + t * 0.25,
+      colorA,
+      colorB,
+      width: 2.2 + t * 1.3,
+      opacity: 0.6 + t * 0.2,
     };
   }
-  const mixed = blendColor(
-    CHARACTERS[c.a.charId].color,
-    CHARACTERS[c.b.charId].color,
-    0.5,
-  );
-  return { color: mixed, width: 1.8, opacity: 0.42 };
+  return { colorA, colorB, width: 1.8, opacity: 0.48 };
 }
