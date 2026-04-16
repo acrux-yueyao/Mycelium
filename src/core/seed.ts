@@ -1,8 +1,8 @@
 /**
- * Deterministic seed derivation: a given (text, emotionLabel) pair
- * always produces the same specimen. Typing-rhythm data nudges the seed
- * so that writing the same sentence at different cadences produces
- * subtly different specimens.
+ * Deterministic seed derivation for organism generation.
+ * A given (text, scene fingerprint) pair always yields the same seed.
+ * Typing-rhythm data nudges the seed so identical text can diverge slightly
+ * when authored with meaningfully different cadence.
  */
 
 export interface TypingRhythm {
@@ -50,12 +50,12 @@ export class Rng {
 
 export function deriveSeed(
   text: string,
-  emotionLabel: string,
+  sceneFingerprint: string,
   rhythm?: TypingRhythm
 ): number {
   const r = rhythm
     ? `|${rhythm.per.toFixed(0)}|${rhythm.vel.toFixed(2)}|${rhythm.att.toFixed(0)}`
     : '';
-  const h = xmur3(`${text}::${emotionLabel}${r}`);
+  const h = xmur3(`${text}::${sceneFingerprint}${r}`);
   return h();
 }

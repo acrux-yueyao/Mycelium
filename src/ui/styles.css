@@ -71,3 +71,164 @@ body,
   pointer-events: none;
   z-index: 5;
 }
+
+.genesis-stage {
+  position: fixed;
+  inset: 0;
+}
+
+.spore-field {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  touch-action: none;
+}
+
+.spore-field canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.genesis-blackout {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  background: rgba(24, 19, 14, 0);
+  pointer-events: none;
+  transition: background 680ms ease;
+}
+
+.genesis-blackout.active {
+  background: rgba(24, 19, 14, 0.26);
+}
+
+.genesis-panel {
+  position: absolute;
+  left: 50%;
+  bottom: 34px;
+  transform: translateX(-50%);
+  width: min(760px, calc(100vw - 36px));
+  z-index: 8;
+  backdrop-filter: blur(4px);
+  background: rgba(244, 237, 224, 0.74);
+  border: 1px solid rgba(120, 102, 70, 0.35);
+  border-radius: 8px;
+  padding: 16px 18px 14px;
+  box-shadow: 0 8px 30px rgba(58, 45, 29, 0.14);
+}
+
+.genesis-header {
+  margin-bottom: 12px;
+}
+
+.genesis-kicker {
+  margin: 0 0 2px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #6f5f48;
+}
+
+.genesis-title {
+  margin: 0;
+  font-size: clamp(20px, 2.3vw, 29px);
+  line-height: 1.1;
+  letter-spacing: 0;
+  color: #2f2a22;
+}
+
+.genesis-subtitle {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: #5d4f3d;
+}
+
+.genesis-form {
+  display: grid;
+  gap: 8px;
+}
+
+.genesis-label {
+  font-size: 12px;
+  color: #655743;
+  letter-spacing: 0.04em;
+}
+
+.genesis-input {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+  border-radius: 8px;
+  border: 1px solid rgba(105, 87, 60, 0.35);
+  background: rgba(255, 252, 246, 0.9);
+  color: #2f2a22;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.45;
+  letter-spacing: 0;
+  padding: 10px 12px;
+  outline: none;
+}
+
+.genesis-input:focus {
+  border-color: rgba(78, 107, 113, 0.8);
+  box-shadow: 0 0 0 2px rgba(79, 106, 109, 0.2);
+}
+
+.genesis-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.genesis-submit {
+  border: 1px solid rgba(79, 106, 109, 0.65);
+  border-radius: 8px;
+  background: #4f6a6d;
+  color: #f9f4ea;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.genesis-submit:disabled {
+  cursor: default;
+  opacity: 0.56;
+}
+
+.genesis-count {
+  font-size: 12px;
+  color: #6f5f48;
+}
+
+.genesis-meta {
+  min-height: 22px;
+  margin-top: 10px;
+}
+
+.genesis-error {
+  margin: 0;
+  font-size: 13px;
+  color: #8a2b2b;
+}
+
+.genesis-rationale {
+  margin: 0;
+  font-size: 13px;
+  color: #4b4032;
+}
+
+@media (max-width: 700px) {
+  .genesis-panel {
+    bottom: 16px;
+    width: calc(100vw - 18px);
+    padding: 14px;
+  }
+
+  .genesis-input {
+    min-height: 86px;
+  }
+}

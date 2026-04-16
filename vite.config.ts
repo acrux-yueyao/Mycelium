@@ -2,40 +2,41 @@ import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
 /**
- * In dev we serve `/api/emotion` via a tiny Vite middleware that imports
- * `api/emotion.ts` and invokes its handler. In production (Vercel) the
- * same file is picked up as an Edge function. One source of truth.
+ * In dev we serve API endpoints via Vite middleware that imports the
+ * matching edge handler file in `api/`. In production (Vercel) these files
+ * are picked up directly as Edge functions.
  */
 function apiMiddleware(): Plugin {
   return {
     name: 'mycelium-api',
     configureServer(server) {
-      server.middlewares.use('/api/emotion', async (req, res) => {
-        try {
-          const mod = await server.ssrLoadModule('/api/emotion.ts');
-          const handler = mod.default as (req: Request) => Promise<Response>;
-          // Collect body
-          const chunks: Buffer[] = [];
-          for await (const chunk of req as unknown as AsyncIterable<Buffer>) {
-            chunks.push(chunk);
+      for (const endpoint of ['scene', 'emotion']) {
+        server.middlewares.use(`/api/${endpoint}`, async (req, res) => {
+          try {
+            const mod = await server.ssrLoadModule(`/api/${endpoint}.ts`);
+            const handler = mod.default as (request: Request) => Promise<Response>;
+            const chunks: Buffer[] = [];
+            for await (const chunk of req as unknown as AsyncIterable<Buffer>) {
+              chunks.push(chunk);
+            }
+            const body = Buffer.concat(chunks).toString('utf-8');
+            const webReq = new Request(`http://local/api/${endpoint}`, {
+              method: req.method,
+              headers: req.headers as unknown as HeadersInit,
+              body: req.method === 'GET' || req.method === 'HEAD' ? undefined : body,
+            });
+            const webRes = await handler(webReq);
+            res.statusCode = webRes.status;
+            webRes.headers.forEach((v, k) => res.setHeader(k, v));
+            const text = await webRes.text();
+            res.end(text);
+          } catch (err) {
+            res.statusCode = 500;
+            res.setHeader('content-type', 'application/json');
+            res.end(JSON.stringify({ error: 'middleware-crash', detail: String(err) }));
           }
-          const body = Buffer.concat(chunks).toString('utf-8');
-          const webReq = new Request('http://local/api/emotion', {
-            method: req.method,
-            headers: req.headers as unknown as HeadersInit,
-            body: req.method === 'GET' || req.method === 'HEAD' ? undefined : body,
-          });
-          const webRes = await handler(webReq);
-          res.statusCode = webRes.status;
-          webRes.headers.forEach((v, k) => res.setHeader(k, v));
-          const text = await webRes.text();
-          res.end(text);
-        } catch (err) {
-          res.statusCode = 500;
-          res.setHeader('content-type', 'application/json');
-          res.end(JSON.stringify({ error: 'middleware-crash', detail: String(err) }));
-        }
-      });
+        });
+      }
     },
   };
 }
