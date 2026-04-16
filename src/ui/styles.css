@@ -1,0 +1,206 @@
+:root {
+  --ink-0: #0b0906;           /* humus near-black */
+  --ink-1: #140f0a;           /* deep wet earth */
+  --ink-2: #221913;           /* peat */
+  --paper: #d9cfc1;           /* faded parchment */
+  --paper-dim: #8a7d6c;
+  --accent-warm: #a85a32;     /* oxidized copper */
+  --serif: 'Fraunces', 'EB Garamond', Georgia, serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--ink-0);
+  color: var(--paper);
+  font-family: var(--serif);
+  font-weight: 300;
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.genesis-root {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at center,
+    var(--ink-1) 0%,
+    var(--ink-0) 70%,
+    #050403 100%
+  );
+  overflow: hidden;
+}
+
+/* ---- InputTotem ---- */
+.totem {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8vw;
+  transition: opacity 1.4s ease-out;
+}
+
+.totem-eyebrow {
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--paper-dim);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  margin-bottom: 3rem;
+  opacity: 0.6;
+}
+
+.totem-input {
+  width: min(720px, 90%);
+  min-height: 140px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(217, 207, 193, 0.18);
+  outline: none;
+  color: var(--paper);
+  font-family: var(--serif);
+  font-weight: 300;
+  font-size: clamp(1.25rem, 2.4vw, 1.75rem);
+  line-height: 1.7;
+  text-align: center;
+  resize: none;
+  caret-color: var(--accent-warm);
+  padding: 1rem 0;
+  transition: border-color 1s;
+}
+
+.totem-input::placeholder {
+  color: var(--paper-dim);
+  font-style: italic;
+  opacity: 0.55;
+}
+
+.totem-input:focus {
+  border-bottom-color: rgba(217, 207, 193, 0.42);
+}
+
+.totem-hint {
+  margin-top: 2.5rem;
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--paper-dim);
+  letter-spacing: 0.12em;
+  opacity: 0.5;
+}
+
+.totem-hint kbd {
+  font-family: var(--serif);
+  font-size: 0.78rem;
+  background: transparent;
+  border: 1px solid rgba(217, 207, 193, 0.2);
+  border-radius: 2px;
+  padding: 0.06em 0.45em;
+  margin: 0 0.2em;
+}
+
+.totem.fading {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ---- Blackout ---- */
+.blackout {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.8s ease-in-out;
+  z-index: 10;
+}
+
+.blackout.active {
+  opacity: 1;
+}
+
+/* ---- Error state ---- */
+.failure {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  color: var(--paper-dim);
+  font-style: italic;
+  letter-spacing: 0.1em;
+  gap: 1.5rem;
+  z-index: 20;
+  background: rgba(11, 9, 6, 0.9);
+}
+
+.failure button {
+  background: transparent;
+  border: 1px solid rgba(217, 207, 193, 0.2);
+  color: var(--paper-dim);
+  font-family: var(--serif);
+  font-style: italic;
+  padding: 0.6rem 1.6rem;
+  cursor: pointer;
+  letter-spacing: 0.2em;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  transition: border-color 0.4s, color 0.4s;
+}
+
+.failure button:hover {
+  border-color: var(--paper);
+  color: var(--paper);
+}
+
+/* ---- Genesis canvas wrapper ---- */
+.field {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 2.2s ease-in;
+}
+
+.field.visible {
+  opacity: 1;
+}
+
+.specimen-caption {
+  position: absolute;
+  left: 50%;
+  bottom: 5vh;
+  transform: translateX(-50%);
+  color: var(--paper-dim);
+  font-style: italic;
+  letter-spacing: 0.2em;
+  font-size: 0.8rem;
+  opacity: 0;
+  transition: opacity 2s ease-in 3s;
+  text-align: center;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.specimen-caption.visible {
+  opacity: 0.7;
+}
+
+.specimen-caption .latin {
+  font-style: italic;
+  font-size: 1rem;
+  color: var(--paper);
+  display: block;
+  margin-bottom: 0.4rem;
+}
