@@ -1,17 +1,17 @@
-import type { SpeciesId, SurfaceModifier } from './species';
-
 /**
- * Emotion analysis response shape. The backend (api/emotion.ts) is contract-
- * bound to return this exact structure. We do NOT fall back to any local
- * heuristic — the LLM is a hard dependency, per project concept.
+ * Emotion analysis client. Calls /api/emotion, validates the response, and
+ * returns a strict EmotionReading. LLM is a hard dependency — failures
+ * surface as EmotionApiError, no local fallback.
+ *
+ * The backend prompt + JSON schema is updated in Step 4 when we wire this
+ * to the new character-based emotion mapping.
  */
+
 export interface EmotionReading {
   primary: { label: string; weight: number };
   secondary: { label: string; weight: number };
-  intensity: number;                 // 0..1
-  species: SpeciesId;
-  surfaceModifier: SurfaceModifier;
-  rationale?: string;                // short poetic line, optional
+  intensity: number;
+  rationale?: string;
 }
 
 export class EmotionApiError extends Error {
@@ -20,24 +20,6 @@ export class EmotionApiError extends Error {
     this.name = 'EmotionApiError';
   }
 }
-
-const VALID_SPECIES: ReadonlySet<SpeciesId> = new Set([
-  'metatrichia',
-  'physarum',
-  'cribraria',
-  'chlorociboria',
-  'badhamia',
-  'colloderma',
-]);
-
-const VALID_MODIFIERS: ReadonlySet<SurfaceModifier> = new Set([
-  'none',
-  'pearl-translucency',
-  'oxidized-copper',
-  'chartreuse-sheen',
-  'indigo-bruise',
-  'ember-warmth',
-]);
 
 export async function readEmotion(text: string): Promise<EmotionReading> {
   let res: Response;
@@ -67,11 +49,7 @@ export async function readEmotion(text: string): Promise<EmotionReading> {
     typeof r !== 'object' ||
     !r.primary ||
     !r.secondary ||
-    typeof r.intensity !== 'number' ||
-    !r.species ||
-    !VALID_SPECIES.has(r.species) ||
-    !r.surfaceModifier ||
-    !VALID_MODIFIERS.has(r.surfaceModifier)
+    typeof r.intensity !== 'number'
   ) {
     throw new EmotionApiError(`schema-mismatch: ${JSON.stringify(data).slice(0, 300)}`);
   }
