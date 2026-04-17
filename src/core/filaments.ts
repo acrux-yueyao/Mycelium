@@ -175,18 +175,11 @@ export function stepFilament(
   const target = entities.get(f.targetId);
   if (!origin || !target) return;
 
-  // During retract, trim the trail from the tip end over RETRACT_S.
-  // Width fades happen in the renderer; here we just shrink the path.
-  if (c.state === 'retracting') {
-    if (c.retractStart != null) {
-      const retractElapsedS = (now - c.retractStart) / 1000;
-      const retractDurationS = 1.4; // matches RETRACT_S
-      const keep = Math.max(0, 1 - retractElapsedS / retractDurationS);
-      const desiredLen = Math.max(0, Math.floor(f.trail.length * keep));
-      if (desiredLen < f.trail.length) f.trail.length = desiredLen;
-    }
-    return;
-  }
+  // During retract, leave the trail intact — the renderer fades width
+  // from the TIP end back toward the origin end, so the ribbon visibly
+  // withdraws (tip → origin) as a continuous process instead of
+  // popping points off the array.
+  if (c.state === 'retracting') return;
 
   if (!f.reached) {
     // Attraction toward target.
@@ -196,7 +189,11 @@ export function stepFilament(
     const tnx = tdx / tdist;
     const tny = tdy / tdist;
 
-    const attractK = tdist < ATTRACT_NEAR_R ? ATTRACT_K_NEAR : ATTRACT_K_FAR;
+    // Smoothly interpolate between far and near attraction strength as
+    // tdist crosses ATTRACT_NEAR_R, so the tip's velocity doesn't
+    // jerk at the threshold.
+    const nearMix = 1 - Math.min(1, tdist / ATTRACT_NEAR_R);
+    const attractK = ATTRACT_K_FAR + (ATTRACT_K_NEAR - ATTRACT_K_FAR) * nearMix;
     let fx = tnx * attractK;
     let fy = tny * attractK;
 
@@ -225,16 +222,27 @@ export function stepFilament(
       fy += perpY * bias * initialBiasFalloff;
     }
 
-    // Obstacle repulsion from non-endpoint mushrooms.
+    // Obstacle repulsion from non-endpoint mushrooms. Uses quadratic
+    // falloff so the force eases in rather than stepping on, and adds
+    // a small perpendicular curl so the tip visibly CURVES AROUND
+    // the blocker instead of bouncing off it (no sharp kinks).
     for (const [id, e] of entities) {
       if (id === f.originId || id === f.targetId) continue;
       const ex = f.tipX - e.x;
       const ey = f.tipY - e.y;
       const ed = Math.hypot(ex, ey) || 1;
       if (ed < BLOCKER_R) {
-        const strength = ((BLOCKER_R - ed) / BLOCKER_R) * BLOCKER_K;
-        fx += (ex / ed) * strength;
-        fy += (ey / ed) * strength;
+        const t = (BLOCKER_R - ed) / BLOCKER_R;
+        const radial = BLOCKER_K * t * t;
+        fx += (ex / ed) * radial;
+        fy += (ey / ed) * radial;
+        // Curl around the side matching the tip's current motion.
+        const perpX = -ey / ed;
+        const perpY = ex / ed;
+        const side = f.tipVx * perpX + f.tipVy * perpY >= 0 ? 1 : -1;
+        const curl = BLOCKER_K * t * 0.5;
+        fx += perpX * curl * side;
+        fy += perpY * curl * side;
       }
     }
 
@@ -249,29 +257,30 @@ export function stepFilament(
     f.tipX += f.tipVx;
     f.tipY += f.tipVy;
 
-    // Did we land?
+    // Did we land? Mark reached but DO NOT snap the tip — let the
+    // "reached" follow-logic below lerp it smoothly into place.
     const finalDx = target.x - f.tipX;
     const finalDy = target.y - f.tipY;
     const finalDist = Math.hypot(finalDx, finalDy);
     if (finalDist < REACH_DISTANCE) {
       f.reached = true;
       f.reachedAt = now;
-      // Snap tip to target silhouette so the ribbon lands cleanly.
-      const snapNx = -finalDx / (finalDist || 1);
-      const snapNy = -finalDy / (finalDist || 1);
-      f.tipX = target.x + snapNx * EDGE_RADIUS;
-      f.tipY = target.y + snapNy * EDGE_RADIUS;
-      f.tipVx = 0;
-      f.tipVy = 0;
+      // Damp velocity hard so the tip doesn't overshoot while the
+      // lerp pulls it to the silhouette edge.
+      f.tipVx *= 0.25;
+      f.tipVy *= 0.25;
     }
   } else {
-    // After reach: keep tip glued to target's silhouette edge so the
-    // ribbon's far end follows if the target drifts.
+    // After reach: gently ease the tip toward the target's silhouette
+    // edge each frame. Lerp (not snap) so that the moment of landing
+    // is a smooth curve, not an instant jump.
     const ex = f.tipX - target.x;
     const ey = f.tipY - target.y;
     const ed = Math.hypot(ex, ey) || 1;
-    f.tipX = target.x + (ex / ed) * EDGE_RADIUS;
-    f.tipY = target.y + (ey / ed) * EDGE_RADIUS;
+    const desiredX = target.x + (ex / ed) * EDGE_RADIUS;
+    const desiredY = target.y + (ey / ed) * EDGE_RADIUS;
+    f.tipX += (desiredX - f.tipX) * 0.18;
+    f.tipY += (desiredY - f.tipY) * 0.18;
   }
 
   // Keep first trail point on origin's edge as origin drifts.
