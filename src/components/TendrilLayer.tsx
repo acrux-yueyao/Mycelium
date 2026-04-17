@@ -58,8 +58,8 @@ const ANCHOR_RADIUS = 72;   // silhouette edge of a 180px sprite
 const SWAY_MAX = 42;
 
 // Timing (keep in sync with connections.ts GROW_MS / RETRACT_MS).
-const GROW_S = 2.4;
-const RETRACT_S = 1.4;
+const GROW_S = 3.5;
+const RETRACT_S = 2.2;
 
 // Mask stroke width — must exceed the widest ribbon point so nothing
 // gets clipped off the sides during grow.
@@ -217,10 +217,10 @@ function ribbonD(b: BezierPts, widthAt: (t: number) => number, samples = 30): st
 // Fresh points are thin (like a fiber just extruded). As time passes,
 // they fill out toward their mature width. During bonded the whole
 // structure keeps breathing subtly. During retract everything thins.
-const MATURE_S = 2.2;             // time for a newly-reached point to fully thicken
-const INITIAL_WIDTH_FRAC = 0.12;  // fresh-tip width as fraction of mature
-const BREATHE_AMP = 0.07;         // bonded breathing amplitude
-const BREATHE_PERIOD_S = 3.5;
+const MATURE_S = 3.0;             // time for a newly-reached point to fully thicken
+const INITIAL_WIDTH_FRAC = 0.06;  // fresh-tip width as fraction of mature (very thin)
+const BREATHE_AMP = 0.08;         // bonded breathing amplitude
+const BREATHE_PERIOD_S = 4.5;
 
 /** Circular obstacle the bezier should steer around. */
 interface Blocker {
@@ -328,7 +328,7 @@ export function TendrilLayer({
       for (const c of conns) {
         if (c.compat < 0) continue;       // negative-compat stays bezier-based
         const style = tendrilStyle(c);
-        const maxW = style.width * 1.9;
+        const maxW = style.width * 2.6;
         const primaryId = `${c.id}-primary0`;
         if (!filaments.has(primaryId)) {
           const f = initFilament(c, 'primary', 0, now, ents, maxW);
@@ -366,6 +366,33 @@ export function TendrilLayer({
   return (
     <svg className="overlay-layer" width="100%" height="100%" aria-hidden>
       <defs>
+        {/* Goo / fusion filter: a slight Gaussian blur followed by an
+         *  alpha threshold turns crossing ribbons into a single
+         *  continuous blob at the intersection (the classic SVG
+         *  "metaball" trick). All positive-compat ribbons share this
+         *  filter so any two that cross visibly fuse instead of just
+         *  stacking with z-order. */}
+        <filter
+          id="tendril-fusion"
+          x="-10%"
+          y="-10%"
+          width="120%"
+          height="120%"
+        >
+          <feGaussianBlur in="SourceGraphic" stdDeviation="2.4" result="blur" />
+          <feColorMatrix
+            in="blur"
+            mode="matrix"
+            values="1 0 0 0 0
+                    0 1 0 0 0
+                    0 0 1 0 0
+                    0 0 0 11 -4"
+            result="goo"
+          />
+          {/* Composite the source over the goo so soft tendril edges
+           *  remain (we get the fusion blob look + the original color). */}
+          <feComposite in="SourceGraphic" in2="goo" operator="atop" />
+        </filter>
         {connections.map((c) => {
           const style = tendrilStyle(c);
           return (
@@ -385,7 +412,9 @@ export function TendrilLayer({
         })}
       </defs>
 
-      {connections.map((c) => {
+      {/* Negative-compat: dashed bezier strokes, rendered outside the
+       *  fusion filter so the dashes don't get blurred away. */}
+      {connections.filter((c) => c.compat < 0).map((c) => {
         const dx = c.b.x - c.a.x;
         const dy = c.b.y - c.a.y;
         const d = Math.hypot(dx, dy) || 1;
@@ -393,18 +422,15 @@ export function TendrilLayer({
         const ny = dy / d;
         const px = -ny;
         const py = nx;
-
         const ax = c.a.x + nx * ANCHOR_RADIUS;
         const ay = c.a.y + ny * ANCHOR_RADIUS;
         const bx = c.b.x - nx * ANCHOR_RADIUS;
         const by = c.b.y - ny * ANCHOR_RADIUS;
-
         const seed = hashId(c.id);
         const sign = seed & 1 ? 1 : -1;
         const sway1 = 18 + (seed % SWAY_MAX);
         const sway2 = 12 + ((seed >> 4) % SWAY_MAX);
         const signLate = (seed >> 2) & 1 ? sign : -sign;
-
         const main: BezierPts = {
           p0: { x: ax, y: ay },
           p1: {
@@ -417,12 +443,7 @@ export function TendrilLayer({
           },
           p3: { x: bx, y: by },
         };
-
         const style = tendrilStyle(c);
-        const isNegative = c.compat < 0;
-
-        // State-driven animation: keyframe hesitation profile on grow,
-        // gentler keyframe pullback on retract, static otherwise.
         const growing = c.state === 'growing';
         const retracting = c.state === 'retracting';
         const mainAnim = growing
@@ -435,26 +456,30 @@ export function TendrilLayer({
           : retracting
             ? { duration: RETRACT_S, times: RETRACT_TIMES, ease: 'easeInOut' as const }
             : { duration: 0.2 };
+        return (
+          <g key={c.id}>
+            <motion.path
+              d={bezierD(main)}
+              stroke={`url(#tendril-grad-${c.id})`}
+              strokeWidth={style.width}
+              strokeOpacity={style.opacity}
+              strokeDasharray={style.dash}
+              strokeLinecap="round"
+              fill="none"
+              initial={{ pathLength: 0 }}
+              animate={mainAnim}
+              transition={mainTrans}
+            />
+          </g>
+        );
+      })}
 
-        // --- Negative compat: simple wispy dashed stroke, no branches ---
-        if (isNegative) {
-          return (
-            <g key={c.id}>
-              <motion.path
-                d={bezierD(main)}
-                stroke={`url(#tendril-grad-${c.id})`}
-                strokeWidth={style.width}
-                strokeOpacity={style.opacity}
-                strokeDasharray={style.dash}
-                strokeLinecap="round"
-                fill="none"
-                initial={{ pathLength: 0 }}
-                animate={mainAnim}
-                transition={mainTrans}
-              />
-            </g>
-          );
-        }
+      {/* Positive-compat: filament bundles, all wrapped in the fusion
+       *  filter so two ribbons crossing in space visually merge. */}
+      <g filter="url(#tendril-fusion)">
+      {connections.filter((c) => c.compat >= 0).map((c) => {
+        const style = tendrilStyle(c);
+        const retracting = c.state === 'retracting';
 
         // --- Positive compat: physics-driven filament trails ---
         // Read the live FilamentStates maintained by the RAF loop.
@@ -555,6 +580,51 @@ export function TendrilLayer({
             })}
           </g>
         );
+      })}
+      </g>
+
+      {/* Decoration berries — only appear on the PRIMARY's trail once
+       *  the connection has settled (bondedElapsedS >= 1.2s). Rendered
+       *  outside the fusion filter so they keep their crisp color,
+       *  reading as small glints on top of the fused network. */}
+      {connections.filter((c) => c.compat >= 0 && c.state === 'bonded').map((c) => {
+        const fPrimary = filaments.get(`${c.id}-primary0`);
+        if (!fPrimary) return null;
+        const nowMs = performance.now();
+        const elapsedS = (nowMs - c.bornAt) / 1000;
+        const bondedElapsedS = Math.max(0, elapsedS - GROW_S);
+        if (bondedElapsedS < 1.2) return null;
+        if (fPrimary.trail.length < 6) return null;
+        const style = tendrilStyle(c);
+        const seed = hashId(c.id);
+        // Pick 2 spots along the trail with seed-based jitter, skewed
+        // toward the thicker (older, origin-side) half of the ribbon.
+        const fracs = [0.30 + ((seed & 0xf) / 60), 0.62 + (((seed >> 5) & 0xf) / 70)];
+        return fracs.map((frac, i) => {
+          const idx = Math.min(
+            fPrimary.trail.length - 1,
+            Math.max(0, Math.floor(fPrimary.trail.length * frac)),
+          );
+          const pt = fPrimary.trail[idx];
+          const col = i % 2 === 0 ? style.colorA : style.colorB;
+          // Appear delay: first berry at ~1.2s bonded, next ~1.6s.
+          const appearDelay = 1.2 + i * 0.4;
+          return (
+            <motion.circle
+              key={`deco-${c.id}-${i}`}
+              cx={pt.x}
+              cy={pt.y}
+              r={Math.max(1.6, style.width * 0.85)}
+              fill={col}
+              initial={{ opacity: 0, scale: 0.3 }}
+              animate={{
+                opacity: bondedElapsedS >= appearDelay ? 0.75 : 0,
+                scale: bondedElapsedS >= appearDelay ? [0.6, 1.08, 0.92, 1] : 0.3,
+              }}
+              transition={{ duration: 0.9, ease: 'easeOut' }}
+            />
+          );
+        });
       })}
 
       {/* === V2a: exploratory probes ===
