@@ -3,7 +3,7 @@
  * stay within threshold. When held >= HYBRID_THRESHOLD_SEC, triggers hybrid.
  * STEP 2 STUB. Step 8 will implement.
  */
-import type { EntityRef } from '../components/TendrilLayer';
+import type { ConnectionEndpoint as EntityRef } from '../core/connections';
 
 export interface CollisionEvent {
   a: EntityRef;
