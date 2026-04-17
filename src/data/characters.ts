@@ -41,8 +41,7 @@ export const CHARACTERS: Record<CharId, Character> = {
     name: '放射星',
     color: '#E8A28A',
     emotions: ['tender', 'nostalgic', 'soft'],
-    // Face on lower-right of the pink starry sphere.
-    face: { eyeY: 0.52, eyeLeftX: 0.58, eyeRightX: 0.68, eyeSize: 0.026, mouthY: 0.58 },
+    face: { eyeY: 0.52, eyeLeftX: 0.55, eyeRightX: 0.71, eyeSize: 0.028, mouthY: 0.60 },
   },
   1: {
     id: 1,
@@ -50,8 +49,7 @@ export const CHARACTERS: Record<CharId, Character> = {
     name: '水泡',
     color: '#A7C8D6',
     emotions: ['calm', 'clear', 'empty'],
-    // Face lower-center of the white sphere, above the blue puddle.
-    face: { eyeY: 0.43, eyeLeftX: 0.45, eyeRightX: 0.55, eyeSize: 0.026, mouthY: 0.49 },
+    face: { eyeY: 0.43, eyeLeftX: 0.42, eyeRightX: 0.58, eyeSize: 0.028, mouthY: 0.51 },
   },
   2: {
     id: 2,
@@ -59,8 +57,8 @@ export const CHARACTERS: Record<CharId, Character> = {
     name: '蘑菇',
     color: '#E89A5C',
     emotions: ['curious', 'playful', 'clumsy'],
-    // Face on the upper stem, just below the cap overhang.
-    face: { eyeY: 0.57, eyeLeftX: 0.37, eyeRightX: 0.47, eyeSize: 0.026, mouthY: 0.63 },
+    // Face on the cap (umbrella top), not the stem.
+    face: { eyeY: 0.34, eyeLeftX: 0.32, eyeRightX: 0.48, eyeSize: 0.028, mouthY: 0.42 },
   },
   3: {
     id: 3,
@@ -68,8 +66,8 @@ export const CHARACTERS: Record<CharId, Character> = {
     name: '亮片',
     color: '#9AAEE0',
     emotions: ['dreamy', 'excited', 'romantic'],
-    // Face lower-center of the glitter ball, above the orange stem.
-    face: { eyeY: 0.48, eyeLeftX: 0.42, eyeRightX: 0.52, eyeSize: 0.026, mouthY: 0.54 },
+    // Face on the glitter ball (the "cap"), above the orange stem.
+    face: { eyeY: 0.37, eyeLeftX: 0.37, eyeRightX: 0.53, eyeSize: 0.028, mouthY: 0.45 },
   },
   4: {
     id: 4,
@@ -77,10 +75,8 @@ export const CHARACTERS: Record<CharId, Character> = {
     name: '双子杯',
     color: '#7CC8B8',
     emotions: ['companion', 'social', 'attached'],
-    // Two cups side by side — each gets its own face on the body below
-    // the cup rim.
-    face: { eyeY: 0.42, eyeLeftX: 0.20, eyeRightX: 0.30, eyeSize: 0.022, mouthY: 0.48 },
-    secondaryFace: { eyeY: 0.42, eyeLeftX: 0.60, eyeRightX: 0.70, eyeSize: 0.022, mouthY: 0.48 },
+    face: { eyeY: 0.42, eyeLeftX: 0.18, eyeRightX: 0.33, eyeSize: 0.024, mouthY: 0.50 },
+    secondaryFace: { eyeY: 0.42, eyeLeftX: 0.57, eyeRightX: 0.72, eyeSize: 0.024, mouthY: 0.50 },
   },
   5: {
     id: 5,
@@ -88,8 +84,7 @@ export const CHARACTERS: Record<CharId, Character> = {
     name: '枯枝',
     color: '#6E6C6A',
     emotions: ['lonely', 'restrained', 'quiet'],
-    // Face in the blob area surrounded by twig branches.
-    face: { eyeY: 0.50, eyeLeftX: 0.40, eyeRightX: 0.50, eyeSize: 0.024, mouthY: 0.57 },
+    face: { eyeY: 0.50, eyeLeftX: 0.37, eyeRightX: 0.53, eyeSize: 0.026, mouthY: 0.58 },
   },
 };
 
@@ -103,10 +98,10 @@ export function charAsset(id: CharId): string {
  */
 export const HYBRID_FACE: FaceConfig = {
   eyeY: 0.45,
-  eyeLeftX: 0.43,
-  eyeRightX: 0.53,
-  eyeSize: 0.028,
-  mouthY: 0.52,
+  eyeLeftX: 0.40,
+  eyeRightX: 0.56,
+  eyeSize: 0.030,
+  mouthY: 0.53,
 };
 
 /**
@@ -132,40 +127,33 @@ const HYBRID_LETTER: Record<CharId, string> = { 0: 'E', 1: 'D', 2: 'A', 3: 'B', 
  * not for the nominal pair.
  */
 const HYBRID_FACES_MAP: Partial<Record<string, FaceConfig[]>> = {
-  // A_C — mushroom × shrub: two twig-topped orange bodies, side by side.
   'A_C': [
-    { eyeY: 0.52, eyeLeftX: 0.25, eyeRightX: 0.34, eyeSize: 0.022, mouthY: 0.58 },
-    { eyeY: 0.52, eyeLeftX: 0.63, eyeRightX: 0.72, eyeSize: 0.022, mouthY: 0.58 },
+    { eyeY: 0.52, eyeLeftX: 0.22, eyeRightX: 0.36, eyeSize: 0.024, mouthY: 0.60 },
+    { eyeY: 0.52, eyeLeftX: 0.61, eyeRightX: 0.75, eyeSize: 0.024, mouthY: 0.60 },
   ],
-  // A_F — mushroom × cups: two cup-shaped bodies, orange + blue.
   'A_F': [
-    { eyeY: 0.42, eyeLeftX: 0.22, eyeRightX: 0.31, eyeSize: 0.022, mouthY: 0.48 },
-    { eyeY: 0.42, eyeLeftX: 0.62, eyeRightX: 0.71, eyeSize: 0.022, mouthY: 0.48 },
+    { eyeY: 0.42, eyeLeftX: 0.19, eyeRightX: 0.33, eyeSize: 0.024, mouthY: 0.50 },
+    { eyeY: 0.42, eyeLeftX: 0.60, eyeRightX: 0.73, eyeSize: 0.024, mouthY: 0.50 },
   ],
-  // B_E — glitter × radial: diagonal twin (upper-left bubble + lower-right body).
   'B_E': [
-    { eyeY: 0.28, eyeLeftX: 0.27, eyeRightX: 0.36, eyeSize: 0.022, mouthY: 0.34 },
-    { eyeY: 0.70, eyeLeftX: 0.60, eyeRightX: 0.69, eyeSize: 0.022, mouthY: 0.76 },
+    { eyeY: 0.28, eyeLeftX: 0.24, eyeRightX: 0.38, eyeSize: 0.024, mouthY: 0.36 },
+    { eyeY: 0.70, eyeLeftX: 0.57, eyeRightX: 0.71, eyeSize: 0.024, mouthY: 0.78 },
   ],
-  // B_F — glitter × cups: two speckled cups, side by side.
   'B_F': [
-    { eyeY: 0.42, eyeLeftX: 0.22, eyeRightX: 0.31, eyeSize: 0.022, mouthY: 0.48 },
-    { eyeY: 0.42, eyeLeftX: 0.62, eyeRightX: 0.71, eyeSize: 0.022, mouthY: 0.48 },
+    { eyeY: 0.42, eyeLeftX: 0.19, eyeRightX: 0.33, eyeSize: 0.024, mouthY: 0.50 },
+    { eyeY: 0.42, eyeLeftX: 0.60, eyeRightX: 0.73, eyeSize: 0.024, mouthY: 0.50 },
   ],
-  // C_F — shrub × cups: two cups with little twig crowns on top.
   'C_F': [
-    { eyeY: 0.48, eyeLeftX: 0.22, eyeRightX: 0.31, eyeSize: 0.022, mouthY: 0.54 },
-    { eyeY: 0.48, eyeLeftX: 0.62, eyeRightX: 0.71, eyeSize: 0.022, mouthY: 0.54 },
+    { eyeY: 0.48, eyeLeftX: 0.19, eyeRightX: 0.33, eyeSize: 0.024, mouthY: 0.56 },
+    { eyeY: 0.48, eyeLeftX: 0.60, eyeRightX: 0.73, eyeSize: 0.024, mouthY: 0.56 },
   ],
-  // D_F — bubble × cups: two pastel-speckled cups.
   'D_F': [
-    { eyeY: 0.40, eyeLeftX: 0.22, eyeRightX: 0.31, eyeSize: 0.022, mouthY: 0.46 },
-    { eyeY: 0.40, eyeLeftX: 0.62, eyeRightX: 0.71, eyeSize: 0.022, mouthY: 0.46 },
+    { eyeY: 0.40, eyeLeftX: 0.19, eyeRightX: 0.33, eyeSize: 0.024, mouthY: 0.48 },
+    { eyeY: 0.40, eyeLeftX: 0.60, eyeRightX: 0.73, eyeSize: 0.024, mouthY: 0.48 },
   ],
-  // E_F — radial × cups: two white cups with starburst speckles.
   'E_F': [
-    { eyeY: 0.38, eyeLeftX: 0.22, eyeRightX: 0.31, eyeSize: 0.022, mouthY: 0.44 },
-    { eyeY: 0.38, eyeLeftX: 0.62, eyeRightX: 0.71, eyeSize: 0.022, mouthY: 0.44 },
+    { eyeY: 0.38, eyeLeftX: 0.19, eyeRightX: 0.33, eyeSize: 0.024, mouthY: 0.46 },
+    { eyeY: 0.38, eyeLeftX: 0.60, eyeRightX: 0.73, eyeSize: 0.024, mouthY: 0.46 },
   ],
 };
 
