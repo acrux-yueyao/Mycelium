@@ -11,7 +11,9 @@ import { useEmotion } from './hooks/useEmotion';
 import { CHARACTERS, type CharId } from './data/characters';
 import { findNearestBody, stepField } from './core/field';
 import { stepConnections, isActive, type Connection } from './core/connections';
-import { rollProbe, type ExplorationProbe } from './core/probes';
+import { type ExplorationProbe } from './core/probes';
+
+const EMPTY_PROBES: ExplorationProbe[] = [];
 
 export type InfectionState = 'normal' | 'infecting' | 'transforming' | 'hybrid';
 
@@ -273,37 +275,22 @@ export default function App() {
         return updated;
       });
 
-      // === Exploratory probes (V2a) ===
-      // Drop expired / orphaned, roll new ones stochastically per entity.
+      // === Exploratory probes (V2a) — DISABLED ===
+      // Per user feedback: "只找别的菌，不要瞎找". Random-angle probes
+      // into empty space were reading as aimless / random. Kept the
+      // data path so we can revive targeted probes (a mushroom reaching
+      // for a specific other mushroom) later, but no new probes spawn.
       const liveIds = new Set(entitiesRef.current.map((e) => e.id));
       probesRef.current = probesRef.current.filter((p) => {
         if (!liveIds.has(p.originId)) return false;
         const total = p.growMs + p.stableMs + p.retractMs;
         return now - p.bornAt < total;
       });
-      // Per-entity: small chance per frame to spawn, with cooldown.
-      for (const e of entitiesRef.current) {
-        const readyAt = probeCooldownRef.current.get(e.id) ?? 0;
-        if (now < readyAt) continue;
-        if (Math.random() > 0.006) continue; // rare per-frame
-        const avoidAngles: number[] = [];
-        for (const c of connectionMapRef.current.values()) {
-          if (c.a.id === e.id) {
-            avoidAngles.push(Math.atan2(c.b.y - e.y, c.b.x - e.x));
-          } else if (c.b.id === e.id) {
-            avoidAngles.push(Math.atan2(c.a.y - e.y, c.a.x - e.x));
-          }
-        }
-        probesRef.current.push(rollProbe(e.id, now, avoidAngles));
-        // Cooldown so a single mushroom doesn't spawn more than one probe
-        // at once (3.5–6.5s before it can try again).
-        probeCooldownRef.current.set(e.id, now + 3500 + Math.random() * 3000);
-      }
       // GC cooldown entries for despawned entities.
       for (const id of probeCooldownRef.current.keys()) {
         if (!liveIds.has(id)) probeCooldownRef.current.delete(id);
       }
-      setProbes([...probesRef.current]);
+      setProbes(probesRef.current.length > 0 ? [...probesRef.current] : EMPTY_PROBES);
 
       const arr = Array.from(connectionMapRef.current.values());
       setConnections((prevConns) => {

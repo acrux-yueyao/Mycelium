@@ -36,6 +36,10 @@ const LIFETIME_JITTER = 0.2;
 // Cooldown window that blocks the same pair from reconnecting.
 const COOLDOWN_BASE_MS = 3500;
 const COOLDOWN_JITTER_MS = 1500;
+// If a bonded pair is pulled past this factor of its rest length,
+// the tendril gives up and transitions to retracting — so the body
+// is never dragged around while still latched.
+const STRETCH_RETRACT_FACTOR = 1.55;
 
 export type ConnState = 'growing' | 'bonded' | 'retracting';
 
@@ -56,6 +60,10 @@ export interface Connection {
   state: ConnState;
   /** wall-clock ms when retract began (set on transition). */
   retractStart?: number;
+  /** Distance between bodies captured at growing→bonded transition.
+   *  Acts as the spring rest length in stepField, and as the threshold
+   *  for stretch-triggered retract. Undefined while growing. */
+  restLength?: number;
 }
 
 export function pairKey(a: string, b: string): string {
@@ -103,15 +111,29 @@ export function stepConnections(
     // Advance state.
     let state = c.state;
     let retractStart = c.retractStart;
+    let restLength = c.restLength;
 
     if (state === 'growing') {
-      if (now - c.bornAt >= GROW_MS) state = 'bonded';
+      if (now - c.bornAt >= GROW_MS) {
+        state = 'bonded';
+        // Capture the separation at bonded entry as the spring rest length.
+        // stepField uses this to apply an inward pull if the bodies try to
+        // drift apart further, and connections.ts uses it to trigger a
+        // stretch-retract if stretched too hard.
+        restLength = d;
+      }
     }
     if (state === 'bonded') {
       const aged = now - c.bornAt - GROW_MS;
       const tooFar = d > DISCONNECT_RANGE;
       const timeout = aged >= c.maxLifeMs;
-      if (tooFar || timeout) {
+      // Stretch-triggered retract: if the body is pulled hard enough to
+      // exceed STRETCH_RETRACT_FACTOR × restLength, the tendril gives up
+      // and starts retracting so the body can move. This is the "先松
+      // 开，再移动" behavior: a strong outward pull breaks the bond.
+      const stretched =
+        restLength != null && d > restLength * STRETCH_RETRACT_FACTOR;
+      if (tooFar || timeout || stretched) {
         state = 'retracting';
         retractStart = now;
       }
@@ -130,6 +152,7 @@ export function stepConnections(
       b: snap(b),
       state,
       retractStart,
+      restLength,
     });
   }
 

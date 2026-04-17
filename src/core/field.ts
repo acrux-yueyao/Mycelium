@@ -42,6 +42,10 @@ const DAMPING = 0.92;
 const WANDER_K = 0.02;
 // Bonded pairs: scale their mutual attraction. 1 = full latch, 0 = none.
 const BONDED_ATTRACT_SCALE = 0.25;
+// Tendril spring stiffness — how firmly a bonded pair is pulled back if
+// the body tries to drift past the tendril's rest length. Too high feels
+// rigid; too low lets the body escape without the tendril reacting.
+const SPRING_K = 0.012;
 
 export function findNearestBody<T extends PhysBody>(
   self: T,
@@ -97,13 +101,21 @@ export function stepField<T extends PhysBody>(
 
   // Pre-index bonded pairs for O(1) lookup inside the nested loop.
   // A pair is "bonded" if it has a live connection in growing/bonded state.
-  // Retracting connections no longer exert attraction scaling.
+  // Retracting connections no longer exert attraction scaling or springs.
   const bondedPairs = new Set<string>();
+  // Tendril-as-spring: once a connection reaches 'bonded', its restLength
+  // is captured (in connections.ts). While stretched beyond rest, the
+  // tendril pulls the pair back together — the body can't just drift away
+  // carrying the tendril. Retracting connections release the spring.
+  const bondedSprings = new Map<string, number>();  // pairKey → restLength
   if (connections) {
     for (const c of connections.values()) {
       if (c.state === 'retracting') continue;
       const k = c.a.id < c.b.id ? `${c.a.id}|${c.b.id}` : `${c.b.id}|${c.a.id}`;
       bondedPairs.add(k);
+      if (c.state === 'bonded' && c.restLength != null) {
+        bondedSprings.set(k, c.restLength);
+      }
     }
   }
 
@@ -133,6 +145,20 @@ export function stepField<T extends PhysBody>(
         const f = REPEL_K * t * t * REPEL_R;
         fx -= nx * f;
         fy -= ny * f;
+      }
+
+      // Tendril spring: inward pull only when the pair is stretched past
+      // the tendril's rest length. Gives the "本体受触手约束" feel —
+      // connected bodies can't drift apart freely. If the stretch exceeds
+      // STRETCH_RETRACT_FACTOR (in connections.ts) the connection itself
+      // will transition to retracting this frame, and the spring goes away.
+      const pKey = a.id < b.id ? `${a.id}|${b.id}` : `${b.id}|${a.id}`;
+      const rest = bondedSprings.get(pKey);
+      if (rest != null && d > rest) {
+        const stretch = d - rest;
+        const spring = stretch * SPRING_K;
+        fx += nx * spring;
+        fy += ny * spring;
       }
     }
 
