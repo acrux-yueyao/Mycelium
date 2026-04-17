@@ -464,9 +464,6 @@ export function TendrilLayer({
         const nowMs = performance.now();
         const elapsedS = (nowMs - c.bornAt) / 1000;
         const retractElapsedS = c.retractStart ? (nowMs - c.retractStart) / 1000 : 0;
-        const retractScale = retracting
-          ? Math.max(0, 1 - retractElapsedS / RETRACT_S)
-          : 1;
         const breathe = c.state === 'bonded'
           ? 1 + BREATHE_AMP * Math.sin((elapsedS / BREATHE_PERIOD_S) * 2 * Math.PI)
           : 1;
@@ -489,7 +486,21 @@ export function TendrilLayer({
                 f.role === 'probe' && f.decayStartBondedS != null && f.decayDurationS != null
                   ? probeDecay(bondedElapsedS, f.decayStartBondedS, f.decayDurationS)
                   : 1;
-              const widthMul = retractScale * breathe * decay;
+              // During retract: instead of uniformly scaling, the
+              // TIP END fades first and the fade front walks back to
+              // the origin over RETRACT_S. That reads as the tendril
+              // being slowly withdrawn into the origin body, rather
+              // than shrinking in place.
+              const retractingProgress =
+                retracting && retractElapsedS >= 0
+                  ? Math.min(1, retractElapsedS / RETRACT_S)
+                  : 0;
+              // Birth fade: over the first 0.35s of a filament's life,
+              // ramp up the overall ribbon width from 0, so it doesn't
+              // pop in.
+              const filAgeS = Math.max(0, (nowMs - f.bornAt) / 1000 - f.growDelayMs / 1000);
+              const birthFade = Math.min(1, filAgeS / 0.35);
+              const widthMul = breathe * decay * birthFade;
 
               // Include the live tip position as the final sample so the
               // ribbon tracks the tip between trail recordings.
@@ -499,6 +510,10 @@ export function TendrilLayer({
                 trail.push({ x: f.tipX, y: f.tipY, t: nowMs });
               }
               if (trail.length < 2) return null;
+
+              // Width of the retract fade band (fraction of the trail
+              // over which width smoothly drops from 1 to 0).
+              const RETRACT_BAND = 0.22;
 
               const d = polylineRibbonD(trail, (srcIdx, srcFrac, N) => {
                 // Interpolate age linearly between neighboring trail
@@ -510,13 +525,24 @@ export function TendrilLayer({
                 const ageB = (nowMs - b.t) / 1000;
                 const age = ageA + (ageB - ageA) * srcFrac;
                 const maturity = Math.min(1, age / MATURE_S);
-                // Tip is always thin; older points thicken. A mild
-                // positional spindle keeps the ribbon slightly thinner
-                // mid-length for a more organic profile.
+                // posFrac: 0 at origin end, 1 at tip end.
                 const posFrac = N > 1 ? (srcIdx + srcFrac) / (N - 1) : 0;
                 const shape = 1 - 0.2 * Math.sin(Math.PI * posFrac);
                 const frac = INITIAL_WIDTH_FRAC + (1 - INITIAL_WIDTH_FRAC) * maturity;
-                return f.maxWidth * shape * frac * widthMul;
+                // Retract wave: `distFromTip = 1 - posFrac`. The fade
+                // front sits at `retractingProgress` (in distFromTip
+                // space) and has a smooth band ahead of it.
+                let retractMul = 1;
+                if (retractingProgress > 0) {
+                  const distFromTip = 1 - posFrac;
+                  if (distFromTip < retractingProgress) {
+                    retractMul = 0;                                 // already withdrawn
+                  } else if (distFromTip < retractingProgress + RETRACT_BAND) {
+                    retractMul =
+                      (distFromTip - retractingProgress) / RETRACT_BAND; // smooth band
+                  }
+                }
+                return f.maxWidth * shape * frac * widthMul * retractMul;
               });
               return (
                 <path
