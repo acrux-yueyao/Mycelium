@@ -46,6 +46,11 @@ const BONDED_ATTRACT_SCALE = 0.25;
 // the body tries to drift past the tendril's rest length. Too high feels
 // rigid; too low lets the body escape without the tendril reacting.
 const SPRING_K = 0.012;
+// Retract pull — while a connection is retracting, this force ramps
+// from 0 to its peak over the retract duration and actively drags both
+// bodies toward each other. Tuned so two bodies roughly half-close
+// their separation over the 2.2s retract window.
+const RETRACT_PULL_K = 0.14;
 
 export function findNearestBody<T extends PhysBody>(
   self: T,
@@ -101,17 +106,26 @@ export function stepField<T extends PhysBody>(
 
   // Pre-index bonded pairs for O(1) lookup inside the nested loop.
   // A pair is "bonded" if it has a live connection in growing/bonded state.
-  // Retracting connections no longer exert attraction scaling or springs.
+  // Retracting connections no longer exert attraction scaling or springs
+  // — they switch to a RETRACT PULL that actively drags the bodies
+  // together while the tendril reels in (so the body closes distance
+  // in sync with tendril shortening, not left behind in open space).
   const bondedPairs = new Set<string>();
-  // Tendril-as-spring: once a connection reaches 'bonded', its restLength
-  // is captured (in connections.ts). While stretched beyond rest, the
-  // tendril pulls the pair back together — the body can't just drift away
-  // carrying the tendril. Retracting connections release the spring.
-  const bondedSprings = new Map<string, number>();  // pairKey → restLength
+  const bondedSprings = new Map<string, number>();         // pairKey → restLength
+  const retractPulls = new Map<string, number>();          // pairKey → pull scalar 0..1
   if (connections) {
     for (const c of connections.values()) {
-      if (c.state === 'retracting') continue;
       const k = c.a.id < c.b.id ? `${c.a.id}|${c.b.id}` : `${c.b.id}|${c.a.id}`;
+      if (c.state === 'retracting') {
+        const retractElapsedS = c.retractStart != null
+          ? (now - c.retractStart) / 1000
+          : 0;
+        // Ramp from 0 → 1 over the retract duration. RETRACT_S
+        // mirrors connections.ts; duplicating to avoid import cycles.
+        const retractProgress = Math.min(1, retractElapsedS / 2.2);
+        retractPulls.set(k, retractProgress);
+        continue;
+      }
       bondedPairs.add(k);
       if (c.state === 'bonded' && c.restLength != null) {
         bondedSprings.set(k, c.restLength);
@@ -147,12 +161,25 @@ export function stepField<T extends PhysBody>(
         fy -= ny * f;
       }
 
+      const pKey = a.id < b.id ? `${a.id}|${b.id}` : `${b.id}|${a.id}`;
+
+      // Retract pull: while the tendril reels in, both bodies actively
+      // close distance toward each other. Ramps from 0 → RETRACT_PULL_K
+      // over the retract duration so the bodies noticeably approach
+      // as the ribbon shortens. Without this, the body stays where it
+      // was and the tendril visually "disappears behind" it.
+      const retractProg = retractPulls.get(pKey);
+      if (retractProg != null) {
+        const pull = RETRACT_PULL_K * retractProg;
+        fx += nx * pull;
+        fy += ny * pull;
+      }
+
       // Tendril spring: inward pull only when the pair is stretched past
       // the tendril's rest length. Gives the "本体受触手约束" feel —
       // connected bodies can't drift apart freely. If the stretch exceeds
       // STRETCH_RETRACT_FACTOR (in connections.ts) the connection itself
       // will transition to retracting this frame, and the spring goes away.
-      const pKey = a.id < b.id ? `${a.id}|${b.id}` : `${b.id}|${a.id}`;
       const rest = bondedSprings.get(pKey);
       if (rest != null && d > rest) {
         const stretch = d - rest;

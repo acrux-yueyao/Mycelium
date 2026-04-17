@@ -62,6 +62,13 @@ export interface FilamentState {
   /** For probes: when (s into bonded) the ribbon starts fading. */
   decayStartBondedS?: number;
   decayDurationS?: number;
+  /** Last seen origin / target position, so we can translate the trail
+   *  each frame by the endpoints' motion. Prevents "body left, tendril
+   *  still in old position" — the whole trail travels with the bodies. */
+  lastOriginX: number;
+  lastOriginY: number;
+  lastTargetX: number;
+  lastTargetY: number;
 }
 
 const EDGE_RADIUS = 45;          // origin on the visible sprite silhouette
@@ -155,6 +162,10 @@ export function initFilament(
     side,
     decayStartBondedS: role === 'probe' ? 0.7 + probeIndex * 0.35 : undefined,
     decayDurationS: role === 'probe' ? 2.4 : undefined,
+    lastOriginX: origin.x,
+    lastOriginY: origin.y,
+    lastTargetX: target.x,
+    lastTargetY: target.y,
   };
 }
 
@@ -174,6 +185,37 @@ export function stepFilament(
   const origin = entities.get(f.originId);
   const target = entities.get(f.targetId);
   if (!origin || !target) return;
+
+  // Translate the entire trail (and tip) by the weighted endpoint
+  // motion since last frame, so the tendril moves WITH the bodies
+  // instead of staying pinned in world space. A trail point's weight
+  // is its position-along-trail: origin-end (t=0) moves 100% with
+  // the origin, tip-end (t=1) moves 100% with the target, middle
+  // points are lerp'd.
+  const originDx = origin.x - f.lastOriginX;
+  const originDy = origin.y - f.lastOriginY;
+  const targetDx = target.x - f.lastTargetX;
+  const targetDy = target.y - f.lastTargetY;
+  if (originDx !== 0 || originDy !== 0 || targetDx !== 0 || targetDy !== 0) {
+    const N = f.trail.length;
+    for (let i = 0; i < N; i++) {
+      const t = N > 1 ? i / (N - 1) : 0;
+      f.trail[i] = {
+        x: f.trail[i].x + originDx * (1 - t) + targetDx * t,
+        y: f.trail[i].y + originDy * (1 - t) + targetDy * t,
+        t: f.trail[i].t,
+      };
+    }
+    // The live tip sits one step past the last trail point; translate
+    // it as if at t=1 (fully following the target) since the tip
+    // represents "latest reach toward target".
+    f.tipX += targetDx;
+    f.tipY += targetDy;
+  }
+  f.lastOriginX = origin.x;
+  f.lastOriginY = origin.y;
+  f.lastTargetX = target.x;
+  f.lastTargetY = target.y;
 
   // During retract, leave the trail intact — the renderer fades width
   // from the TIP end back toward the origin end, so the ribbon visibly
