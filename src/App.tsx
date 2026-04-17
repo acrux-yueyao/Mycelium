@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Background } from './components/Background';
+import { DebugSpawnBar } from './components/DebugSpawnBar';
 import { Entity } from './components/Entity';
 import { Gallery } from './components/Gallery';
 import { SparkleLayer } from './components/SparkleLayer';
@@ -70,9 +71,12 @@ const ONEWAY_COMPAT_CUTOFF = 0.65;   // at or above: 50/50 mutual vs one-way
  */
 export default function App() {
   // URL-param gallery mode: append `?gallery` to view all characters + hybrids.
-  const showGallery =
-    typeof window !== 'undefined' &&
-    new URLSearchParams(window.location.search).has('gallery');
+  const params =
+    typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search)
+      : new URLSearchParams();
+  const showGallery = params.has('gallery');
+  const showDebug = params.has('debug');
   if (showGallery) return <Gallery />;
 
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
@@ -282,36 +286,49 @@ export default function App() {
     return { x: centerX - w * 0.2, y: centerY - h * 0.2 };
   };
 
-  const handleSubmit = async (text: string) => {
-    const result = await read(text);
-    if (!result) return;
+  // Build a fresh LiveEntity at a random non-overlapping spawn point.
+  const makeEntity = (charId: CharId, rationale?: string): LiveEntity => {
     const { x, y } = spawnAt();
-    const size = 180;
     const a = Math.random() * Math.PI * 2;
     const v0 = 0.4;
-    const newEntity: LiveEntity = {
+    return {
       id: `e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      charId: result.charId,
+      charId,
       x,
       y,
       vx: Math.cos(a) * v0,
       vy: Math.sin(a) * v0,
-      size,
+      size: 180,
       bornAt: Date.now(),
       greetingPulse: 0,
       lonelyExposure: 0,
       infectionState: 'normal',
-      rationale: result.reading.rationale,
+      rationale,
     };
+  };
+
+  // Add an entity to the stage; nearby existing entities pulse a greeting.
+  const pushEntity = (entity: LiveEntity) => {
     setEntities((prev) => {
       const bumped = prev.map((e) => {
-        const d = Math.hypot(e.x - x, e.y - y);
+        const d = Math.hypot(e.x - entity.x, e.y - entity.y);
         return d < GREETING_RADIUS
           ? { ...e, greetingPulse: e.greetingPulse + 1 }
           : e;
       });
-      return [...bumped, newEntity];
+      return [...bumped, entity];
     });
+  };
+
+  const handleSubmit = async (text: string) => {
+    const result = await read(text);
+    if (!result) return;
+    pushEntity(makeEntity(result.charId, result.reading.rationale));
+  };
+
+  // Debug bar handler: spawn one entity per CharId from a typed letter sequence.
+  const handleDebugSpawn = (ids: CharId[]) => {
+    for (const id of ids) pushEntity(makeEntity(id));
   };
 
   return (
@@ -345,6 +362,8 @@ export default function App() {
       })}
 
       <SparkleLayer />
+
+      {showDebug && <DebugSpawnBar onSpawn={handleDebugSpawn} />}
 
       <TreeHoleInput onSubmit={handleSubmit} disabled={loading} loading={loading} />
 
