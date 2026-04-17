@@ -10,7 +10,7 @@ import { TreeHoleInput } from './components/TreeHoleInput';
 import { useEmotion } from './hooks/useEmotion';
 import { CHARACTERS, type CharId } from './data/characters';
 import { findNearestBody, stepField } from './core/field';
-import { stepConnections, type Connection } from './core/connections';
+import { stepConnections, isActive, type Connection } from './core/connections';
 
 export type InfectionState = 'normal' | 'infecting' | 'transforming' | 'hybrid';
 
@@ -95,6 +95,9 @@ export default function App() {
   useEffect(() => { vpRef.current = viewport; }, [viewport]);
 
   const connectionMapRef = useRef<Map<string, Connection>>(new Map());
+  // Per-pair wall-clock ms until which reconnection is blocked after a
+  // connection fully retracts. Managed by stepConnections.
+  const connCooldownRef = useRef<Map<string, number>>(new Map());
   const lastFrameTimeRef = useRef(performance.now());
   // Pair key → timestamp of the last "didn't fire" probability check.
   // Prevents re-rolling the same bonded pair every frame while they linger.
@@ -116,8 +119,19 @@ export default function App() {
           return prev;
         }
 
-        const stepped = stepField(prev, vpRef.current.w, vpRef.current.h);
-        const nextConn = stepConnections(stepped, connectionMapRef.current, now);
+        const stepped = stepField(
+          prev,
+          vpRef.current.w,
+          vpRef.current.h,
+          connectionMapRef.current,
+          now,
+        );
+        const nextConn = stepConnections(
+          stepped,
+          connectionMapRef.current,
+          connCooldownRef.current,
+          now,
+        );
         connectionMapRef.current = nextConn;
 
         const entityById = new Map(stepped.map((e) => [e.id, e]));
@@ -135,6 +149,7 @@ export default function App() {
         }
         const rolls: InfectionRoll[] = [];
         for (const c of nextConn.values()) {
+          if (!isActive(c)) continue;
           const ea = entityById.get(c.a.id);
           const eb = entityById.get(c.b.id);
           if (!ea || !eb) continue;
@@ -251,7 +266,12 @@ export default function App() {
       setConnections((prevConns) => {
         if (prevConns.length !== arr.length) return arr;
         for (let i = 0; i < arr.length; i++) {
-          if (prevConns[i].id !== arr[i].id) return arr;
+          const p = prevConns[i];
+          const n = arr[i];
+          // Any of: id swap, state change, or endpoint move re-renders.
+          if (p.id !== n.id || p.state !== n.state) return arr;
+          if (p.a.x !== n.a.x || p.a.y !== n.a.y) return arr;
+          if (p.b.x !== n.b.x || p.b.y !== n.b.y) return arr;
         }
         return arr;
       });
