@@ -127,6 +127,11 @@ const HYBRID_LETTER: Record<CharId, string> = { 0: 'E', 1: 'D', 2: 'A', 3: 'B', 
  * not for the nominal pair.
  */
 const HYBRID_FACES_MAP: Partial<Record<string, FaceConfig[]>> = {
+  // A_D — single body, but the face needs to sit lower on the body
+  // (closer to the splash base) than the default HYBRID_FACE.
+  'A_D': [
+    { eyeY: 0.55, eyeLeftX: 0.40, eyeRightX: 0.56, eyeSize: 0.030, mouthY: 0.62 },
+  ],
   'A_C': [
     { eyeY: 0.52, eyeLeftX: 0.22, eyeRightX: 0.36, eyeSize: 0.024, mouthY: 0.60 },
     { eyeY: 0.52, eyeLeftX: 0.61, eyeRightX: 0.75, eyeSize: 0.024, mouthY: 0.60 },
@@ -140,16 +145,16 @@ const HYBRID_FACES_MAP: Partial<Record<string, FaceConfig[]>> = {
     { eyeY: 0.70, eyeLeftX: 0.57, eyeRightX: 0.71, eyeSize: 0.024, mouthY: 0.78 },
   ],
   'B_F': [
-    { eyeY: 0.42, eyeLeftX: 0.19, eyeRightX: 0.33, eyeSize: 0.024, mouthY: 0.50 },
-    { eyeY: 0.42, eyeLeftX: 0.60, eyeRightX: 0.73, eyeSize: 0.024, mouthY: 0.50 },
+    { eyeY: 0.46, eyeLeftX: 0.19, eyeRightX: 0.33, eyeSize: 0.024, mouthY: 0.54 },
+    { eyeY: 0.46, eyeLeftX: 0.60, eyeRightX: 0.73, eyeSize: 0.024, mouthY: 0.54 },
   ],
   'C_F': [
     { eyeY: 0.48, eyeLeftX: 0.19, eyeRightX: 0.33, eyeSize: 0.024, mouthY: 0.56 },
     { eyeY: 0.48, eyeLeftX: 0.60, eyeRightX: 0.73, eyeSize: 0.024, mouthY: 0.56 },
   ],
   'D_F': [
-    { eyeY: 0.40, eyeLeftX: 0.19, eyeRightX: 0.33, eyeSize: 0.024, mouthY: 0.48 },
-    { eyeY: 0.40, eyeLeftX: 0.60, eyeRightX: 0.73, eyeSize: 0.024, mouthY: 0.48 },
+    { eyeY: 0.44, eyeLeftX: 0.19, eyeRightX: 0.33, eyeSize: 0.024, mouthY: 0.52 },
+    { eyeY: 0.44, eyeLeftX: 0.60, eyeRightX: 0.73, eyeSize: 0.024, mouthY: 0.52 },
   ],
   'E_F': [
     { eyeY: 0.38, eyeLeftX: 0.19, eyeRightX: 0.33, eyeSize: 0.024, mouthY: 0.46 },
