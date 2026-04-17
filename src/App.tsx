@@ -52,8 +52,8 @@ const INFECTION_MIN_COMPAT = 0.5;    // below this, pairs bond but never infect
 // Base chance an eligible pair actually rolls for infection on any given
 // frame (gated by compat on top, so likely infection is ≈ BASE * compat).
 // Lower → rarer hybrid events, closer bonds without transforming.
-const BASE_INFECTION_PROB = 0.015;   // per-frame chance once HOLD is satisfied
-const ROLL_COOLDOWN_MS = 9000;       // after a "didn't fire" roll, wait this long
+const BASE_INFECTION_PROB = 0.25;    // per-frame chance once HOLD is satisfied
+const ROLL_COOLDOWN_MS = 6000;       // after a "didn't fire" roll, wait this long
 const MUTUAL_COMPAT_CUTOFF = 0.85;   // at or above: both sides always transform
 const ONEWAY_COMPAT_CUTOFF = 0.65;   // at or above: 50/50 mutual vs one-way
 
