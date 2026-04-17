@@ -67,11 +67,13 @@ body,
 }
 
 /* ---- Overlay layers (SVG) ---- */
+/* Tendrils sit BELOW the entity sprites so any part of a tendril
+ * that crosses a mushroom body is hidden behind the sprite. */
 .overlay-layer {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 5;
+  z-index: 2;
 }
 
 /* ---- Entity (character sprite) ---- */
