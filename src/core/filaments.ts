@@ -66,9 +66,9 @@ export interface FilamentState {
 
 const EDGE_RADIUS = 45;          // origin on the visible sprite silhouette
 const REACH_DISTANCE = 55;       // tip considered "landed" within this of target center
-const INITIAL_SPEED = 0.22;      // px / frame initial velocity (softer)
-const ATTRACT_K_FAR = 0.035;     // weak pull while exploring
-const ATTRACT_K_NEAR = 0.085;    // firmer pull when within ATTRACT_NEAR_R
+const INITIAL_SPEED = 0.16;      // px / frame initial velocity (slow exploration)
+const ATTRACT_K_FAR = 0.025;     // weak pull while exploring
+const ATTRACT_K_NEAR = 0.060;    // firmer pull when within ATTRACT_NEAR_R
 const ATTRACT_NEAR_R = 180;
 const WOBBLE_K = 0.024;          // wander strength (gentler)
 const WOBBLE_FREQ_1 = 1.1;
