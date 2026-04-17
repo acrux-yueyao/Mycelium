@@ -11,6 +11,7 @@ import { useEmotion } from './hooks/useEmotion';
 import { CHARACTERS, type CharId } from './data/characters';
 import { findNearestBody, stepField } from './core/field';
 import { stepConnections, isActive, type Connection } from './core/connections';
+import { rollProbe, type ExplorationProbe } from './core/probes';
 
 export type InfectionState = 'normal' | 'infecting' | 'transforming' | 'hybrid';
 
@@ -82,6 +83,7 @@ export default function App() {
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
   const [entities, setEntities] = useState<LiveEntity[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
+  const [probes, setProbes] = useState<ExplorationProbe[]>([]);
   const { loading, error, read, clearError } = useEmotion();
 
   useEffect(() => {
@@ -94,6 +96,10 @@ export default function App() {
   const vpRef = useRef(viewport);
   useEffect(() => { vpRef.current = viewport; }, [viewport]);
 
+  // Ref mirrors of state, so spawnAt() always sees the latest.
+  const entitiesRef = useRef<LiveEntity[]>([]);
+  useEffect(() => { entitiesRef.current = entities; }, [entities]);
+
   const connectionMapRef = useRef<Map<string, Connection>>(new Map());
   // Per-pair wall-clock ms until which reconnection is blocked after a
   // connection fully retracts. Managed by stepConnections.
@@ -102,6 +108,11 @@ export default function App() {
   // Pair key → timestamp of the last "didn't fire" probability check.
   // Prevents re-rolling the same bonded pair every frame while they linger.
   const rolledPairsRef = useRef<Map<string, number>>(new Map());
+  // Live exploratory probes (mushrooms always searching). Mutated in the
+  // RAF loop; setProbes mirrors it into React state for the layer.
+  const probesRef = useRef<ExplorationProbe[]>([]);
+  // Per-mushroom cooldown so we don't spawn multiple probes at once.
+  const probeCooldownRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     let raf = 0;
@@ -262,6 +273,38 @@ export default function App() {
         return updated;
       });
 
+      // === Exploratory probes (V2a) ===
+      // Drop expired / orphaned, roll new ones stochastically per entity.
+      const liveIds = new Set(entitiesRef.current.map((e) => e.id));
+      probesRef.current = probesRef.current.filter((p) => {
+        if (!liveIds.has(p.originId)) return false;
+        const total = p.growMs + p.stableMs + p.retractMs;
+        return now - p.bornAt < total;
+      });
+      // Per-entity: small chance per frame to spawn, with cooldown.
+      for (const e of entitiesRef.current) {
+        const readyAt = probeCooldownRef.current.get(e.id) ?? 0;
+        if (now < readyAt) continue;
+        if (Math.random() > 0.006) continue; // rare per-frame
+        const avoidAngles: number[] = [];
+        for (const c of connectionMapRef.current.values()) {
+          if (c.a.id === e.id) {
+            avoidAngles.push(Math.atan2(c.b.y - e.y, c.b.x - e.x));
+          } else if (c.b.id === e.id) {
+            avoidAngles.push(Math.atan2(c.a.y - e.y, c.a.x - e.x));
+          }
+        }
+        probesRef.current.push(rollProbe(e.id, now, avoidAngles));
+        // Cooldown so a single mushroom doesn't spawn more than one probe
+        // at once (3.5–6.5s before it can try again).
+        probeCooldownRef.current.set(e.id, now + 3500 + Math.random() * 3000);
+      }
+      // GC cooldown entries for despawned entities.
+      for (const id of probeCooldownRef.current.keys()) {
+        if (!liveIds.has(id)) probeCooldownRef.current.delete(id);
+      }
+      setProbes([...probesRef.current]);
+
       const arr = Array.from(connectionMapRef.current.values());
       setConnections((prevConns) => {
         if (prevConns.length !== arr.length) return arr;
@@ -296,12 +339,40 @@ export default function App() {
     const h = vpRef.current.h || window.innerHeight;
     const centerX = w / 2;
     const centerY = h / 2;
-    for (let attempt = 0; attempt < 20; attempt++) {
+    const liveEntities = entitiesRef.current;
+    const liveConns = Array.from(connectionMapRef.current.values());
+
+    // Spawn candidates must sit clear of:
+    //   - the tree-hole input in the middle
+    //   - any existing mushroom (can't birth inside another)
+    //   - any active connection line (can't birth on a tendril)
+    const MIN_ENTITY_DIST = 170;
+    const MIN_CONN_DIST = 70;
+    for (let attempt = 0; attempt < 40; attempt++) {
       const x = centerX + (Math.random() - 0.5) * w * 0.6;
       const y = centerY + (Math.random() - 0.65) * h * 0.5;
-      const nearCenter =
-        Math.abs(x - centerX) < w * 0.12 && Math.abs(y - centerY) < h * 0.18;
-      if (!nearCenter) return { x, y };
+      if (Math.abs(x - centerX) < w * 0.12 && Math.abs(y - centerY) < h * 0.18) continue;
+
+      let ok = true;
+      for (const e of liveEntities) {
+        if (Math.hypot(e.x - x, e.y - y) < MIN_ENTITY_DIST) { ok = false; break; }
+      }
+      if (!ok) continue;
+
+      // Approximate tendril paths with straight A–B lines (cheap and close
+      // enough; the actual bezier sways but not by more than MIN_CONN_DIST).
+      for (const c of liveConns) {
+        for (let i = 0; i <= 8; i++) {
+          const t = i / 8;
+          const sx = c.a.x + (c.b.x - c.a.x) * t;
+          const sy = c.a.y + (c.b.y - c.a.y) * t;
+          if (Math.hypot(sx - x, sy - y) < MIN_CONN_DIST) { ok = false; break; }
+        }
+        if (!ok) break;
+      }
+      if (!ok) continue;
+
+      return { x, y };
     }
     return { x: centerX - w * 0.2, y: centerY - h * 0.2 };
   };
@@ -351,10 +422,20 @@ export default function App() {
     for (const id of ids) pushEntity(makeEntity(id));
   };
 
+  const entityByIdMap = useMemo(() => {
+    const m = new Map<string, { x: number; y: number; charId: CharId }>();
+    for (const e of entities) m.set(e.id, { x: e.x, y: e.y, charId: e.charId });
+    return m;
+  }, [entities]);
+
   return (
     <div className="stage">
       <Background />
-      <TendrilLayer connections={connections} />
+      <TendrilLayer
+        connections={connections}
+        probes={probes}
+        entityById={entityByIdMap}
+      />
 
       {entities.map((e, i) => {
         const t = gazeMap.get(e.id);
