@@ -20,7 +20,14 @@
  *     thin dashed stroked line instead — no branches, no tips.
  */
 import { motion } from 'framer-motion';
+import { useEffect, useRef, useState } from 'react';
 import { tendrilStyle, type Connection } from '../core/connections';
+import {
+  initFilament,
+  stepFilament,
+  type FilamentState,
+  type Entity as FEntity,
+} from '../core/filaments';
 import { probePhase, type ExplorationProbe } from '../core/probes';
 import { CHARACTERS, type CharId } from '../data/characters';
 
@@ -108,6 +115,37 @@ function bezierD(b: BezierPts): string {
   return `M ${b.p0.x} ${b.p0.y} C ${b.p1.x} ${b.p1.y}, ${b.p2.x} ${b.p2.y}, ${b.p3.x} ${b.p3.y}`;
 }
 
+/** Build a tapered filled ribbon from a free-form polyline (the trail
+ *  left by a physics-driven tip). widthAt(i, N) is the total width
+ *  at sample index i, where i=0 is oldest (origin end) and i=N-1 is
+ *  newest (tip end). Returns empty string if trail is too short. */
+function polylineRibbonD(
+  trail: ReadonlyArray<{ x: number; y: number }>,
+  widthAt: (i: number, N: number) => number,
+): string {
+  const N = trail.length;
+  if (N < 2) return '';
+  const fwd: string[] = [];
+  const back: string[] = [];
+  for (let i = 0; i < N; i++) {
+    const pt = trail[i];
+    // Tangent from neighbors (one-sided at endpoints).
+    const prev = trail[Math.max(0, i - 1)];
+    const next = trail[Math.min(N - 1, i + 1)];
+    const tx = next.x - prev.x;
+    const ty = next.y - prev.y;
+    const tl = Math.hypot(tx, ty) || 1;
+    const perpX = -ty / tl;
+    const perpY = tx / tl;
+    const w = widthAt(i, N) / 2;
+    fwd.push(`${(pt.x + perpX * w).toFixed(1)},${(pt.y + perpY * w).toFixed(1)}`);
+    back.unshift(`${(pt.x - perpX * w).toFixed(1)},${(pt.y - perpY * w).toFixed(1)}`);
+  }
+  const fp = fwd.map((p, i) => (i === 0 ? `M ${p}` : `L ${p}`)).join(' ');
+  const bp = back.map((p) => `L ${p}`).join(' ');
+  return `${fp} ${bp} Z`;
+}
+
 // Build a filled tapered ribbon along a cubic bezier. `widthAt(t)` gives
 // the total width (not half-width) at parameter t.
 function ribbonD(b: BezierPts, widthAt: (t: number) => number, samples = 30): string {
@@ -140,124 +178,6 @@ const MATURE_S = 2.2;             // time for a newly-reached point to fully thi
 const INITIAL_WIDTH_FRAC = 0.12;  // fresh-tip width as fraction of mature
 const BREATHE_AMP = 0.07;         // bonded breathing amplitude
 const BREATHE_PERIOD_S = 3.5;
-
-// Spindle shape for the main line: wider at both anchors, slightly
-// thinner in the middle. Returns a 0..1 multiplier.
-function mainSpindle(t: number): number {
-  return 1 - 0.35 * Math.sin(Math.PI * t);
-}
-
-// Branch taper: thickest at the root, thinning toward the tip.
-function branchTaper(t: number): number {
-  return 1 - 0.85 * t;
-}
-
-// Mature main width (what the line looks like once fully grown,
-// ignoring time). Used by pickBranches to size branch bases.
-function mainWidth(max: number, t: number): number {
-  return max * mainSpindle(t);
-}
-
-// What fraction of the mature width should a point at (t, elapsedS) have?
-// Origin points reach maturity first; tip points catch up over MATURE_S
-// after the growth tip passes them.
-function growthFraction(t: number, elapsedS: number): number {
-  const arriveS = GROW_S * timeToReach(t);
-  const age = elapsedS - arriveS;
-  if (age <= 0) return INITIAL_WIDTH_FRAC;
-  const maturity = Math.min(1, age / MATURE_S);
-  return INITIAL_WIDTH_FRAC + (1 - INITIAL_WIDTH_FRAC) * maturity;
-}
-
-// Dynamic width for the main line at position t given elapsed wall-clock.
-function dynamicMainWidth(t: number, elapsedS: number, max: number): number {
-  return max * mainSpindle(t) * growthFraction(t, elapsedS);
-}
-
-// Dynamic width for a branch. A branch has its own birth time
-// (branchElapsedS = elapsedS - growDelay), so we apply growthFraction
-// using the branch's own internal time and pathLength.
-function dynamicBranchWidth(t: number, branchElapsedS: number, branchDurS: number, max: number): number {
-  // For branches, approximate: the tip is reached at t=branchElapsedS/branchDurS
-  // of the way through. A point at position t is "reached" at
-  // branchDurS * t — so age = branchElapsedS - branchDurS * t.
-  const arriveS = branchDurS * t;
-  const age = branchElapsedS - arriveS;
-  let frac: number;
-  if (age <= 0) frac = INITIAL_WIDTH_FRAC;
-  else {
-    const maturity = Math.min(1, age / MATURE_S);
-    frac = INITIAL_WIDTH_FRAC + (1 - INITIAL_WIDTH_FRAC) * maturity;
-  }
-  return max * branchTaper(t) * frac;
-}
-
-interface BranchSpec {
-  bez: BezierPts;
-  tip: Pt;
-  baseWidth: number;
-  growDelay: number;  // seconds into the grow phase before this branch appears
-  growDuration: number;
-}
-
-function makeBranch(
-  main: BezierPts,
-  tBase: number,
-  side: 1 | -1,
-  length: number,
-  bend: number,
-  curl: number,
-): { bez: BezierPts; tip: Pt } {
-  const base = bezierAt(tBase, main.p0, main.p1, main.p2, main.p3);
-  const tan = bezierTangent(tBase, main.p0, main.p1, main.p2, main.p3);
-  const tl = Math.hypot(tan.x, tan.y) || 1;
-  const tx = tan.x / tl;
-  const ty = tan.y / tl;
-  const nx = -ty * side;
-  const ny = tx * side;
-  // Tip pulls out perpendicular + a bit along the tangent direction
-  // so it sweeps forward rather than popping straight out.
-  const tip: Pt = {
-    x: base.x + nx * length * 0.95 + tx * length * curl,
-    y: base.y + ny * length * 0.95 + ty * length * curl,
-  };
-  const p1: Pt = {
-    x: base.x + nx * length * 0.25 + tx * length * bend * 0.3,
-    y: base.y + ny * length * 0.25 + ty * length * bend * 0.3,
-  };
-  const p2: Pt = {
-    x: tip.x - nx * length * 0.12 + tx * length * bend * 0.2,
-    y: tip.y - ny * length * 0.12 + ty * length * bend * 0.2,
-  };
-  return { bez: { p0: base, p1, p2, p3: tip }, tip };
-}
-
-// === Filament bundle ===
-//
-// A connection renders as a BUNDLE of filaments, not a single bezier:
-//   - 1 primary "chosen" path — most direct, grows to full width, stays
-//     breathing during bonded, carries the branches + tip dots.
-//   - 2 probe filaments — more swayed curvatures, fan out to alternate
-//     sides, grow to ~25–35% width, then slowly fade during bonded
-//     (the path was "not selected" and withers away).
-// The bundle reads as multiple exploratory fibers with one becoming
-// reinforced, rather than a single UI line being drawn.
-
-interface FilamentSpec {
-  id: string;
-  bez: BezierPts;
-  role: 'primary' | 'probe';
-  /** Seconds after connection bornAt before this filament starts growing. */
-  growDelay: number;
-  /** Mature width ceiling for this filament (mix of taper × this cap). */
-  maxWidth: number;
-  /** Relative growth speed (1.0 = primary; 0.5 = probes take twice as long). */
-  growSpeedFactor: number;
-  /** Only for probes: how long into bonded before this probe starts to
-   *  thin out, and over how many seconds it fades to zero. */
-  decayStartS?: number;
-  decayDurationS?: number;
-}
 
 /** Circular obstacle the bezier should steer around. */
 interface Blocker {
@@ -324,111 +244,10 @@ function routeBezier(
   return last!;
 }
 
-function buildFilaments(
-  c: Connection,
-  ax: number,
-  ay: number,
-  bx: number,
-  by: number,
-  px: number,
-  py: number,
-  mainMaxW: number,
-  blockers: Blocker[],
-): FilamentSpec[] {
-  const seed = hashId(c.id);
-  const baseSign = seed & 1 ? 1 : -1;
-  const filaments: FilamentSpec[] = [];
-
-  // Primary: the "chosen" path. Slightly biased toward direct, low sway.
-  const sway1 = 18 + (seed % SWAY_MAX);
-  const sway2 = 12 + ((seed >> 4) % SWAY_MAX);
-  const signLate: 1 | -1 = (seed >> 2) & 1 ? baseSign : (-baseSign as 1 | -1);
-  const primary = routeBezier(
-    { x: ax, y: ay }, { x: bx, y: by },
-    px, py, sway1, sway2, baseSign, signLate, blockers,
-  );
-  filaments.push({
-    id: `${c.id}-p`,
-    bez: primary,
-    role: 'primary',
-    growDelay: 0,
-    maxWidth: mainMaxW,
-    growSpeedFactor: 1,
-  });
-
-  // Two probes: alternate sides, larger sway, staggered sprout delays,
-  // much thinner. They grow alongside the primary, reach their target,
-  // then slowly thin out during bonded — the "unselected" paths.
-  for (let i = 0; i < 2; i++) {
-    const probeSeed = seed ^ ((i + 1) * 0x9e37);
-    const pSide: 1 | -1 = i === 0 ? (-baseSign as 1 | -1) : (baseSign as 1 | -1);
-    const swayA = 34 + (probeSeed % (SWAY_MAX + 18));
-    const swayB = 26 + ((probeSeed >> 4) % (SWAY_MAX + 12));
-    const probe = routeBezier(
-      { x: ax, y: ay }, { x: bx, y: by },
-      px, py, swayA, swayB, pSide, pSide, blockers,
-    );
-    filaments.push({
-      id: `${c.id}-probe${i}`,
-      bez: probe,
-      role: 'probe',
-      growDelay: 0.25 + i * 0.4,
-      maxWidth: mainMaxW * (0.30 - i * 0.10),
-      // Probes are much more tentative — half the primary's speed.
-      growSpeedFactor: 0.5,
-      decayStartS: 1.2 + i * 0.45,
-      decayDurationS: 3.2,
-    });
-  }
-
-  return filaments;
-}
-
 function probeDecay(bondedElapsedS: number, startS: number, durS: number): number {
   if (bondedElapsedS < startS) return 1;
   const t = (bondedElapsedS - startS) / durS;
   return Math.max(0, 1 - t);
-}
-
-// Given a target pathLength value, find the approximate wall-clock
-// fraction of GROW_S at which the hesitation profile first reaches it.
-// Used so branches sprout exactly when the main tip passes their base.
-function timeToReach(lengthTarget: number): number {
-  for (let i = 1; i < GROW_VALUES.length; i++) {
-    if (GROW_VALUES[i] >= lengthTarget) {
-      const prevV = GROW_VALUES[i - 1];
-      const prevT = GROW_TIMES[i - 1];
-      const dV = GROW_VALUES[i] - prevV;
-      const dT = GROW_TIMES[i] - prevT;
-      if (dV <= 0) return prevT;
-      return prevT + dT * ((lengthTarget - prevV) / dV);
-    }
-  }
-  return 1;
-}
-
-function pickBranches(main: BezierPts, seed: number, maxWidth: number, compat: number): BranchSpec[] {
-  // No branches for negative-compat (reluctant) links, and only a few
-  // for middling compat. High compat gets more.
-  const count = compat < 0 ? 0 : compat > 0.6 ? 3 : compat > 0.3 ? 2 : 1;
-  const spots = [0.28, 0.55, 0.78];
-  const result: BranchSpec[] = [];
-  for (let i = 0; i < count; i++) {
-    const tBase = spots[i] + ((seed >> (i * 3)) & 0x7) / 70 - 0.05;
-    const side: 1 | -1 = (seed >> (i * 2 + 1)) & 1 ? 1 : -1;
-    const length = 28 + ((seed >> (i * 4 + 2)) & 0xf) * 1.4;
-    const bend = 0.4 + ((seed >> (i * 3 + 1)) & 0x7) / 12;
-    const curl = 0.08 + ((seed >> (i * 5 + 3)) & 0x7) / 40;
-    const { bez, tip } = makeBranch(main, tBase, side, length, bend, curl);
-    const baseWidth = mainWidth(maxWidth, tBase) * 0.55;
-    // Branch starts growing exactly when the main tip first reaches
-    // its base (slightly before, for visual overlap). Its own growth
-    // is slow and hesitant but shorter than the main line.
-    const growDelay = GROW_S * Math.max(0, timeToReach(tBase) - 0.04);
-    const growDuration = GROW_S * 0.35;
-    result.push({ bez, tip, baseWidth, growDelay, growDuration });
-  }
-  return result;
 }
 
 export function TendrilLayer({
@@ -437,6 +256,70 @@ export function TendrilLayer({
   entityById,
 }: TendrilLayerProps) {
   const nowRender = performance.now();
+
+  // === V2c: physics-driven filament tips ===
+  // Per connection, we maintain 1 primary + 2 probe FilamentStates.
+  // They advance by themselves each frame (tip seeks target with noise),
+  // accumulating a trail that we render as a tapered polyline ribbon.
+  const filamentsRef = useRef<Map<string, FilamentState>>(new Map());
+  // Keep latest props accessible from inside the RAF closure without
+  // re-subscribing.
+  const connectionsRef = useRef(connections);
+  connectionsRef.current = connections;
+  const entityByIdRef = useRef(entityById);
+  entityByIdRef.current = entityById;
+  // A tick that bumps every frame so React re-renders and picks up
+  // the new tip positions from filamentsRef.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    const loop = () => {
+      const now = performance.now();
+      const conns = connectionsRef.current;
+      const entsMap = entityByIdRef.current;
+      const ents: Map<string, FEntity> = entsMap ?? new Map();
+
+      // Make sure every positive-compat connection has its bundle.
+      const filaments = filamentsRef.current;
+      const liveIds = new Set<string>();
+      for (const c of conns) {
+        if (c.compat < 0) continue;       // negative-compat stays bezier-based
+        const style = tendrilStyle(c);
+        const maxW = style.width * 1.9;
+        const primaryId = `${c.id}-primary0`;
+        if (!filaments.has(primaryId)) {
+          const f = initFilament(c, 'primary', 0, now, ents, maxW);
+          if (f) filaments.set(primaryId, f);
+        }
+        liveIds.add(primaryId);
+        for (let i = 0; i < 2; i++) {
+          const probeId = `${c.id}-probe${i}`;
+          if (!filaments.has(probeId)) {
+            const f = initFilament(c, 'probe', i, now, ents, maxW);
+            if (f) filaments.set(probeId, f);
+          }
+          liveIds.add(probeId);
+        }
+      }
+      // Drop filaments whose connection is gone.
+      for (const id of filaments.keys()) {
+        if (!liveIds.has(id)) filaments.delete(id);
+      }
+      // Step physics on all remaining filaments.
+      for (const f of filaments.values()) {
+        const c = conns.find((cc) => cc.id === f.connectionId);
+        if (!c) continue;
+        stepFilament(f, c, ents, now);
+      }
+      setTick((t) => (t + 1) & 0xffff);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const filaments = filamentsRef.current;
+
   return (
     <svg className="overlay-layer" width="100%" height="100%" aria-hidden>
       <defs>
@@ -530,24 +413,11 @@ export function TendrilLayer({
           );
         }
 
-        // --- Positive compat: filament bundle (primary + 2 probes) ---
-        const mainMaxW = style.width * 1.9;
-        // Third-party mushrooms to steer around. Endpoints of this pair
-        // are excluded; others are blockers with a generous clearance
-        // radius so the tendril visibly curves away rather than skims.
-        const blockers: Blocker[] = [];
-        if (entityById) {
-          for (const [id, e] of entityById) {
-            if (id === c.a.id || id === c.b.id) continue;
-            blockers.push({ x: e.x, y: e.y, r: 95 });
-          }
-        }
-        const filaments = buildFilaments(c, ax, ay, bx, by, px, py, mainMaxW, blockers);
-        const primary = filaments[0];
-        const branches = pickBranches(primary.bez, seed, mainMaxW, c.compat);
-
-        // Time-driven. Each filament has its own growDelay, so its
-        // local "elapsed" is offset.
+        // --- Positive compat: physics-driven filament trails ---
+        // Read the live FilamentStates maintained by the RAF loop.
+        // Each trail is a poly-line that the tip actually traced through
+        // space. No masks, no pathLength reveal: width is ZERO where the
+        // tip hasn't been, and grows with each point's age.
         const nowMs = performance.now();
         const elapsedS = (nowMs - c.bornAt) / 1000;
         const retractElapsedS = c.retractStart ? (nowMs - c.retractStart) / 1000 : 0;
@@ -557,123 +427,57 @@ export function TendrilLayer({
         const breathe = c.state === 'bonded'
           ? 1 + BREATHE_AMP * Math.sin((elapsedS / BREATHE_PERIOD_S) * 2 * Math.PI)
           : 1;
-        const widthMul = retractScale * breathe;
-
-        // Tip glow dots ONLY once bonded has settled — never during growth,
-        // per the slime-mold brief. ~0.8s after bonded enters.
         const bondedElapsedS = c.state === 'bonded'
           ? Math.max(0, elapsedS - GROW_S)
           : 0;
 
+        const fPrimary = filaments.get(`${c.id}-primary0`);
+        const fProbe0 = filaments.get(`${c.id}-probe0`);
+        const fProbe1 = filaments.get(`${c.id}-probe1`);
+        const bundle = [fPrimary, fProbe0, fProbe1].filter(
+          (f): f is FilamentState => !!f,
+        );
+
         return (
           <g key={c.id}>
-            <defs>
-              {filaments.map((f) => (
-                <mask
-                  key={`mask-${f.id}`}
-                  id={`reveal-${f.id}`}
-                  maskUnits="userSpaceOnUse"
-                >
-                  <rect
-                    x={Math.min(ax, bx) - 140}
-                    y={Math.min(ay, by) - 140}
-                    width={Math.abs(bx - ax) + 280}
-                    height={Math.abs(by - ay) + 280}
-                    fill="black"
-                  />
-                  {/* Filament reveal. Primary uses the hesitation profile;
-                      probes use the same profile with a growDelay offset
-                      AND a duration stretch (growSpeedFactor < 1 → slower). */}
-                  <motion.path
-                    d={bezierD(f.bez)}
-                    stroke="white"
-                    strokeWidth={MASK_STROKE * (f.role === 'primary' ? 1 : 0.6)}
-                    strokeLinecap="round"
-                    fill="none"
-                    initial={{ pathLength: 0 }}
-                    animate={
-                      growing ? { pathLength: GROW_VALUES }
-                      : retracting ? { pathLength: RETRACT_VALUES }
-                      : { pathLength: 1 }
-                    }
-                    transition={
-                      growing
-                        ? { duration: GROW_S / f.growSpeedFactor, times: GROW_TIMES, delay: f.growDelay, ease: 'easeInOut' }
-                        : retracting
-                          ? { duration: RETRACT_S, times: RETRACT_TIMES, ease: 'easeInOut' }
-                          : { duration: 0.2 }
-                    }
-                  />
-                  {/* Branches belong only to the primary filament — they
-                      sprout off the "chosen" path, not the probes. */}
-                  {f.role === 'primary' &&
-                    branches.map((br, i) => (
-                      <motion.path
-                        key={`brmask-${i}`}
-                        d={bezierD(br.bez)}
-                        stroke="white"
-                        strokeWidth={MASK_STROKE * 0.55}
-                        strokeLinecap="round"
-                        fill="none"
-                        initial={{ pathLength: 0 }}
-                        animate={{ pathLength: retracting ? 0 : 1 }}
-                        transition={
-                          growing
-                            ? { duration: br.growDuration, delay: br.growDelay, ease: [0.22, 0.65, 0.32, 1.0] }
-                            : retracting
-                              ? { duration: RETRACT_S * 0.7, ease: 'easeIn' }
-                              : { duration: 0.2 }
-                        }
-                      />
-                    ))}
-                </mask>
-              ))}
-            </defs>
-
-            {/* Render every filament in the bundle. Each has its own mask. */}
-            {filaments.map((f) => {
-              // Per-filament local elapsed (probes start later).
-              const fElapsedS = Math.max(0, elapsedS - f.growDelay);
-              // Probes fade out during bonded (the "unselected" paths).
+            {bundle.map((f) => {
+              // Decay for probes: lose width over time during bonded.
               const decay =
-                f.role === 'probe' && f.decayStartS != null && f.decayDurationS != null
-                  ? probeDecay(bondedElapsedS, f.decayStartS, f.decayDurationS)
+                f.role === 'probe' && f.decayStartBondedS != null && f.decayDurationS != null
+                  ? probeDecay(bondedElapsedS, f.decayStartBondedS, f.decayDurationS)
                   : 1;
-              const filWidthMul = widthMul * decay;
-              const rib = ribbonD(f.bez, (t) =>
-                dynamicMainWidth(t, fElapsedS, f.maxWidth) * filWidthMul,
-              );
+              const widthMul = retractScale * breathe * decay;
+
+              // Include the live tip position as the final sample so the
+              // ribbon tracks the tip between trail recordings.
+              const trail = [...f.trail];
+              const last = trail[trail.length - 1];
+              if (last && Math.hypot(f.tipX - last.x, f.tipY - last.y) > 0.5) {
+                trail.push({ x: f.tipX, y: f.tipY, t: nowMs });
+              }
+              if (trail.length < 2) return null;
+
+              const d = polylineRibbonD(trail, (i, N) => {
+                const tp = trail[i];
+                const ageS = (nowMs - tp.t) / 1000;
+                const maturity = Math.min(1, ageS / MATURE_S);
+                // Tip (last point, age~0) is always thin; older points
+                // thicken. A mild positional spindle keeps the ribbon
+                // slightly thinner in the middle.
+                const posFrac = N > 1 ? i / (N - 1) : 0;
+                const shape = 1 - 0.2 * Math.sin(Math.PI * posFrac);
+                const frac = INITIAL_WIDTH_FRAC + (1 - INITIAL_WIDTH_FRAC) * maturity;
+                return f.maxWidth * shape * frac * widthMul;
+              });
               return (
-                <g
+                <path
                   key={`fil-${f.id}`}
-                  mask={`url(#reveal-${f.id})`}
+                  d={d}
+                  fill={`url(#tendril-grad-${c.id})`}
                   opacity={style.opacity}
-                >
-                  <path d={rib} fill={`url(#tendril-grad-${c.id})`} />
-                  {/* Branches only on the primary filament, using its own
-                      dynamic-width model. */}
-                  {f.role === 'primary' &&
-                    branches.map((br, i) => {
-                      const branchElapsedS = Math.max(0, elapsedS - br.growDelay);
-                      return (
-                        <path
-                          key={`br-${i}`}
-                          d={ribbonD(br.bez, (t) =>
-                            dynamicBranchWidth(
-                              t,
-                              branchElapsedS,
-                              br.growDuration,
-                              br.baseWidth,
-                            ) * widthMul,
-                          )}
-                          fill={`url(#tendril-grad-${c.id})`}
-                        />
-                      );
-                    })}
-                </g>
+                />
               );
             })}
-
           </g>
         );
       })}
