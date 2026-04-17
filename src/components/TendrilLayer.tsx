@@ -108,16 +108,67 @@ function ribbonD(b: BezierPts, widthAt: (t: number) => number, samples = 30): st
   return `${fp} ${bp} Z`;
 }
 
-// Spindle profile: wider at both ends, slightly thinner in the middle.
-// shape ranges ~0.65 at t=0.5 up to 1.0 at the anchors.
-function mainWidth(max: number, t: number): number {
-  const bell = 1 - 0.35 * Math.sin(Math.PI * t);
-  return max * bell;
+// === Dynamic width over time ===
+//
+// The tendril's thickness is NOT a static taper. Each path sample has
+// an age — the wall-clock time since the growth tip first reached it.
+// Fresh points are thin (like a fiber just extruded). As time passes,
+// they fill out toward their mature width. During bonded the whole
+// structure keeps breathing subtly. During retract everything thins.
+const MATURE_S = 2.2;             // time for a newly-reached point to fully thicken
+const INITIAL_WIDTH_FRAC = 0.12;  // fresh-tip width as fraction of mature
+const BREATHE_AMP = 0.07;         // bonded breathing amplitude
+const BREATHE_PERIOD_S = 3.5;
+
+// Spindle shape for the main line: wider at both anchors, slightly
+// thinner in the middle. Returns a 0..1 multiplier.
+function mainSpindle(t: number): number {
+  return 1 - 0.35 * Math.sin(Math.PI * t);
 }
 
-// Branch taper: thickest at the root (t=0), thinning to ~15% at the tip.
-function branchWidth(max: number, t: number): number {
-  return max * (1 - 0.85 * t);
+// Branch taper: thickest at the root, thinning toward the tip.
+function branchTaper(t: number): number {
+  return 1 - 0.85 * t;
+}
+
+// Mature main width (what the line looks like once fully grown,
+// ignoring time). Used by pickBranches to size branch bases.
+function mainWidth(max: number, t: number): number {
+  return max * mainSpindle(t);
+}
+
+// What fraction of the mature width should a point at (t, elapsedS) have?
+// Origin points reach maturity first; tip points catch up over MATURE_S
+// after the growth tip passes them.
+function growthFraction(t: number, elapsedS: number): number {
+  const arriveS = GROW_S * timeToReach(t);
+  const age = elapsedS - arriveS;
+  if (age <= 0) return INITIAL_WIDTH_FRAC;
+  const maturity = Math.min(1, age / MATURE_S);
+  return INITIAL_WIDTH_FRAC + (1 - INITIAL_WIDTH_FRAC) * maturity;
+}
+
+// Dynamic width for the main line at position t given elapsed wall-clock.
+function dynamicMainWidth(t: number, elapsedS: number, max: number): number {
+  return max * mainSpindle(t) * growthFraction(t, elapsedS);
+}
+
+// Dynamic width for a branch. A branch has its own birth time
+// (branchElapsedS = elapsedS - growDelay), so we apply growthFraction
+// using the branch's own internal time and pathLength.
+function dynamicBranchWidth(t: number, branchElapsedS: number, branchDurS: number, max: number): number {
+  // For branches, approximate: the tip is reached at t=branchElapsedS/branchDurS
+  // of the way through. A point at position t is "reached" at
+  // branchDurS * t — so age = branchElapsedS - branchDurS * t.
+  const arriveS = branchDurS * t;
+  const age = branchElapsedS - arriveS;
+  let frac: number;
+  if (age <= 0) frac = INITIAL_WIDTH_FRAC;
+  else {
+    const maturity = Math.min(1, age / MATURE_S);
+    frac = INITIAL_WIDTH_FRAC + (1 - INITIAL_WIDTH_FRAC) * maturity;
+  }
+  return max * branchTaper(t) * frac;
 }
 
 interface BranchSpec {
@@ -300,7 +351,25 @@ export function TendrilLayer({ connections }: TendrilLayerProps) {
         // --- Positive compat: tapered filled ribbon + side branches ---
         const mainMaxW = style.width * 1.9;
         const branches = pickBranches(main, seed, mainMaxW, c.compat);
-        const ribbonMain = ribbonD(main, (t) => mainWidth(mainMaxW, t));
+
+        // Time-driven width. Tip starts thin; points thicken with age.
+        const nowMs = performance.now();
+        const elapsedS = (nowMs - c.bornAt) / 1000;
+        const retractElapsedS = c.retractStart ? (nowMs - c.retractStart) / 1000 : 0;
+        // Retract: thin everything down uniformly as the mask hides it
+        // from the tip backward.
+        const retractScale = retracting
+          ? Math.max(0, 1 - retractElapsedS / RETRACT_S)
+          : 1;
+        // Breathing only kicks in once bonded (grow is over).
+        const breathe = c.state === 'bonded'
+          ? 1 + BREATHE_AMP * Math.sin((elapsedS / BREATHE_PERIOD_S) * 2 * Math.PI)
+          : 1;
+        const widthMul = retractScale * breathe;
+
+        const ribbonMain = ribbonD(main, (t) =>
+          dynamicMainWidth(t, elapsedS, mainMaxW) * widthMul,
+        );
 
         return (
           <g key={c.id}>
@@ -352,13 +421,18 @@ export function TendrilLayer({ connections }: TendrilLayerProps) {
 
             <g mask={`url(#reveal-${c.id})`} opacity={style.opacity}>
               <path d={ribbonMain} fill={`url(#tendril-grad-${c.id})`} />
-              {branches.map((br, i) => (
-                <path
-                  key={`br-${i}`}
-                  d={ribbonD(br.bez, (t) => branchWidth(br.baseWidth, t))}
-                  fill={`url(#tendril-grad-${c.id})`}
-                />
-              ))}
+              {branches.map((br, i) => {
+                const branchElapsedS = Math.max(0, elapsedS - br.growDelay);
+                return (
+                  <path
+                    key={`br-${i}`}
+                    d={ribbonD(br.bez, (t) =>
+                      dynamicBranchWidth(t, branchElapsedS, br.growDuration, br.baseWidth) * widthMul,
+                    )}
+                    fill={`url(#tendril-grad-${c.id})`}
+                  />
+                );
+              })}
             </g>
 
             {/* Tiny glow dots at each branch tip. Fade in when the
