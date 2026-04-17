@@ -30,12 +30,26 @@ const ANCHOR_RADIUS = 72;   // silhouette edge of a 180px sprite
 const SWAY_MAX = 42;
 
 // Timing (keep in sync with connections.ts GROW_MS / RETRACT_MS).
-const GROW_S = 0.7;
-const RETRACT_S = 0.65;
+const GROW_S = 2.4;
+const RETRACT_S = 1.4;
 
 // Mask stroke width — must exceed the widest ribbon point so nothing
 // gets clipped off the sides during grow.
 const MASK_STROKE = 48;
+
+// === Organic growth profile ===
+//
+// Instead of linear pathLength 0→1, the growth tip advances with
+// hesitation: slow sprout, mid-flight pauses, tiny pullbacks (as if
+// the tip is re-aiming), then cautious deceleration into contact.
+// Keyframes were hand-tuned to feel like slime-mold exploration
+// rather than a UI loading bar.
+const GROW_TIMES =  [0,   0.08, 0.15, 0.30, 0.38, 0.50, 0.58, 0.70, 0.78, 0.88, 0.95, 1.0];
+const GROW_VALUES = [0,   0.03, 0.05, 0.20, 0.18, 0.42, 0.40, 0.65, 0.70, 0.85, 0.95, 1.0];
+
+// Retract: a small surprise pullback, then gather gently back to 0.
+const RETRACT_TIMES =  [0,   0.12, 0.22, 0.40, 0.60, 0.82, 1.0];
+const RETRACT_VALUES = [1.0, 0.92, 0.90, 0.60, 0.35, 0.10, 0.0];
 
 type Pt = { x: number; y: number };
 interface BezierPts {
@@ -146,6 +160,23 @@ function makeBranch(
   return { bez: { p0: base, p1, p2, p3: tip }, tip };
 }
 
+// Given a target pathLength value, find the approximate wall-clock
+// fraction of GROW_S at which the hesitation profile first reaches it.
+// Used so each branch sprouts exactly when the main tip passes it.
+function timeToReach(lengthTarget: number): number {
+  for (let i = 1; i < GROW_VALUES.length; i++) {
+    if (GROW_VALUES[i] >= lengthTarget) {
+      const prevV = GROW_VALUES[i - 1];
+      const prevT = GROW_TIMES[i - 1];
+      const dV = GROW_VALUES[i] - prevV;
+      const dT = GROW_TIMES[i] - prevT;
+      if (dV <= 0) return prevT;
+      return prevT + dT * ((lengthTarget - prevV) / dV);
+    }
+  }
+  return 1;
+}
+
 function pickBranches(main: BezierPts, seed: number, maxWidth: number, compat: number): BranchSpec[] {
   // No branches for negative-compat (reluctant) links, and only a few
   // for middling compat. High compat gets more.
@@ -160,8 +191,11 @@ function pickBranches(main: BezierPts, seed: number, maxWidth: number, compat: n
     const curl = 0.08 + ((seed >> (i * 5 + 3)) & 0x7) / 40;
     const { bez, tip } = makeBranch(main, tBase, side, length, bend, curl);
     const baseWidth = mainWidth(maxWidth, tBase) * 0.55;
-    const growDelay = GROW_S * (0.35 + i * 0.18);
-    const growDuration = GROW_S * 0.45;
+    // Branch starts growing exactly when the main tip first reaches
+    // its base (slightly before, for visual overlap). Its own growth
+    // is slow and hesitant but shorter than the main line.
+    const growDelay = GROW_S * Math.max(0, timeToReach(tBase) - 0.04);
+    const growDuration = GROW_S * 0.35;
     result.push({ bez, tip, baseWidth, growDelay, growDuration });
   }
   return result;
@@ -226,14 +260,25 @@ export function TendrilLayer({ connections }: TendrilLayerProps) {
         const style = tendrilStyle(c);
         const isNegative = c.compat < 0;
 
-        // Target pathLength per state (1 = fully visible, 0 = hidden).
-        const target = c.state === 'retracting' ? 0 : 1;
+        // State-driven animation: keyframe hesitation profile on grow,
+        // gentler keyframe pullback on retract, static otherwise.
+        const growing = c.state === 'growing';
+        const retracting = c.state === 'retracting';
+        const mainAnim = growing
+          ? { pathLength: GROW_VALUES }
+          : retracting
+            ? { pathLength: RETRACT_VALUES }
+            : { pathLength: 1 };
+        const mainTrans = growing
+          ? { duration: GROW_S, times: GROW_TIMES, ease: 'easeInOut' as const }
+          : retracting
+            ? { duration: RETRACT_S, times: RETRACT_TIMES, ease: 'easeInOut' as const }
+            : { duration: 0.2 };
+
         const showDots = c.state === 'bonded' || c.state === 'growing';
 
         // --- Negative compat: simple wispy dashed stroke, no branches ---
         if (isNegative) {
-          const animDur = c.state === 'growing' ? GROW_S
-            : c.state === 'retracting' ? RETRACT_S : 0.2;
           return (
             <g key={c.id}>
               <motion.path
@@ -245,8 +290,8 @@ export function TendrilLayer({ connections }: TendrilLayerProps) {
                 strokeLinecap="round"
                 fill="none"
                 initial={{ pathLength: 0 }}
-                animate={{ pathLength: target }}
-                transition={{ duration: animDur, ease: 'easeInOut' }}
+                animate={mainAnim}
+                transition={mainTrans}
               />
             </g>
           );
@@ -256,9 +301,6 @@ export function TendrilLayer({ connections }: TendrilLayerProps) {
         const mainMaxW = style.width * 1.9;
         const branches = pickBranches(main, seed, mainMaxW, c.compat);
         const ribbonMain = ribbonD(main, (t) => mainWidth(mainMaxW, t));
-
-        const animDur = c.state === 'growing' ? GROW_S
-          : c.state === 'retracting' ? RETRACT_S : 0.2;
 
         return (
           <g key={c.id}>
@@ -271,7 +313,7 @@ export function TendrilLayer({ connections }: TendrilLayerProps) {
                   height={Math.abs(by - ay) + 240}
                   fill="black"
                 />
-                {/* Main-line reveal */}
+                {/* Main-line reveal with hesitation profile */}
                 <motion.path
                   d={bezierD(main)}
                   stroke="white"
@@ -279,26 +321,30 @@ export function TendrilLayer({ connections }: TendrilLayerProps) {
                   strokeLinecap="round"
                   fill="none"
                   initial={{ pathLength: 0 }}
-                  animate={{ pathLength: target }}
-                  transition={{ duration: animDur, ease: 'easeInOut' }}
+                  animate={mainAnim}
+                  transition={mainTrans}
                 />
-                {/* Each branch's reveal, delayed so it sprouts after the
-                    main line has reached that point. */}
+                {/* Each branch's reveal. Branches sprout when the main
+                    tip actually reaches their base (computed from
+                    timeToReach). Each uses a gentle linear grow so
+                    the compound result feels layered and organic. */}
                 {branches.map((br, i) => (
                   <motion.path
                     key={`brmask-${i}`}
                     d={bezierD(br.bez)}
                     stroke="white"
-                    strokeWidth={MASK_STROKE * 0.6}
+                    strokeWidth={MASK_STROKE * 0.55}
                     strokeLinecap="round"
                     fill="none"
                     initial={{ pathLength: 0 }}
-                    animate={{ pathLength: target }}
-                    transition={{
-                      duration: c.state === 'growing' ? br.growDuration : animDur,
-                      delay: c.state === 'growing' ? br.growDelay : 0,
-                      ease: 'easeOut',
-                    }}
+                    animate={{ pathLength: retracting ? 0 : 1 }}
+                    transition={
+                      growing
+                        ? { duration: br.growDuration, delay: br.growDelay, ease: [0.22, 0.65, 0.32, 1.0] }
+                        : retracting
+                          ? { duration: RETRACT_S * 0.7, ease: 'easeIn' }
+                          : { duration: 0.2 }
+                    }
                   />
                 ))}
               </mask>
@@ -315,25 +361,29 @@ export function TendrilLayer({ connections }: TendrilLayerProps) {
               ))}
             </g>
 
-            {/* Tiny glow dots at each branch tip. Not masked — they
-                should fade in when the branch has finished growing. */}
+            {/* Tiny glow dots at each branch tip. Fade in when the
+                branch's growth is nearly complete; gentle breathing
+                while bonded. */}
             {branches.map((br, i) => {
               const tipColor = i % 2 === 0 ? style.colorA : style.colorB;
+              const dotDelay = growing
+                ? br.growDelay + br.growDuration * 0.85
+                : 0;
               return (
                 <motion.circle
                   key={`tip-${i}`}
                   cx={br.tip.x}
                   cy={br.tip.y}
-                  r={2.2}
+                  r={2.4}
                   fill={tipColor}
-                  initial={{ opacity: 0, scale: 0.4 }}
+                  initial={{ opacity: 0, scale: 0.3 }}
                   animate={{
                     opacity: showDots ? style.opacity : 0,
-                    scale: showDots ? 1 : 0.4,
+                    scale: showDots ? [0.3, 1.15, 1] : 0.3,
                   }}
                   transition={{
-                    duration: 0.5,
-                    delay: c.state === 'growing' ? br.growDelay + br.growDuration * 0.7 : 0,
+                    duration: 0.6,
+                    delay: dotDelay,
                     ease: 'easeOut',
                   }}
                 />

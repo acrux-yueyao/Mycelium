@@ -26,8 +26,8 @@ import type { PhysBody } from './field';
 const CONNECT_RANGE = 240;
 const DISCONNECT_RANGE = 320;
 
-const GROW_MS = 700;
-const RETRACT_MS = 650;
+const GROW_MS = 2400;
+const RETRACT_MS = 1400;
 // Bonded duration: shorter for repels, longer for kindred spirits.
 // Add ±20% jitter per-connection so pairs don't snap in lockstep.
 const BONDED_MIN_MS = 5500;
