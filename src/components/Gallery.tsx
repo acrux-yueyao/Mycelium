@@ -1,8 +1,13 @@
 /**
  * Gallery — debug/audit view showing every base character and every
  * hybrid in one screen. Access by appending `?gallery` to the URL.
- * Each tile uses the real <Entity> component so face positions,
- * blinks, and animations match exactly what the live stage shows.
+ *
+ * IMPORTANT: hybrid labels only show the filename letter-pair (A_B,
+ * B_E, …). We deliberately do NOT render a "char0 × char1" style
+ * label next to each hybrid, because the hand-drawn hybrid PNGs
+ * don't consistently match that mapping — the goal of this view is
+ * to let you spot those mismatches. The top strip shows what each
+ * letter is SUPPOSED to be per current code.
  */
 import { useEffect, useState } from 'react';
 import { Entity } from './Entity';
@@ -11,6 +16,7 @@ import { CHARACTERS, type CharId } from '../data/characters';
 const TILE = 200;
 const GAP = 12;
 const LABEL_H = 28;
+const KEY_TILE = 110;
 
 interface TileSpec {
   key: string;
@@ -29,7 +35,7 @@ function hybridTiles(): TileSpec[] {
       out.push({
         key: `h-${a}-${b}`,
         charId: a,
-        label: `${LETTER[a]}_${LETTER[b]}  ${CHARACTERS[a].name} × ${CHARACTERS[b].name}`,
+        label: `${LETTER[a]}_${LETTER[b]}`,
         infectionState: 'hybrid',
         infectionPair: [a, b],
       });
@@ -42,7 +48,7 @@ function baseTiles(): TileSpec[] {
   return ([0, 1, 2, 3, 4, 5] as CharId[]).map((id) => ({
     key: `b-${id}`,
     charId: id,
-    label: `${LETTER[id]}  char${id} ${CHARACTERS[id].name}`,
+    label: `${LETTER[id]}  char${id}  ${CHARACTERS[id].name}`,
   }));
 }
 
@@ -50,8 +56,6 @@ export function Gallery() {
   const bases = baseTiles();
   const hybrids = hybridTiles();
   const [gazeTick, setGazeTick] = useState(0);
-  // Make all entities slowly rotate their gaze so we can verify the
-  // programmatic eye tracking works in both normal and hybrid states.
   useEffect(() => {
     const id = window.setInterval(() => setGazeTick((t) => t + 1), 2500);
     return () => window.clearInterval(id);
@@ -59,12 +63,11 @@ export function Gallery() {
   const gazeOffset = 40;
   const gazeAngle = (gazeTick * Math.PI) / 4;
 
-  const renderTile = (t: TileSpec, col: number, row: number) => {
-    const left = col * (TILE + GAP);
-    const top = row * (TILE + LABEL_H + GAP);
-    // Entity positions itself via x/y at its center; place at tile center.
-    const ex = left + TILE / 2;
-    const ey = top + TILE / 2;
+  const renderTile = (t: TileSpec, col: number, row: number, tileSize = TILE) => {
+    const left = col * (tileSize + GAP);
+    const top = row * (tileSize + LABEL_H + GAP);
+    const ex = left + tileSize / 2;
+    const ey = top + tileSize / 2;
     const gx = ex + Math.cos(gazeAngle) * gazeOffset;
     const gy = ey + Math.sin(gazeAngle) * gazeOffset;
     return (
@@ -74,9 +77,8 @@ export function Gallery() {
           position: 'absolute',
           left,
           top,
-          width: TILE,
-          height: TILE + LABEL_H,
-          boxSizing: 'border-box',
+          width: tileSize,
+          height: tileSize + LABEL_H,
           textAlign: 'center',
           fontFamily: 'system-ui, sans-serif',
           fontSize: 12,
@@ -88,8 +90,8 @@ export function Gallery() {
             position: 'absolute',
             left: 0,
             top: 0,
-            width: TILE,
-            height: TILE,
+            width: tileSize,
+            height: tileSize,
             background: 'rgba(255, 255, 255, 0.35)',
             border: '1px dashed rgba(180, 160, 140, 0.4)',
             borderRadius: 8,
@@ -101,7 +103,7 @@ export function Gallery() {
           charId={t.charId}
           x={ex}
           y={ey}
-          size={TILE - 24}
+          size={tileSize - 24}
           gazeTargetX={gx}
           gazeTargetY={gy}
           infectionState={t.infectionState}
@@ -111,9 +113,10 @@ export function Gallery() {
           style={{
             position: 'absolute',
             left: 0,
-            top: TILE + 4,
-            width: TILE,
+            top: tileSize + 4,
+            width: tileSize,
             fontVariantNumeric: 'tabular-nums',
+            letterSpacing: '0.04em',
           }}
         >
           {t.label}
@@ -124,6 +127,7 @@ export function Gallery() {
 
   const BASE_COLS = 6;
   const HYB_COLS = 5;
+  const KEY_COLS = 6;
   const baseRows = Math.ceil(bases.length / BASE_COLS);
   const hybridRows = Math.ceil(hybrids.length / HYB_COLS);
 
@@ -136,11 +140,18 @@ export function Gallery() {
     letterSpacing: '0.04em',
     textTransform: 'uppercase',
   };
+  const warnStyle: React.CSSProperties = {
+    fontFamily: 'system-ui, sans-serif',
+    fontSize: 12,
+    color: '#a85b3f',
+    margin: '4px 16px 16px',
+    maxWidth: 760,
+    lineHeight: 1.6,
+  };
 
   const baseHeight = baseRows * (TILE + LABEL_H + GAP);
   const hybridHeight = hybridRows * (TILE + LABEL_H + GAP);
-  const baseBlockHeight = baseHeight + 40;
-  const hybridBlockHeight = hybridHeight + 40;
+  const keyHeight = KEY_TILE + LABEL_H + GAP;
 
   return (
     <div
@@ -154,6 +165,31 @@ export function Gallery() {
         boxSizing: 'border-box',
       }}
     >
+      <div style={headingStyle}>字母对照（代码里的 charId → 字母）</div>
+      <div
+        style={{
+          position: 'relative',
+          width: KEY_COLS * (KEY_TILE + GAP),
+          height: keyHeight,
+          margin: '0 auto',
+        }}
+      >
+        {bases.map((t, i) =>
+          renderTile(
+            { ...t, label: `${LETTER[t.charId]} = char${t.charId} ${CHARACTERS[t.charId].name}` },
+            i % KEY_COLS,
+            Math.floor(i / KEY_COLS),
+            KEY_TILE,
+          ),
+        )}
+      </div>
+      <div style={warnStyle}>
+        ⚠️ 下面 15 张杂交图的标签只写文件名字母对（A_B / B_E / …），
+        <strong>不写"放射星×水泡"这种中文 pair 名</strong>。
+        因为手绘 hybrid PNG 里实际画的东西不一定等于上方"字母 → 角色"表推出来的组合——
+        这正是要用这个视图检查的。对不上的 pair 告诉我文件名（比如 "A_C 画的其实是 …"），我再修 HYBRID_LETTER 映射或者替换文件。
+      </div>
+
       <div style={headingStyle}>基础菌（6 只）</div>
       <div
         style={{
@@ -168,7 +204,7 @@ export function Gallery() {
         )}
       </div>
 
-      <div style={headingStyle}>杂交菌（15 对 · 全部呈 hybrid 终态）</div>
+      <div style={headingStyle}>杂交菌（15 张 · hybrid 终态 · 标签为文件名）</div>
       <div
         style={{
           position: 'relative',
@@ -182,7 +218,7 @@ export function Gallery() {
         )}
       </div>
 
-      <div style={{ height: 40 }} />
+      <div style={{ height: 60 }} />
       <div
         style={{
           position: 'absolute',
@@ -195,8 +231,6 @@ export function Gallery() {
       >
         回到主界面：把 URL 里的 <code>?gallery</code> 去掉
       </div>
-      {/* Silences unused-variable lints for rows counts: */}
-      <div style={{ display: 'none' }}>{baseBlockHeight + hybridBlockHeight}</div>
     </div>
   );
 }
