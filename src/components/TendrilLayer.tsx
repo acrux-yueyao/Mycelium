@@ -115,29 +115,72 @@ function bezierD(b: BezierPts): string {
   return `M ${b.p0.x} ${b.p0.y} C ${b.p1.x} ${b.p1.y}, ${b.p2.x} ${b.p2.y}, ${b.p3.x} ${b.p3.y}`;
 }
 
+/** Subdivide a polyline using Catmull-Rom interpolation so the trail
+ *  reads as a smooth curve rather than a chain of straight segments.
+ *  `subdiv` is the number of interpolated points between each pair. */
+function smoothTrail(
+  trail: ReadonlyArray<{ x: number; y: number }>,
+  subdiv: number,
+): Array<{ x: number; y: number; srcIdx: number; srcFrac: number }> {
+  const N = trail.length;
+  if (N < 2) return trail.map((p, i) => ({ ...p, srcIdx: i, srcFrac: 0 }));
+  const out: Array<{ x: number; y: number; srcIdx: number; srcFrac: number }> = [];
+  const get = (i: number) => trail[Math.max(0, Math.min(N - 1, i))];
+  for (let i = 0; i < N - 1; i++) {
+    const p0 = get(i - 1);
+    const p1 = get(i);
+    const p2 = get(i + 1);
+    const p3 = get(i + 2);
+    for (let j = 0; j < subdiv; j++) {
+      const t = j / subdiv;
+      // Catmull-Rom (uniform). Cubic interpolation between p1 and p2.
+      const t2 = t * t;
+      const t3 = t2 * t;
+      const x =
+        0.5 *
+        ((2 * p1.x) +
+          (-p0.x + p2.x) * t +
+          (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
+          (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3);
+      const y =
+        0.5 *
+        ((2 * p1.y) +
+          (-p0.y + p2.y) * t +
+          (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+          (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3);
+      out.push({ x, y, srcIdx: i, srcFrac: t });
+    }
+  }
+  const last = trail[N - 1];
+  out.push({ x: last.x, y: last.y, srcIdx: N - 1, srcFrac: 0 });
+  return out;
+}
+
 /** Build a tapered filled ribbon from a free-form polyline (the trail
- *  left by a physics-driven tip). widthAt(i, N) is the total width
- *  at sample index i, where i=0 is oldest (origin end) and i=N-1 is
- *  newest (tip end). Returns empty string if trail is too short. */
+ *  left by a physics-driven tip). widthAt(srcIdx, srcFrac, N) returns
+ *  total width at a given source trail index and fractional offset,
+ *  so per-point age can still drive width even through smoothing. */
 function polylineRibbonD(
   trail: ReadonlyArray<{ x: number; y: number }>,
-  widthAt: (i: number, N: number) => number,
+  widthAt: (srcIdx: number, srcFrac: number, N: number) => number,
+  subdiv = 4,
 ): string {
   const N = trail.length;
   if (N < 2) return '';
+  const smoothed = smoothTrail(trail, subdiv);
+  const M = smoothed.length;
   const fwd: string[] = [];
   const back: string[] = [];
-  for (let i = 0; i < N; i++) {
-    const pt = trail[i];
-    // Tangent from neighbors (one-sided at endpoints).
-    const prev = trail[Math.max(0, i - 1)];
-    const next = trail[Math.min(N - 1, i + 1)];
+  for (let i = 0; i < M; i++) {
+    const pt = smoothed[i];
+    const prev = smoothed[Math.max(0, i - 1)];
+    const next = smoothed[Math.min(M - 1, i + 1)];
     const tx = next.x - prev.x;
     const ty = next.y - prev.y;
     const tl = Math.hypot(tx, ty) || 1;
     const perpX = -ty / tl;
     const perpY = tx / tl;
-    const w = widthAt(i, N) / 2;
+    const w = widthAt(pt.srcIdx, pt.srcFrac, N) / 2;
     fwd.push(`${(pt.x + perpX * w).toFixed(1)},${(pt.y + perpY * w).toFixed(1)}`);
     back.unshift(`${(pt.x - perpX * w).toFixed(1)},${(pt.y - perpY * w).toFixed(1)}`);
   }
@@ -457,14 +500,20 @@ export function TendrilLayer({
               }
               if (trail.length < 2) return null;
 
-              const d = polylineRibbonD(trail, (i, N) => {
-                const tp = trail[i];
-                const ageS = (nowMs - tp.t) / 1000;
-                const maturity = Math.min(1, ageS / MATURE_S);
-                // Tip (last point, age~0) is always thin; older points
-                // thicken. A mild positional spindle keeps the ribbon
-                // slightly thinner in the middle.
-                const posFrac = N > 1 ? i / (N - 1) : 0;
+              const d = polylineRibbonD(trail, (srcIdx, srcFrac, N) => {
+                // Interpolate age linearly between neighboring trail
+                // points using srcFrac for smooth width transitions
+                // across Catmull-Rom subdivided samples.
+                const a = trail[Math.min(N - 1, srcIdx)];
+                const b = trail[Math.min(N - 1, srcIdx + 1)];
+                const ageA = (nowMs - a.t) / 1000;
+                const ageB = (nowMs - b.t) / 1000;
+                const age = ageA + (ageB - ageA) * srcFrac;
+                const maturity = Math.min(1, age / MATURE_S);
+                // Tip is always thin; older points thicken. A mild
+                // positional spindle keeps the ribbon slightly thinner
+                // mid-length for a more organic profile.
+                const posFrac = N > 1 ? (srcIdx + srcFrac) / (N - 1) : 0;
                 const shape = 1 - 0.2 * Math.sin(Math.PI * posFrac);
                 const frac = INITIAL_WIDTH_FRAC + (1 - INITIAL_WIDTH_FRAC) * maturity;
                 return f.maxWidth * shape * frac * widthMul;

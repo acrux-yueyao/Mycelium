@@ -64,21 +64,22 @@ export interface FilamentState {
   decayDurationS?: number;
 }
 
-const EDGE_RADIUS = 72;          // silhouette edge of a 180px sprite
-const REACH_DISTANCE = 80;       // tip considered "landed" within this of target center
-const INITIAL_SPEED = 0.35;      // px / frame initial velocity
-const ATTRACT_K_FAR = 0.04;      // weak pull while exploring
-const ATTRACT_K_NEAR = 0.10;     // firmer pull when within ~180px
+const EDGE_RADIUS = 45;          // origin on the visible sprite silhouette
+const REACH_DISTANCE = 55;       // tip considered "landed" within this of target center
+const INITIAL_SPEED = 0.22;      // px / frame initial velocity (softer)
+const ATTRACT_K_FAR = 0.035;     // weak pull while exploring
+const ATTRACT_K_NEAR = 0.085;    // firmer pull when within ATTRACT_NEAR_R
 const ATTRACT_NEAR_R = 180;
-const WOBBLE_K = 0.038;          // wander strength
-const WOBBLE_FREQ_1 = 1.3;
-const WOBBLE_FREQ_2 = 2.7;
+const WOBBLE_K = 0.024;          // wander strength (gentler)
+const WOBBLE_FREQ_1 = 1.1;
+const WOBBLE_FREQ_2 = 2.3;
+const WOBBLE_FREQ_3 = 0.47;      // third frequency → less predictable
 const BLOCKER_R = 110;           // repel radius around non-endpoint mushrooms
 const BLOCKER_K = 0.22;
-const SLOWDOWN_R = 100;          // decelerate into target
-const DAMPING = 0.92;
-const TRAIL_MIN_STEP = 3.6;      // min px travel before recording a new trail point
-const TRAIL_MAX_LEN = 140;       // safety cap
+const SLOWDOWN_R = 110;          // decelerate into target
+const DAMPING = 0.93;
+const TRAIL_MIN_STEP = 3.2;      // min px travel before recording a new trail point
+const TRAIL_MAX_LEN = 160;       // safety cap
 
 function hashId(s: string): number {
   let h = 2166136261 >>> 0;
@@ -119,8 +120,10 @@ export function initFilament(
   const tipY = origin.y + ny * EDGE_RADIUS;
   const perpX = -ny * side;
   const perpY = nx * side;
-  // Probes fan out more aggressively at sprout.
-  const perpBias = role === 'primary' ? 0.25 : 0.55 + probeIndex * 0.2;
+  // Probes fan out with a narrower angle than before so they still
+  // visibly target the same mushroom rather than drifting off into
+  // empty space. Primary launches mostly straight.
+  const perpBias = role === 'primary' ? 0.10 : 0.25 + probeIndex * 0.12;
   const tipVx = nx * INITIAL_SPEED + perpX * INITIAL_SPEED * perpBias;
   const tipVy = ny * INITIAL_SPEED + perpY * INITIAL_SPEED * perpBias;
 
@@ -197,13 +200,19 @@ export function stepFilament(
     let fx = tnx * attractK;
     let fy = tny * attractK;
 
-    // Wandering wobble (slow, directional).
+    // Wandering wobble — three incommensurate frequencies, applied as a
+    // rotation on the target-heading so wobble biases the direction of
+    // approach rather than pointing the tip into empty space.
     const nowS = now / 1000;
     const ang =
-      Math.sin(nowS * WOBBLE_FREQ_1 + f.seed * 0.013) * 1.3 +
-      Math.sin(nowS * WOBBLE_FREQ_2 + f.seed * 0.029) * 0.75;
-    fx += Math.cos(ang) * WOBBLE_K;
-    fy += Math.sin(ang) * WOBBLE_K;
+      Math.sin(nowS * WOBBLE_FREQ_1 + f.seed * 0.013) * 0.55 +
+      Math.sin(nowS * WOBBLE_FREQ_2 + f.seed * 0.029) * 0.35 +
+      Math.sin(nowS * WOBBLE_FREQ_3 + f.seed * 0.047) * 0.22;
+    // Rotate (tnx, tny) by `ang` radians and push tip along it.
+    const ca = Math.cos(ang);
+    const sa = Math.sin(ang);
+    fx += (tnx * ca - tny * sa) * WOBBLE_K;
+    fy += (tnx * sa + tny * ca) * WOBBLE_K;
 
     // Soft bias toward the filament's preferred side early on, so
     // probes actually fan out instead of bunching.
