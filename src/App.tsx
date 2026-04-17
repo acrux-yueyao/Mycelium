@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Background } from './components/Background';
 import { Entity } from './components/Entity';
+import { Gallery } from './components/Gallery';
 import { SparkleLayer } from './components/SparkleLayer';
 import { TendrilLayer } from './components/TendrilLayer';
 import { TreeHoleInput } from './components/TreeHoleInput';
@@ -68,6 +69,12 @@ const ONEWAY_COMPAT_CUTOFF = 0.65;   // at or above: 50/50 mutual vs one-way
  *       or both morph in place into the pair-specific hybrid form.
  */
 export default function App() {
+  // URL-param gallery mode: append `?gallery` to view all characters + hybrids.
+  const showGallery =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).has('gallery');
+  if (showGallery) return <Gallery />;
+
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
   const [entities, setEntities] = useState<LiveEntity[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);

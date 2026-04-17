@@ -67,7 +67,7 @@ export const CHARACTERS: Record<CharId, Character> = {
     color: '#9AAEE0',
     emotions: ['dreamy', 'excited', 'romantic'],
     // Face on the glitter ball (the "cap"), above the orange stem.
-    face: { eyeY: 0.37, eyeLeftX: 0.37, eyeRightX: 0.53, eyeSize: 0.028, mouthY: 0.45 },
+    face: { eyeY: 0.37, eyeLeftX: 0.40, eyeRightX: 0.56, eyeSize: 0.028, mouthY: 0.45 },
   },
   4: {
     id: 4,
