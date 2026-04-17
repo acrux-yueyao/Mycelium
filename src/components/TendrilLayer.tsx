@@ -366,6 +366,33 @@ export function TendrilLayer({
   return (
     <svg className="overlay-layer" width="100%" height="100%" aria-hidden>
       <defs>
+        {/* Goo / fusion filter: a slight Gaussian blur followed by an
+         *  alpha threshold turns crossing ribbons into a single
+         *  continuous blob at the intersection (the classic SVG
+         *  "metaball" trick). All positive-compat ribbons share this
+         *  filter so any two that cross visibly fuse instead of just
+         *  stacking with z-order. */}
+        <filter
+          id="tendril-fusion"
+          x="-10%"
+          y="-10%"
+          width="120%"
+          height="120%"
+        >
+          <feGaussianBlur in="SourceGraphic" stdDeviation="2.4" result="blur" />
+          <feColorMatrix
+            in="blur"
+            mode="matrix"
+            values="1 0 0 0 0
+                    0 1 0 0 0
+                    0 0 1 0 0
+                    0 0 0 11 -4"
+            result="goo"
+          />
+          {/* Composite the source over the goo so soft tendril edges
+           *  remain (we get the fusion blob look + the original color). */}
+          <feComposite in="SourceGraphic" in2="goo" operator="atop" />
+        </filter>
         {connections.map((c) => {
           const style = tendrilStyle(c);
           return (
@@ -385,7 +412,9 @@ export function TendrilLayer({
         })}
       </defs>
 
-      {connections.map((c) => {
+      {/* Negative-compat: dashed bezier strokes, rendered outside the
+       *  fusion filter so the dashes don't get blurred away. */}
+      {connections.filter((c) => c.compat < 0).map((c) => {
         const dx = c.b.x - c.a.x;
         const dy = c.b.y - c.a.y;
         const d = Math.hypot(dx, dy) || 1;
@@ -393,18 +422,15 @@ export function TendrilLayer({
         const ny = dy / d;
         const px = -ny;
         const py = nx;
-
         const ax = c.a.x + nx * ANCHOR_RADIUS;
         const ay = c.a.y + ny * ANCHOR_RADIUS;
         const bx = c.b.x - nx * ANCHOR_RADIUS;
         const by = c.b.y - ny * ANCHOR_RADIUS;
-
         const seed = hashId(c.id);
         const sign = seed & 1 ? 1 : -1;
         const sway1 = 18 + (seed % SWAY_MAX);
         const sway2 = 12 + ((seed >> 4) % SWAY_MAX);
         const signLate = (seed >> 2) & 1 ? sign : -sign;
-
         const main: BezierPts = {
           p0: { x: ax, y: ay },
           p1: {
@@ -417,12 +443,7 @@ export function TendrilLayer({
           },
           p3: { x: bx, y: by },
         };
-
         const style = tendrilStyle(c);
-        const isNegative = c.compat < 0;
-
-        // State-driven animation: keyframe hesitation profile on grow,
-        // gentler keyframe pullback on retract, static otherwise.
         const growing = c.state === 'growing';
         const retracting = c.state === 'retracting';
         const mainAnim = growing
@@ -435,26 +456,30 @@ export function TendrilLayer({
           : retracting
             ? { duration: RETRACT_S, times: RETRACT_TIMES, ease: 'easeInOut' as const }
             : { duration: 0.2 };
+        return (
+          <g key={c.id}>
+            <motion.path
+              d={bezierD(main)}
+              stroke={`url(#tendril-grad-${c.id})`}
+              strokeWidth={style.width}
+              strokeOpacity={style.opacity}
+              strokeDasharray={style.dash}
+              strokeLinecap="round"
+              fill="none"
+              initial={{ pathLength: 0 }}
+              animate={mainAnim}
+              transition={mainTrans}
+            />
+          </g>
+        );
+      })}
 
-        // --- Negative compat: simple wispy dashed stroke, no branches ---
-        if (isNegative) {
-          return (
-            <g key={c.id}>
-              <motion.path
-                d={bezierD(main)}
-                stroke={`url(#tendril-grad-${c.id})`}
-                strokeWidth={style.width}
-                strokeOpacity={style.opacity}
-                strokeDasharray={style.dash}
-                strokeLinecap="round"
-                fill="none"
-                initial={{ pathLength: 0 }}
-                animate={mainAnim}
-                transition={mainTrans}
-              />
-            </g>
-          );
-        }
+      {/* Positive-compat: filament bundles, all wrapped in the fusion
+       *  filter so two ribbons crossing in space visually merge. */}
+      <g filter="url(#tendril-fusion)">
+      {connections.filter((c) => c.compat >= 0).map((c) => {
+        const style = tendrilStyle(c);
+        const retracting = c.state === 'retracting';
 
         // --- Positive compat: physics-driven filament trails ---
         // Read the live FilamentStates maintained by the RAF loop.
@@ -556,6 +581,7 @@ export function TendrilLayer({
           </g>
         );
       })}
+      </g>
 
       {/* === V2a: exploratory probes ===
            Thin solo filaments each mushroom puts out into empty space,
