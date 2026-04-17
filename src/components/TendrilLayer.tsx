@@ -211,9 +211,112 @@ function makeBranch(
   return { bez: { p0: base, p1, p2, p3: tip }, tip };
 }
 
+// === Filament bundle ===
+//
+// A connection renders as a BUNDLE of filaments, not a single bezier:
+//   - 1 primary "chosen" path — most direct, grows to full width, stays
+//     breathing during bonded, carries the branches + tip dots.
+//   - 2 probe filaments — more swayed curvatures, fan out to alternate
+//     sides, grow to ~25–35% width, then slowly fade during bonded
+//     (the path was "not selected" and withers away).
+// The bundle reads as multiple exploratory fibers with one becoming
+// reinforced, rather than a single UI line being drawn.
+
+interface FilamentSpec {
+  id: string;
+  bez: BezierPts;
+  role: 'primary' | 'probe';
+  /** Seconds after connection bornAt before this filament starts growing. */
+  growDelay: number;
+  /** Mature width ceiling for this filament (mix of taper × this cap). */
+  maxWidth: number;
+  /** Only for probes: how long into bonded before this probe starts to
+   *  thin out, and over how many seconds it fades to zero. */
+  decayStartS?: number;
+  decayDurationS?: number;
+}
+
+function buildFilaments(
+  c: Connection,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  px: number,
+  py: number,
+  mainMaxW: number,
+): FilamentSpec[] {
+  const seed = hashId(c.id);
+  const baseSign = seed & 1 ? 1 : -1;
+  const filaments: FilamentSpec[] = [];
+
+  // Primary: the "chosen" path. Slightly biased toward direct, low sway.
+  const sway1 = 18 + (seed % SWAY_MAX);
+  const sway2 = 12 + ((seed >> 4) % SWAY_MAX);
+  const signLate = (seed >> 2) & 1 ? baseSign : -baseSign;
+  const primary: BezierPts = {
+    p0: { x: ax, y: ay },
+    p1: {
+      x: ax + (bx - ax) * 0.28 + px * sway1 * baseSign,
+      y: ay + (by - ay) * 0.28 + py * sway1 * baseSign,
+    },
+    p2: {
+      x: ax + (bx - ax) * 0.72 + px * sway2 * signLate,
+      y: ay + (by - ay) * 0.72 + py * sway2 * signLate,
+    },
+    p3: { x: bx, y: by },
+  };
+  filaments.push({
+    id: `${c.id}-p`,
+    bez: primary,
+    role: 'primary',
+    growDelay: 0,
+    maxWidth: mainMaxW,
+  });
+
+  // Two probes: alternate sides, larger sway, staggered sprout delays,
+  // much thinner. They grow alongside the primary, reach their target,
+  // then slowly thin out during bonded — the "unselected" paths.
+  for (let i = 0; i < 2; i++) {
+    const probeSeed = seed ^ ((i + 1) * 0x9e37);
+    const pSide: 1 | -1 = i === 0 ? (-baseSign as 1 | -1) : (baseSign as 1 | -1);
+    const swayA = 34 + (probeSeed % (SWAY_MAX + 18));
+    const swayB = 26 + ((probeSeed >> 4) % (SWAY_MAX + 12));
+    const probe: BezierPts = {
+      p0: { x: ax, y: ay },
+      p1: {
+        x: ax + (bx - ax) * 0.30 + px * swayA * pSide,
+        y: ay + (by - ay) * 0.30 + py * swayA * pSide,
+      },
+      p2: {
+        x: ax + (bx - ax) * 0.70 + px * swayB * pSide,
+        y: ay + (by - ay) * 0.70 + py * swayB * pSide,
+      },
+      p3: { x: bx, y: by },
+    };
+    filaments.push({
+      id: `${c.id}-probe${i}`,
+      bez: probe,
+      role: 'probe',
+      growDelay: 0.18 + i * 0.28,
+      maxWidth: mainMaxW * (0.32 - i * 0.10),
+      decayStartS: 0.7 + i * 0.35,
+      decayDurationS: 2.4,
+    });
+  }
+
+  return filaments;
+}
+
+function probeDecay(bondedElapsedS: number, startS: number, durS: number): number {
+  if (bondedElapsedS < startS) return 1;
+  const t = (bondedElapsedS - startS) / durS;
+  return Math.max(0, 1 - t);
+}
+
 // Given a target pathLength value, find the approximate wall-clock
 // fraction of GROW_S at which the hesitation profile first reaches it.
-// Used so each branch sprouts exactly when the main tip passes it.
+// Used so branches sprout exactly when the main tip passes their base.
 function timeToReach(lengthTarget: number): number {
   for (let i = 1; i < GROW_VALUES.length; i++) {
     if (GROW_VALUES[i] >= lengthTarget) {
@@ -326,8 +429,6 @@ export function TendrilLayer({ connections }: TendrilLayerProps) {
             ? { duration: RETRACT_S, times: RETRACT_TIMES, ease: 'easeInOut' as const }
             : { duration: 0.2 };
 
-        const showDots = c.state === 'bonded' || c.state === 'growing';
-
         // --- Negative compat: simple wispy dashed stroke, no branches ---
         if (isNegative) {
           return (
@@ -348,101 +449,145 @@ export function TendrilLayer({ connections }: TendrilLayerProps) {
           );
         }
 
-        // --- Positive compat: tapered filled ribbon + side branches ---
+        // --- Positive compat: filament bundle (primary + 2 probes) ---
         const mainMaxW = style.width * 1.9;
-        const branches = pickBranches(main, seed, mainMaxW, c.compat);
+        const filaments = buildFilaments(c, ax, ay, bx, by, px, py, mainMaxW);
+        const primary = filaments[0];
+        const branches = pickBranches(primary.bez, seed, mainMaxW, c.compat);
 
-        // Time-driven width. Tip starts thin; points thicken with age.
+        // Time-driven. Each filament has its own growDelay, so its
+        // local "elapsed" is offset.
         const nowMs = performance.now();
         const elapsedS = (nowMs - c.bornAt) / 1000;
         const retractElapsedS = c.retractStart ? (nowMs - c.retractStart) / 1000 : 0;
-        // Retract: thin everything down uniformly as the mask hides it
-        // from the tip backward.
         const retractScale = retracting
           ? Math.max(0, 1 - retractElapsedS / RETRACT_S)
           : 1;
-        // Breathing only kicks in once bonded (grow is over).
         const breathe = c.state === 'bonded'
           ? 1 + BREATHE_AMP * Math.sin((elapsedS / BREATHE_PERIOD_S) * 2 * Math.PI)
           : 1;
         const widthMul = retractScale * breathe;
 
-        const ribbonMain = ribbonD(main, (t) =>
-          dynamicMainWidth(t, elapsedS, mainMaxW) * widthMul,
-        );
+        // Tip glow dots ONLY once bonded has settled — never during growth,
+        // per the slime-mold brief. ~0.8s after bonded enters.
+        const bondedElapsedS = c.state === 'bonded'
+          ? Math.max(0, elapsedS - GROW_S)
+          : 0;
+        const showDots = c.state === 'bonded' && bondedElapsedS >= 0.8;
 
         return (
           <g key={c.id}>
             <defs>
-              <mask id={`reveal-${c.id}`} maskUnits="userSpaceOnUse">
-                <rect
-                  x={Math.min(ax, bx) - 120}
-                  y={Math.min(ay, by) - 120}
-                  width={Math.abs(bx - ax) + 240}
-                  height={Math.abs(by - ay) + 240}
-                  fill="black"
-                />
-                {/* Main-line reveal with hesitation profile */}
-                <motion.path
-                  d={bezierD(main)}
-                  stroke="white"
-                  strokeWidth={MASK_STROKE}
-                  strokeLinecap="round"
-                  fill="none"
-                  initial={{ pathLength: 0 }}
-                  animate={mainAnim}
-                  transition={mainTrans}
-                />
-                {/* Each branch's reveal. Branches sprout when the main
-                    tip actually reaches their base (computed from
-                    timeToReach). Each uses a gentle linear grow so
-                    the compound result feels layered and organic. */}
-                {branches.map((br, i) => (
+              {filaments.map((f) => (
+                <mask
+                  key={`mask-${f.id}`}
+                  id={`reveal-${f.id}`}
+                  maskUnits="userSpaceOnUse"
+                >
+                  <rect
+                    x={Math.min(ax, bx) - 140}
+                    y={Math.min(ay, by) - 140}
+                    width={Math.abs(bx - ax) + 280}
+                    height={Math.abs(by - ay) + 280}
+                    fill="black"
+                  />
+                  {/* Filament reveal. Primary uses the hesitation profile;
+                      probes use the same profile with a growDelay offset. */}
                   <motion.path
-                    key={`brmask-${i}`}
-                    d={bezierD(br.bez)}
+                    d={bezierD(f.bez)}
                     stroke="white"
-                    strokeWidth={MASK_STROKE * 0.55}
+                    strokeWidth={MASK_STROKE * (f.role === 'primary' ? 1 : 0.6)}
                     strokeLinecap="round"
                     fill="none"
                     initial={{ pathLength: 0 }}
-                    animate={{ pathLength: retracting ? 0 : 1 }}
+                    animate={
+                      growing ? { pathLength: GROW_VALUES }
+                      : retracting ? { pathLength: RETRACT_VALUES }
+                      : { pathLength: 1 }
+                    }
                     transition={
                       growing
-                        ? { duration: br.growDuration, delay: br.growDelay, ease: [0.22, 0.65, 0.32, 1.0] }
+                        ? { duration: GROW_S, times: GROW_TIMES, delay: f.growDelay, ease: 'easeInOut' }
                         : retracting
-                          ? { duration: RETRACT_S * 0.7, ease: 'easeIn' }
+                          ? { duration: RETRACT_S, times: RETRACT_TIMES, ease: 'easeInOut' }
                           : { duration: 0.2 }
                     }
                   />
-                ))}
-              </mask>
+                  {/* Branches belong only to the primary filament — they
+                      sprout off the "chosen" path, not the probes. */}
+                  {f.role === 'primary' &&
+                    branches.map((br, i) => (
+                      <motion.path
+                        key={`brmask-${i}`}
+                        d={bezierD(br.bez)}
+                        stroke="white"
+                        strokeWidth={MASK_STROKE * 0.55}
+                        strokeLinecap="round"
+                        fill="none"
+                        initial={{ pathLength: 0 }}
+                        animate={{ pathLength: retracting ? 0 : 1 }}
+                        transition={
+                          growing
+                            ? { duration: br.growDuration, delay: br.growDelay, ease: [0.22, 0.65, 0.32, 1.0] }
+                            : retracting
+                              ? { duration: RETRACT_S * 0.7, ease: 'easeIn' }
+                              : { duration: 0.2 }
+                        }
+                      />
+                    ))}
+                </mask>
+              ))}
             </defs>
 
-            <g mask={`url(#reveal-${c.id})`} opacity={style.opacity}>
-              <path d={ribbonMain} fill={`url(#tendril-grad-${c.id})`} />
-              {branches.map((br, i) => {
-                const branchElapsedS = Math.max(0, elapsedS - br.growDelay);
-                return (
-                  <path
-                    key={`br-${i}`}
-                    d={ribbonD(br.bez, (t) =>
-                      dynamicBranchWidth(t, branchElapsedS, br.growDuration, br.baseWidth) * widthMul,
-                    )}
-                    fill={`url(#tendril-grad-${c.id})`}
-                  />
-                );
-              })}
-            </g>
+            {/* Render every filament in the bundle. Each has its own mask. */}
+            {filaments.map((f) => {
+              // Per-filament local elapsed (probes start later).
+              const fElapsedS = Math.max(0, elapsedS - f.growDelay);
+              // Probes fade out during bonded (the "unselected" paths).
+              const decay =
+                f.role === 'probe' && f.decayStartS != null && f.decayDurationS != null
+                  ? probeDecay(bondedElapsedS, f.decayStartS, f.decayDurationS)
+                  : 1;
+              const filWidthMul = widthMul * decay;
+              const rib = ribbonD(f.bez, (t) =>
+                dynamicMainWidth(t, fElapsedS, f.maxWidth) * filWidthMul,
+              );
+              return (
+                <g
+                  key={`fil-${f.id}`}
+                  mask={`url(#reveal-${f.id})`}
+                  opacity={style.opacity}
+                >
+                  <path d={rib} fill={`url(#tendril-grad-${c.id})`} />
+                  {/* Branches only on the primary filament, using its own
+                      dynamic-width model. */}
+                  {f.role === 'primary' &&
+                    branches.map((br, i) => {
+                      const branchElapsedS = Math.max(0, elapsedS - br.growDelay);
+                      return (
+                        <path
+                          key={`br-${i}`}
+                          d={ribbonD(br.bez, (t) =>
+                            dynamicBranchWidth(
+                              t,
+                              branchElapsedS,
+                              br.growDuration,
+                              br.baseWidth,
+                            ) * widthMul,
+                          )}
+                          fill={`url(#tendril-grad-${c.id})`}
+                        />
+                      );
+                    })}
+                </g>
+              );
+            })}
 
-            {/* Tiny glow dots at each branch tip. Fade in when the
-                branch's growth is nearly complete; gentle breathing
-                while bonded. */}
+            {/* Tip glow dots — only on the primary's branches, only once
+                the connection has SETTLED into bonded. Explicitly NOT
+                shown during growth, per the slime-mold brief. */}
             {branches.map((br, i) => {
               const tipColor = i % 2 === 0 ? style.colorA : style.colorB;
-              const dotDelay = growing
-                ? br.growDelay + br.growDuration * 0.85
-                : 0;
               return (
                 <motion.circle
                   key={`tip-${i}`}
@@ -453,13 +598,9 @@ export function TendrilLayer({ connections }: TendrilLayerProps) {
                   initial={{ opacity: 0, scale: 0.3 }}
                   animate={{
                     opacity: showDots ? style.opacity : 0,
-                    scale: showDots ? [0.3, 1.15, 1] : 0.3,
+                    scale: showDots ? 1 : 0.3,
                   }}
-                  transition={{
-                    duration: 0.6,
-                    delay: dotDelay,
-                    ease: 'easeOut',
-                  }}
+                  transition={{ duration: 0.6, ease: 'easeOut' }}
                 />
               );
             })}
