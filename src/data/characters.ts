@@ -57,7 +57,8 @@ export const CHARACTERS: Record<CharId, Character> = {
     name: '蘑菇',
     color: '#E89A5C',
     emotions: ['curious', 'playful', 'clumsy'],
-    face: { eyeY: 0.57, eyeLeftX: 0.34, eyeRightX: 0.50, eyeSize: 0.028, mouthY: 0.65 },
+    // Face on the cap (umbrella top), not the stem.
+    face: { eyeY: 0.34, eyeLeftX: 0.32, eyeRightX: 0.48, eyeSize: 0.028, mouthY: 0.42 },
   },
   3: {
     id: 3,
@@ -65,7 +66,8 @@ export const CHARACTERS: Record<CharId, Character> = {
     name: '亮片',
     color: '#9AAEE0',
     emotions: ['dreamy', 'excited', 'romantic'],
-    face: { eyeY: 0.48, eyeLeftX: 0.39, eyeRightX: 0.55, eyeSize: 0.028, mouthY: 0.56 },
+    // Face on the glitter ball (the "cap"), above the orange stem.
+    face: { eyeY: 0.37, eyeLeftX: 0.37, eyeRightX: 0.53, eyeSize: 0.028, mouthY: 0.45 },
   },
   4: {
     id: 4,
