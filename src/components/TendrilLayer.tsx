@@ -21,9 +21,30 @@
  */
 import { motion } from 'framer-motion';
 import { tendrilStyle, type Connection } from '../core/connections';
+import { probePhase, type ExplorationProbe } from '../core/probes';
+import { CHARACTERS, type CharId } from '../data/characters';
 
 export interface TendrilLayerProps {
   connections: Connection[];
+  /** Exploratory probes (V2a — mushrooms always searching). */
+  probes?: ExplorationProbe[];
+  /** Entity positions keyed by id, so probes can track their origin. */
+  entityById?: Map<string, { x: number; y: number; charId: CharId }>;
+}
+
+// Linearly interpolate a value-vs-time keyframe sequence at t in [0, 1].
+function interpKeyframes(t: number, times: number[], values: number[]): number {
+  if (t <= times[0]) return values[0];
+  const last = times.length - 1;
+  if (t >= times[last]) return values[last];
+  for (let i = 1; i < times.length; i++) {
+    if (t <= times[i]) {
+      const dt = times[i] - times[i - 1];
+      const dv = values[i] - values[i - 1];
+      return values[i - 1] + dv * ((t - times[i - 1]) / dt);
+    }
+  }
+  return values[last];
 }
 
 const ANCHOR_RADIUS = 72;   // silhouette edge of a 180px sprite
@@ -230,6 +251,8 @@ interface FilamentSpec {
   growDelay: number;
   /** Mature width ceiling for this filament (mix of taper × this cap). */
   maxWidth: number;
+  /** Relative growth speed (1.0 = primary; 0.5 = probes take twice as long). */
+  growSpeedFactor: number;
   /** Only for probes: how long into bonded before this probe starts to
    *  thin out, and over how many seconds it fades to zero. */
   decayStartS?: number;
@@ -272,6 +295,7 @@ function buildFilaments(
     role: 'primary',
     growDelay: 0,
     maxWidth: mainMaxW,
+    growSpeedFactor: 1,
   });
 
   // Two probes: alternate sides, larger sway, staggered sprout delays,
@@ -298,10 +322,12 @@ function buildFilaments(
       id: `${c.id}-probe${i}`,
       bez: probe,
       role: 'probe',
-      growDelay: 0.18 + i * 0.28,
-      maxWidth: mainMaxW * (0.32 - i * 0.10),
-      decayStartS: 0.7 + i * 0.35,
-      decayDurationS: 2.4,
+      growDelay: 0.25 + i * 0.4,
+      maxWidth: mainMaxW * (0.30 - i * 0.10),
+      // Probes are much more tentative — half the primary's speed.
+      growSpeedFactor: 0.5,
+      decayStartS: 1.2 + i * 0.45,
+      decayDurationS: 3.2,
     });
   }
 
@@ -355,7 +381,12 @@ function pickBranches(main: BezierPts, seed: number, maxWidth: number, compat: n
   return result;
 }
 
-export function TendrilLayer({ connections }: TendrilLayerProps) {
+export function TendrilLayer({
+  connections,
+  probes = [],
+  entityById,
+}: TendrilLayerProps) {
+  const nowRender = performance.now();
   return (
     <svg className="overlay-layer" width="100%" height="100%" aria-hidden>
       <defs>
@@ -492,7 +523,8 @@ export function TendrilLayer({ connections }: TendrilLayerProps) {
                     fill="black"
                   />
                   {/* Filament reveal. Primary uses the hesitation profile;
-                      probes use the same profile with a growDelay offset. */}
+                      probes use the same profile with a growDelay offset
+                      AND a duration stretch (growSpeedFactor < 1 → slower). */}
                   <motion.path
                     d={bezierD(f.bez)}
                     stroke="white"
@@ -507,7 +539,7 @@ export function TendrilLayer({ connections }: TendrilLayerProps) {
                     }
                     transition={
                       growing
-                        ? { duration: GROW_S, times: GROW_TIMES, delay: f.growDelay, ease: 'easeInOut' }
+                        ? { duration: GROW_S / f.growSpeedFactor, times: GROW_TIMES, delay: f.growDelay, ease: 'easeInOut' }
                         : retracting
                           ? { duration: RETRACT_S, times: RETRACT_TIMES, ease: 'easeInOut' }
                           : { duration: 0.2 }
@@ -583,27 +615,127 @@ export function TendrilLayer({ connections }: TendrilLayerProps) {
               );
             })}
 
-            {/* Tip glow dots — only on the primary's branches, only once
-                the connection has SETTLED into bonded. Explicitly NOT
-                shown during growth, per the slime-mold brief. */}
-            {branches.map((br, i) => {
-              const tipColor = i % 2 === 0 ? style.colorA : style.colorB;
-              return (
-                <motion.circle
-                  key={`tip-${i}`}
-                  cx={br.tip.x}
-                  cy={br.tip.y}
-                  r={2.4}
-                  fill={tipColor}
-                  initial={{ opacity: 0, scale: 0.3 }}
-                  animate={{
-                    opacity: showDots ? style.opacity : 0,
-                    scale: showDots ? 1 : 0.3,
-                  }}
-                  transition={{ duration: 0.6, ease: 'easeOut' }}
+            {/* Single glow at the primary's forward end (where it lands
+                on the target mushroom). Appears only once bonded has
+                settled — explicitly NOT shown during growth, per the
+                slime-mold brief. Branch tips now carry no dots. */}
+            <motion.circle
+              cx={primary.bez.p3.x}
+              cy={primary.bez.p3.y}
+              r={3.2}
+              fill={style.colorB}
+              initial={{ opacity: 0, scale: 0.3 }}
+              animate={{
+                opacity: showDots ? style.opacity : 0,
+                scale: showDots ? 1 : 0.3,
+              }}
+              transition={{ duration: 0.7, ease: 'easeOut' }}
+            />
+          </g>
+        );
+      })}
+
+      {/* === V2a: exploratory probes ===
+           Thin solo filaments each mushroom puts out into empty space,
+           independent of any pair connection. Fade to near-transparent
+           at the tip (searching into the unknown). No branches, no dots. */}
+      {probes.map((p) => {
+        const origin = entityById?.get(p.originId);
+        if (!origin) return null;
+        const { phase, localT } = probePhase(p, nowRender);
+        if (phase === 'expired') return null;
+
+        // Anchor on silhouette edge; tip at length px along angle.
+        const ox = origin.x + Math.cos(p.angle) * ANCHOR_RADIUS;
+        const oy = origin.y + Math.sin(p.angle) * ANCHOR_RADIUS;
+        const tipX = ox + Math.cos(p.angle) * p.length;
+        const tipY = oy + Math.sin(p.angle) * p.length;
+        const perpX = -Math.sin(p.angle);
+        const perpY = Math.cos(p.angle);
+        const bez: BezierPts = {
+          p0: { x: ox, y: oy },
+          p1: {
+            x: ox + (tipX - ox) * 0.3 + perpX * p.curvature,
+            y: oy + (tipY - oy) * 0.3 + perpY * p.curvature,
+          },
+          p2: {
+            x: ox + (tipX - ox) * 0.7 + perpX * p.curvature * 0.4,
+            y: oy + (tipY - oy) * 0.7 + perpY * p.curvature * 0.4,
+          },
+          p3: { x: tipX, y: tipY },
+        };
+
+        // Reveal fraction from phase — uses the same hesitation profile
+        // for growing so probes also feel tentative.
+        let reveal: number;
+        if (phase === 'growing') {
+          reveal = interpKeyframes(localT, GROW_TIMES, GROW_VALUES);
+        } else if (phase === 'stable') {
+          reveal = 1;
+        } else {
+          reveal = interpKeyframes(localT, RETRACT_TIMES, RETRACT_VALUES);
+        }
+
+        // Dynamic width: point at position t was "reached" at time
+        // GROW_S * timeToReach(t) into its own growing phase. Compute
+        // wall-clock elapsed relative to the probe's bornAt.
+        const probeElapsedS = (nowRender - p.bornAt) / 1000;
+        const maxW = 3.6;  // probes max at ~3.6px — thin filaments
+        // Retract thin-down over phase 'retracting'.
+        const retractMul = phase === 'retracting' ? Math.max(0, 1 - localT) : 1;
+
+        const ribD = ribbonD(bez, (t) => {
+          // A probe point is "reached" linearly at localT * total = t * growMs.
+          // Use a simple linear maturity instead of the full keyframe inversion.
+          const arriveS = (p.growMs / 1000) * t;
+          const age = probeElapsedS - arriveS;
+          const maturity = age <= 0 ? INITIAL_WIDTH_FRAC
+            : INITIAL_WIDTH_FRAC + (1 - INITIAL_WIDTH_FRAC) * Math.min(1, age / MATURE_S);
+          // Overall taper: thicker at origin, thinner at tip.
+          const taper = 1 - 0.7 * t;
+          return maxW * taper * maturity * retractMul;
+        });
+
+        const color = CHARACTERS[origin.charId].color;
+        const gradId = `probe-grad-${p.id}`;
+        const maskId = `probe-mask-${p.id}`;
+        return (
+          <g key={p.id}>
+            <defs>
+              <linearGradient
+                id={gradId}
+                gradientUnits="userSpaceOnUse"
+                x1={ox} y1={oy} x2={tipX} y2={tipY}
+              >
+                <stop offset="0%" stopColor={color} stopOpacity="0.85" />
+                <stop offset="70%" stopColor={color} stopOpacity="0.45" />
+                <stop offset="100%" stopColor={color} stopOpacity="0" />
+              </linearGradient>
+              <mask id={maskId} maskUnits="userSpaceOnUse">
+                <rect
+                  x={Math.min(ox, tipX) - 40}
+                  y={Math.min(oy, tipY) - 40}
+                  width={Math.abs(tipX - ox) + 80}
+                  height={Math.abs(tipY - oy) + 80}
+                  fill="black"
                 />
-              );
-            })}
+                <path
+                  d={bezierD(bez)}
+                  stroke="white"
+                  strokeWidth={MASK_STROKE * 0.5}
+                  strokeLinecap="round"
+                  fill="none"
+                  pathLength={1}
+                  strokeDasharray={1}
+                  strokeDashoffset={1 - reveal}
+                />
+              </mask>
+            </defs>
+            <path
+              d={ribD}
+              fill={`url(#${gradId})`}
+              mask={`url(#${maskId})`}
+            />
           </g>
         );
       })}
