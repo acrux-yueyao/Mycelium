@@ -113,7 +113,19 @@ export function stepField<T extends PhysBody>(
   const bondedPairs = new Set<string>();
   const bondedSprings = new Map<string, number>();         // pairKey → restLength
   const retractPulls = new Map<string, number>();          // pairKey → pull scalar 0..1
+  // Per-body list of normalized partner directions for active
+  // (growing / bonded) connections. Used at the end of the step to
+  // strip any velocity component that would move the body AWAY from
+  // an active tendril — bodies can only glide "toward" or
+  // perpendicular to their tendrils, never backward.
+  const tetherDirs = new Map<string, Array<{ nx: number; ny: number }>>();
+  const addTether = (id: string, nx: number, ny: number) => {
+    const list = tetherDirs.get(id);
+    if (list) list.push({ nx, ny });
+    else tetherDirs.set(id, [{ nx, ny }]);
+  };
   if (connections) {
+    const bodyById = new Map(bodies.map((b) => [b.id, b]));
     for (const c of connections.values()) {
       const k = c.a.id < c.b.id ? `${c.a.id}|${c.b.id}` : `${c.b.id}|${c.a.id}`;
       if (c.state === 'retracting') {
@@ -129,6 +141,18 @@ export function stepField<T extends PhysBody>(
       bondedPairs.add(k);
       if (c.state === 'bonded' && c.restLength != null) {
         bondedSprings.set(k, c.restLength);
+      }
+      // Record tether direction for both endpoints (growing + bonded).
+      const ab = bodyById.get(c.a.id);
+      const bb = bodyById.get(c.b.id);
+      if (ab && bb) {
+        const dx = bb.x - ab.x;
+        const dy = bb.y - ab.y;
+        const d = Math.hypot(dx, dy) || 1;
+        const nx = dx / d;
+        const ny = dy / d;
+        addTether(ab.id, nx, ny);
+        addTether(bb.id, -nx, -ny);
       }
     }
   }
@@ -214,8 +238,25 @@ export function stepField<T extends PhysBody>(
       fy += (dcy / dc) * push * CENTER_R * 0.1;
     }
 
-    const vx = (a.vx + fx) * DAMPING;
-    const vy = (a.vy + fy) * DAMPING;
+    let vx = (a.vx + fx) * DAMPING;
+    let vy = (a.vy + fy) * DAMPING;
+
+    // Tether constraint: for every active (growing/bonded) tendril on
+    // this body, project out any velocity component pointing AWAY
+    // from the partner. Bodies can move toward or perpendicular to
+    // their tendrils, but never backward. Implements the user's
+    // "菌子跟着触手的方向走，不要反方向移动" requirement.
+    const tethers = tetherDirs.get(a.id);
+    if (tethers) {
+      for (const { nx: tnx, ny: tny } of tethers) {
+        const dot = vx * tnx + vy * tny;
+        if (dot < 0) {
+          vx -= tnx * dot;
+          vy -= tny * dot;
+        }
+      }
+    }
+
     const x = a.x + vx;
     const y = a.y + vy;
 
