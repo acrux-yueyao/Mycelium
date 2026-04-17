@@ -1,18 +1,20 @@
 /**
  * Physics field — per-frame force integration for the live entity list.
  *
- * Phase A scope:
- *  - Gentle long-range attraction between pairs (180 < d < 500) scaled by
- *    compatibility()
- *  - Short-range repulsion (d < 160) so entities don't overlap
- *  - Soft walls at 100px margin from viewport edges
- *  - Soft center-repel so entities don't crowd on top of the input totem
- *  - Velocity damping so motion feels like drifting through cream, not
- *    a bouncy ball
- *
- * Phase B adds findNearestBody() helper used for eye-tracking.
+ *   Attraction     long-range (180 < d < 500), scaled by compat(a, b).
+ *                  SCALED DOWN 0.25× when the pair is actively bonded,
+ *                  so the two drift rather than magnetically lock.
+ *                  SKIPPED when either side is mid-transformation.
+ *   Repulsion      short-range (d < 160), prevents overlap.
+ *   Wander         a gentle, slowly-rotating independent heading on each
+ *                  entity. Keeps them "alive" even with no neighbors.
+ *   Walls          soft spring inward from 100px of the viewport edges.
+ *   Center         soft push out of a 190px radius around the tree-hole
+ *                  input at screen center.
+ *   Damping        velocity × 0.92 per frame → drifting-through-cream feel.
  */
 import { compatibility, type CharId } from '../data/characters';
+import type { Connection } from './connections';
 
 export interface PhysBody {
   id: string;
@@ -36,11 +38,11 @@ const WALL_K = 0.06;
 const CENTER_R = 190;
 const CENTER_K = 0.35;
 const DAMPING = 0.92;
+// Wander: small independent force that keeps entities drifting on their own.
+const WANDER_K = 0.02;
+// Bonded pairs: scale their mutual attraction. 1 = full latch, 0 = none.
+const BONDED_ATTRACT_SCALE = 0.25;
 
-/**
- * Find the nearest other body within `maxRange` pixels.
- * Returns null if nothing is in range. Used by Phase B eye-tracking.
- */
 export function findNearestBody<T extends PhysBody>(
   self: T,
   bodies: T[],
@@ -59,16 +61,51 @@ export function findNearestBody<T extends PhysBody>(
   return nearest;
 }
 
+// Stable per-entity seed derived from the id string.
+function idSeed(id: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) {
+    h ^= id.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0) % 10000 / 10000;
+}
+
+// Slowly-rotating independent heading per entity. Using two low-frequency
+// sines (not perlin, to stay lib-free) seeded by the entity id so each one
+// drifts along its own path.
+function wanderForce(id: string, t: number): [number, number] {
+  const s = idSeed(id);
+  const a =
+    Math.sin(t * 0.00031 + s * 7.3) * 2.2 +
+    Math.sin(t * 0.00017 + s * 11.1) * 3.4;
+  return [Math.cos(a) * WANDER_K, Math.sin(a) * WANDER_K];
+}
+
 export function stepField<T extends PhysBody>(
   bodies: T[],
   viewportW: number,
   viewportH: number,
+  connections?: Map<string, Connection>,
+  now: number = performance.now(),
 ): T[] {
   if (bodies.length === 0 || viewportW === 0 || viewportH === 0) {
     return bodies;
   }
   const cx = viewportW / 2;
   const cy = viewportH / 2;
+
+  // Pre-index bonded pairs for O(1) lookup inside the nested loop.
+  // A pair is "bonded" if it has a live connection in growing/bonded state.
+  // Retracting connections no longer exert attraction scaling.
+  const bondedPairs = new Set<string>();
+  if (connections) {
+    for (const c of connections.values()) {
+      if (c.state === 'retracting') continue;
+      const k = c.a.id < c.b.id ? `${c.a.id}|${c.b.id}` : `${c.b.id}|${c.a.id}`;
+      bondedPairs.add(k);
+    }
+  }
 
   return bodies.map((a) => {
     let fx = 0;
@@ -82,12 +119,12 @@ export function stepField<T extends PhysBody>(
       const nx = dx / d;
       const ny = dy / d;
 
-      // Skip attraction when either body is mid-transformation — they
-      // should be free to drift apart rather than magnetically locked.
       const aBusy = a.infectionState === 'infecting' || a.infectionState === 'transforming';
       const bBusy = b.infectionState === 'infecting' || b.infectionState === 'transforming';
       if (!aBusy && !bBusy && d > ATTRACT_MIN && d < ATTRACT_MAX) {
-        const f = ATTRACT_K * compatibility(a.charId, b.charId);
+        const pairKey = a.id < b.id ? `${a.id}|${b.id}` : `${b.id}|${a.id}`;
+        const scale = bondedPairs.has(pairKey) ? BONDED_ATTRACT_SCALE : 1;
+        const f = ATTRACT_K * compatibility(a.charId, b.charId) * scale;
         fx += nx * f;
         fy += ny * f;
       }
@@ -98,6 +135,11 @@ export function stepField<T extends PhysBody>(
         fy -= ny * f;
       }
     }
+
+    // Independent wander: gentle, non-social drift.
+    const [wx, wy] = wanderForce(a.id, now);
+    fx += wx;
+    fy += wy;
 
     if (a.x < WALL_MARGIN) {
       fx += (WALL_MARGIN - a.x) * WALL_K;
