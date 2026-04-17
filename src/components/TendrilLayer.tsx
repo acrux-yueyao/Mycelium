@@ -259,6 +259,71 @@ interface FilamentSpec {
   decayDurationS?: number;
 }
 
+/** Circular obstacle the bezier should steer around. */
+interface Blocker {
+  x: number;
+  y: number;
+  r: number;
+}
+
+/** Does this bezier stay clear of every blocker? */
+function bezierClear(bez: BezierPts, blockers: Blocker[], samples = 16): boolean {
+  for (let i = 1; i < samples; i++) {    // skip t=0 and t=1 (endpoints)
+    const t = i / samples;
+    const pt = bezierAt(t, bez.p0, bez.p1, bez.p2, bez.p3);
+    for (const b of blockers) {
+      if (Math.hypot(pt.x - b.x, pt.y - b.y) < b.r) return false;
+    }
+  }
+  return true;
+}
+
+/** Build a bezier given endpoint + sway amounts + signs, then try
+ *  alternative (sign / magnitude) combinations until the path clears
+ *  all blockers. Falls back to the last combination attempted. */
+function routeBezier(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  px: number, py: number,
+  baseSway1: number, baseSway2: number,
+  initialSign: 1 | -1,
+  initialSignLate: 1 | -1,
+  blockers: Blocker[],
+): BezierPts {
+  const make = (sign: 1 | -1, signLate: 1 | -1, mul: number): BezierPts => ({
+    p0: { x: a.x, y: a.y },
+    p1: {
+      x: a.x + (b.x - a.x) * 0.28 + px * baseSway1 * mul * sign,
+      y: a.y + (b.y - a.y) * 0.28 + py * baseSway1 * mul * sign,
+    },
+    p2: {
+      x: a.x + (b.x - a.x) * 0.72 + px * baseSway2 * mul * signLate,
+      y: a.y + (b.y - a.y) * 0.72 + py * baseSway2 * mul * signLate,
+    },
+    p3: { x: b.x, y: b.y },
+  });
+
+  // Try the caller's preferred curve first, then progressively larger
+  // sways on both sides. First candidate that clears wins.
+  const candidates: Array<[1 | -1, 1 | -1, number]> = [
+    [initialSign, initialSignLate, 1.0],
+    [-initialSign as 1 | -1, -initialSignLate as 1 | -1, 1.0],
+    [initialSign, initialSignLate, 1.7],
+    [-initialSign as 1 | -1, -initialSignLate as 1 | -1, 1.7],
+    [initialSign, initialSignLate, 2.6],
+    [-initialSign as 1 | -1, -initialSignLate as 1 | -1, 2.6],
+    [initialSign, initialSignLate, 3.8],
+  ];
+  let last: BezierPts | null = null;
+  for (const [s, sl, mul] of candidates) {
+    const bez = make(s, sl, mul);
+    last = bez;
+    if (blockers.length === 0 || bezierClear(bez, blockers)) return bez;
+  }
+  // No clean route found; return the widest attempt.
+  return last!;
+}
+
 function buildFilaments(
   c: Connection,
   ax: number,
@@ -268,6 +333,7 @@ function buildFilaments(
   px: number,
   py: number,
   mainMaxW: number,
+  blockers: Blocker[],
 ): FilamentSpec[] {
   const seed = hashId(c.id);
   const baseSign = seed & 1 ? 1 : -1;
@@ -276,19 +342,11 @@ function buildFilaments(
   // Primary: the "chosen" path. Slightly biased toward direct, low sway.
   const sway1 = 18 + (seed % SWAY_MAX);
   const sway2 = 12 + ((seed >> 4) % SWAY_MAX);
-  const signLate = (seed >> 2) & 1 ? baseSign : -baseSign;
-  const primary: BezierPts = {
-    p0: { x: ax, y: ay },
-    p1: {
-      x: ax + (bx - ax) * 0.28 + px * sway1 * baseSign,
-      y: ay + (by - ay) * 0.28 + py * sway1 * baseSign,
-    },
-    p2: {
-      x: ax + (bx - ax) * 0.72 + px * sway2 * signLate,
-      y: ay + (by - ay) * 0.72 + py * sway2 * signLate,
-    },
-    p3: { x: bx, y: by },
-  };
+  const signLate: 1 | -1 = (seed >> 2) & 1 ? baseSign : (-baseSign as 1 | -1);
+  const primary = routeBezier(
+    { x: ax, y: ay }, { x: bx, y: by },
+    px, py, sway1, sway2, baseSign, signLate, blockers,
+  );
   filaments.push({
     id: `${c.id}-p`,
     bez: primary,
@@ -306,18 +364,10 @@ function buildFilaments(
     const pSide: 1 | -1 = i === 0 ? (-baseSign as 1 | -1) : (baseSign as 1 | -1);
     const swayA = 34 + (probeSeed % (SWAY_MAX + 18));
     const swayB = 26 + ((probeSeed >> 4) % (SWAY_MAX + 12));
-    const probe: BezierPts = {
-      p0: { x: ax, y: ay },
-      p1: {
-        x: ax + (bx - ax) * 0.30 + px * swayA * pSide,
-        y: ay + (by - ay) * 0.30 + py * swayA * pSide,
-      },
-      p2: {
-        x: ax + (bx - ax) * 0.70 + px * swayB * pSide,
-        y: ay + (by - ay) * 0.70 + py * swayB * pSide,
-      },
-      p3: { x: bx, y: by },
-    };
+    const probe = routeBezier(
+      { x: ax, y: ay }, { x: bx, y: by },
+      px, py, swayA, swayB, pSide, pSide, blockers,
+    );
     filaments.push({
       id: `${c.id}-probe${i}`,
       bez: probe,
@@ -482,7 +532,17 @@ export function TendrilLayer({
 
         // --- Positive compat: filament bundle (primary + 2 probes) ---
         const mainMaxW = style.width * 1.9;
-        const filaments = buildFilaments(c, ax, ay, bx, by, px, py, mainMaxW);
+        // Third-party mushrooms to steer around. Endpoints of this pair
+        // are excluded; others are blockers with a generous clearance
+        // radius so the tendril visibly curves away rather than skims.
+        const blockers: Blocker[] = [];
+        if (entityById) {
+          for (const [id, e] of entityById) {
+            if (id === c.a.id || id === c.b.id) continue;
+            blockers.push({ x: e.x, y: e.y, r: 95 });
+          }
+        }
+        const filaments = buildFilaments(c, ax, ay, bx, by, px, py, mainMaxW, blockers);
         const primary = filaments[0];
         const branches = pickBranches(primary.bez, seed, mainMaxW, c.compat);
 
@@ -504,7 +564,6 @@ export function TendrilLayer({
         const bondedElapsedS = c.state === 'bonded'
           ? Math.max(0, elapsedS - GROW_S)
           : 0;
-        const showDots = c.state === 'bonded' && bondedElapsedS >= 0.8;
 
         return (
           <g key={c.id}>
@@ -615,22 +674,6 @@ export function TendrilLayer({
               );
             })}
 
-            {/* Single glow at the primary's forward end (where it lands
-                on the target mushroom). Appears only once bonded has
-                settled — explicitly NOT shown during growth, per the
-                slime-mold brief. Branch tips now carry no dots. */}
-            <motion.circle
-              cx={primary.bez.p3.x}
-              cy={primary.bez.p3.y}
-              r={3.2}
-              fill={style.colorB}
-              initial={{ opacity: 0, scale: 0.3 }}
-              animate={{
-                opacity: showDots ? style.opacity : 0,
-                scale: showDots ? 1 : 0.3,
-              }}
-              transition={{ duration: 0.7, ease: 'easeOut' }}
-            />
           </g>
         );
       })}
@@ -652,18 +695,31 @@ export function TendrilLayer({
         const tipY = oy + Math.sin(p.angle) * p.length;
         const perpX = -Math.sin(p.angle);
         const perpY = Math.cos(p.angle);
-        const bez: BezierPts = {
-          p0: { x: ox, y: oy },
-          p1: {
-            x: ox + (tipX - ox) * 0.3 + perpX * p.curvature,
-            y: oy + (tipY - oy) * 0.3 + perpY * p.curvature,
-          },
-          p2: {
-            x: ox + (tipX - ox) * 0.7 + perpX * p.curvature * 0.4,
-            y: oy + (tipY - oy) * 0.7 + perpY * p.curvature * 0.4,
-          },
-          p3: { x: tipX, y: tipY },
-        };
+
+        // Probes also steer around other mushrooms if their reach would
+        // bump into one. Origin itself excluded.
+        const probeBlockers: Blocker[] = [];
+        if (entityById) {
+          for (const [id, e] of entityById) {
+            if (id === p.originId) continue;
+            const dToTip = Math.hypot(tipX - e.x, tipY - e.y);
+            const dToOrigin = Math.hypot(ox - e.x, oy - e.y);
+            // Only include blockers that could plausibly interfere.
+            if (Math.min(dToTip, dToOrigin) < p.length + 110) {
+              probeBlockers.push({ x: e.x, y: e.y, r: 95 });
+            }
+          }
+        }
+        const initSign: 1 | -1 = p.curvature >= 0 ? 1 : -1;
+        const bez = routeBezier(
+          { x: ox, y: oy },
+          { x: tipX, y: tipY },
+          perpX, perpY,
+          Math.abs(p.curvature),
+          Math.abs(p.curvature) * 0.4,
+          initSign, initSign,
+          probeBlockers,
+        );
 
         // Reveal fraction from phase — uses the same hesitation profile
         // for growing so probes also feel tentative.
