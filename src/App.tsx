@@ -46,6 +46,10 @@ interface LiveEntity {
   /** Entity id of the neighbor currently influencing this one. */
   partnerId?: string;
   rationale?: string;
+  /** Wall-clock ms when this entity most recently had an active
+   *  (non-retracting) connection. Used to detect prolonged isolation
+   *  so mother trees can reach out. Defaults to bornAt. */
+  lastSocialAt?: number;
 }
 
 const GAZE_MAX_RANGE = 450;
@@ -53,6 +57,24 @@ const GREETING_RADIUS = 320;
 const LONELY_EXPOSE_PER_S = 0.15;
 const LONELY_RECOVER_PER_S = 0.08;
 const LONELY_SAT_FLOOR = 0.55;
+
+// === Mother-tree mechanic ===
+// After this much time on stage, an entity quietly becomes a "mother
+// tree" — not flagged to the user, not elevated in rank, just a node
+// that the system considers as a potential source of support for
+// isolated mushrooms nearby.
+const MOTHER_AGE_MS = 40_000;
+// An entity is considered isolated once it has been without an
+// active connection for this long. Mother trees will then try to
+// reach toward it.
+const ISOLATION_MS = 18_000;
+// How far a mother tree can extend a support connection.
+const MOTHER_REACH = 400;
+// Support connections live considerably longer than organic bonds —
+// they're meant to provide a calm, stable presence.
+const SUPPORT_LIFE_MS = 18_000;
+// Support tendrils tolerate much more stretch before giving up.
+const SUPPORT_STRETCH_FACTOR = 2.4;
 
 // === Infection / transformation state machine ===
 // Contact → hold → roll outcome → infecting → transforming → hybrid.
@@ -190,6 +212,69 @@ export default function App() {
 
         const entityById = new Map(stepped.map((e) => [e.id, e]));
 
+        // === Mother-tree support reach ===
+        // For every entity that has been isolated for > ISOLATION_MS,
+        // find the nearest aged "mother tree" within MOTHER_REACH and
+        // inject a support connection. No UI, no hint — just a quiet
+        // tendril growing in. One such reach per frame at most, so
+        // multiple isolated mushrooms get supported gradually rather
+        // than in a lockstep burst.
+        const isActiveConn = (c: Connection) => c.state !== 'retracting';
+        const socialIds = new Set<string>();
+        for (const c of nextConn.values()) {
+          if (isActiveConn(c)) {
+            socialIds.add(c.a.id);
+            socialIds.add(c.b.id);
+          }
+        }
+        findSupport: for (const isolated of stepped) {
+          if (isolated.infectionState !== 'normal') continue;
+          if (socialIds.has(isolated.id)) continue;
+          const lastSocial = isolated.lastSocialAt ?? isolated.bornAt;
+          if (now - lastSocial < ISOLATION_MS) continue;
+
+          let mother: typeof isolated | null = null;
+          let bestD = MOTHER_REACH;
+          for (const other of stepped) {
+            if (other.id === isolated.id) continue;
+            if (other.infectionState !== 'normal') continue;
+            if (now - other.bornAt < MOTHER_AGE_MS) continue;
+            const d = Math.hypot(other.x - isolated.x, other.y - isolated.y);
+            if (d < bestD) {
+              bestD = d;
+              mother = other;
+            }
+          }
+          if (!mother) continue;
+
+          const pairKeyLocal =
+            isolated.id < mother.id
+              ? `${isolated.id}__${mother.id}`
+              : `${mother.id}__${isolated.id}`;
+          if (nextConn.has(pairKeyLocal)) continue;
+          const cdUntil = connCooldownRef.current.get(pairKeyLocal);
+          if (cdUntil != null && now < cdUntil) continue;
+
+          // Inject the support connection directly into the map so
+          // this frame's rendering already picks it up. The mother
+          // is a → isolated is b so the tendril visibly grows FROM
+          // the mother toward the isolated one.
+          nextConn.set(pairKeyLocal, {
+            id: pairKeyLocal,
+            a: { id: mother.id, charId: mother.charId, x: mother.x, y: mother.y },
+            b: { id: isolated.id, charId: isolated.charId, x: isolated.x, y: isolated.y },
+            bornAt: now,
+            compat: 0.6,                              // warm-ish floor regardless of pair compat
+            maxLifeMs: SUPPORT_LIFE_MS,
+            state: 'growing',
+            isSupport: true,
+            stretchFactor: SUPPORT_STRETCH_FACTOR,
+          });
+          // Limit to one new reach per frame so multiple lonely
+          // entities don't all light up at once.
+          break findSupport;
+        }
+
         // === Infection roll: only pairs where both sides are still 'normal',
         //     cross-kind, compat ≥ 0.5, and have held contact ≥ INFECT_HOLD_MS.
         //     Outcome is rolled once; rolled sides flip to 'infecting'.
@@ -270,6 +355,13 @@ export default function App() {
             exp = Math.max(0, exp - LONELY_RECOVER_PER_S * dt);
           }
           if (exp !== next.lonelyExposure) next = { ...next, lonelyExposure: exp };
+
+          // Stamp lastSocialAt whenever this entity has at least one
+          // active connection. Used by the mother-tree reach logic
+          // to detect "been alone for a while".
+          if (socialIds.has(next.id)) {
+            next = { ...next, lastSocialAt: now };
+          }
 
           // Start infection for freshly rolled sides.
           for (const r of rolls) {
@@ -472,6 +564,14 @@ export default function App() {
         const sat = Math.max(LONELY_SAT_FLOOR, 1 - e.lonelyExposure * 0.35);
         const partner = e.partnerId ? entities.find((x) => x.id === e.partnerId) : null;
         const partnerColor = partner ? CHARACTERS[partner.charId].color : undefined;
+        // Mother-tree status: an entity becomes a mother tree once it
+        // has been on stage for MOTHER_AGE_MS. No explicit spawn of
+        // mother trees — they emerge from ordinary mushrooms that stick
+        // around long enough.
+        const renderNow = performance.now();
+        const isMotherTree =
+          e.infectionState === 'normal' &&
+          renderNow - e.bornAt > MOTHER_AGE_MS;
         return (
           <Entity
             key={e.id}
@@ -488,6 +588,7 @@ export default function App() {
             infectionState={e.infectionState}
             infectionPair={e.infectionPair}
             partnerColor={partnerColor}
+            isMotherTree={isMotherTree}
           />
         );
       })}

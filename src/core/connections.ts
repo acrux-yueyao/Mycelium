@@ -67,6 +67,14 @@ export interface Connection {
    *  Acts as the spring rest length in stepField, and as the threshold
    *  for stretch-triggered retract. Undefined while growing. */
   restLength?: number;
+  /** Mother-tree support connection — injected directly by App.tsx
+   *  when an isolated entity is near an aged mother tree. Styled
+   *  warmer, lives longer, tolerates more stretch. */
+  isSupport?: boolean;
+  /** Per-connection override for the stretch-retract threshold.
+   *  Defaults to STRETCH_RETRACT_FACTOR = 1.55. Support connections
+   *  use a higher value so they don't snap under normal movement. */
+  stretchFactor?: number;
 }
 
 export function pairKey(a: string, b: string): string {
@@ -131,11 +139,13 @@ export function stepConnections(
       const tooFar = d > DISCONNECT_RANGE;
       const timeout = aged >= c.maxLifeMs;
       // Stretch-triggered retract: if the body is pulled hard enough to
-      // exceed STRETCH_RETRACT_FACTOR × restLength, the tendril gives up
-      // and starts retracting so the body can move. This is the "先松
-      // 开，再移动" behavior: a strong outward pull breaks the bond.
+      // exceed stretchFactor × restLength, the tendril gives up and
+      // starts retracting so the body can move. This is the "先松开，
+      // 再移动" behavior. Support connections override stretchFactor
+      // so they tolerate more motion before giving up.
+      const factor = c.stretchFactor ?? STRETCH_RETRACT_FACTOR;
       const stretched =
-        restLength != null && d > restLength * STRETCH_RETRACT_FACTOR;
+        restLength != null && d > restLength * factor;
       if (tooFar || timeout || stretched) {
         state = 'retracting';
         retractStart = now;
@@ -214,7 +224,41 @@ export interface TendrilStyle {
   dash?: string;
 }
 
+// Warm ember tones for mother-tree support tendrils. Used as an
+// overlay on the pair colors so the support connection reads as
+// warmer and more stable than a regular organic bond, without being
+// flashy or different-looking enough to scream "special".
+const SUPPORT_WARM_A = '#E8B98E';
+const SUPPORT_WARM_B = '#D9A270';
+
+/** Blend two hex colors (accepts #RRGGBB) by t (0 = c1, 1 = c2). */
+function mixColor(c1: string, c2: string, t: number): string {
+  const h = (s: string) => [
+    parseInt(s.slice(1, 3), 16),
+    parseInt(s.slice(3, 5), 16),
+    parseInt(s.slice(5, 7), 16),
+  ];
+  const [r1, g1, b1] = h(c1);
+  const [r2, g2, b2] = h(c2);
+  const mix = (a: number, b: number) => Math.round(a + (b - a) * t);
+  const hex = (n: number) => n.toString(16).padStart(2, '0');
+  return `#${hex(mix(r1, r2))}${hex(mix(g1, g2))}${hex(mix(b1, b2))}`;
+}
+
 export function tendrilStyle(c: Connection): TendrilStyle {
+  // Mother-tree support: warm ember gradient that softly biases
+  // toward the pair's own colors, thicker and higher-opacity than
+  // baseline so it reads as "stable presence".
+  if (c.isSupport) {
+    const baseA = CHARACTERS[c.a.charId].color;
+    const baseB = CHARACTERS[c.b.charId].color;
+    return {
+      colorA: mixColor(baseA, SUPPORT_WARM_A, 0.65),
+      colorB: mixColor(baseB, SUPPORT_WARM_B, 0.65),
+      width: 2.6,
+      opacity: 0.78,
+    };
+  }
   const colorA = CHARACTERS[c.a.charId].color;
   const colorB = CHARACTERS[c.b.charId].color;
   if (c.compat < 0) {
