@@ -1,12 +1,24 @@
 :root {
-  --cream:       #F4EDE0;
-  --cream-deep:  #EBE1CF;
-  --cream-edge:  #D9C9AF;
-  --ink:         #2F2A22;
-  --ink-dim:     #8A7D6C;
-  --ink-soft:    #6A5E50;
-  --accent:      #D27B4E;
-  --serif:       'Fraunces', 'EB Garamond', Georgia, serif;
+  /* Very light, warm cream palette. Every tint is lifted a step from
+   * the previous paper-only palette — the background should read as
+   * "barely-tinted paper", not "beige cardboard". */
+  --cream:       #FCF7EA;
+  --cream-deep:  #F6EFDC;
+  --cream-edge:  #ECDFC1;
+  --ink:         #4A4034;
+  --ink-dim:     #A6987F;
+  --ink-soft:    #80715E;
+  --accent:      #E69B6E;
+  --dot-warm:    #EBD5A6;
+  --dot-peach:   #F0C9A2;
+
+  /* Two font stacks. Display is a hand-drawn crayon script; body is
+   * a rounded geometric sans. CJK gets KuaiLe (playful rounded) as
+   * fallback so Chinese input still reads cute. */
+  --font-display: 'Caveat', 'ZCOOL KuaiLe', 'PingFang SC', 'Hiragino Sans GB',
+                  cursive;
+  --font-body:    'Quicksand', 'ZCOOL KuaiLe', 'PingFang SC', 'Hiragino Sans GB',
+                  'Microsoft YaHei', sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -20,9 +32,9 @@ body,
   height: 100%;
   background: var(--cream);
   color: var(--ink);
-  font-family: var(--serif);
-  font-weight: 300;
-  letter-spacing: 0.015em;
+  font-family: var(--font-body);
+  font-weight: 500;
+  letter-spacing: 0.01em;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
 }
@@ -35,23 +47,21 @@ body,
 
 /* ---- Background layers ----
  * Stacking (back → front):
- *   1. .stage-bg            soft cream radial (nearly flat base)
- *   2. .stage-warm-wash     large peach mottle, soft-light blend
- *   3. .stage-mottle        mid-scale cloudy patches, multiply
- *   4. .stage-grain         fine paper/film grain, multiply
- *   5. .stage-vignette      very faint corner fall-off
+ *   1. .stage-bg            very light cream radial (almost flat)
+ *   2. .stage-warm-wash     large peach mottle, soft-light
+ *   3. .stage-dots          crayon polka dots, wobbly edges
+ *   4. .stage-mottle        mid-scale cloudy patches, multiply
+ *   5. .stage-grain         fine paper/film grain, multiply
+ *   6. .stage-vignette      very faint corner fall-off
  */
 .stage-bg {
   position: absolute;
   inset: 0;
-  /* Almost-flat warm cream. The second-stop is only a hair deeper
-   * than the first so the base reads as uniform paper, not as a lit
-   * sphere. */
   background: radial-gradient(
     ellipse at 50% 45%,
-    #F6EDDC 0%,
-    #F2E6D0 55%,
-    #EDDEC4 100%
+    #FDF9ED 0%,
+    #FAF3E0 55%,
+    #F4EBD1 100%
   );
   z-index: 0;
 }
@@ -60,16 +70,32 @@ body,
   position: absolute;
   inset: 0;
   filter: url(#warmWash);
-  opacity: 0.55;
+  opacity: 0.42;
   mix-blend-mode: soft-light;
   pointer-events: none;
+}
+
+/* Crayon polka dots — the dots are drawn via an SVG <pattern> and then
+ * pushed through a displacement filter so the circles wobble like
+ * crayon on rough paper instead of reading as CSS-geometric. */
+.stage-dots {
+  position: absolute;
+  inset: 0;
+  opacity: 0.7;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+.stage-dots svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .stage-mottle {
   position: absolute;
   inset: 0;
   filter: url(#paperMottle);
-  opacity: 0.55;
+  opacity: 0.35;
   mix-blend-mode: multiply;
   pointer-events: none;
 }
@@ -78,7 +104,7 @@ body,
   position: absolute;
   inset: 0;
   filter: url(#paperGrainFine);
-  opacity: 0.65;
+  opacity: 0.45;
   mix-blend-mode: multiply;
   pointer-events: none;
 }
@@ -86,20 +112,15 @@ body,
 .stage-vignette {
   position: absolute;
   inset: 0;
-  /* Barely-there corner shadow so a centered figure feels gently lit
-   * from within the page. Stops far outside the visible center so the
-   * fall-off is almost subliminal. */
   background: radial-gradient(
     ellipse at 50% 50%,
-    transparent 62%,
-    rgba(140, 110, 75, 0.07) 100%
+    transparent 65%,
+    rgba(170, 135, 90, 0.05) 100%
   );
   pointer-events: none;
 }
 
 /* ---- Overlay layers (SVG) ---- */
-/* Tendrils sit BELOW the entity sprites so any part of a tendril
- * that crosses a mushroom body is hidden behind the sprite. */
 .overlay-layer {
   position: absolute;
   inset: 0;
@@ -107,8 +128,6 @@ body,
   z-index: 2;
 }
 
-/* Ambient twinkle layer — sits under everything, above the paper
- * background. Tiny warm dots pulsing at different phases. */
 .sparkle-layer {
   position: absolute;
   inset: 0;
@@ -138,8 +157,8 @@ body,
   transform: translate(-50%, 50%);
   background: radial-gradient(
     ellipse at center,
-    rgba(60, 45, 30, 0.22) 0%,
-    rgba(60, 45, 30, 0.08) 55%,
+    rgba(90, 70, 45, 0.16) 0%,
+    rgba(90, 70, 45, 0.05) 55%,
     transparent 85%
   );
   filter: blur(4px);
@@ -172,30 +191,29 @@ body,
 }
 
 .totem-eyebrow {
-  font-size: 0.7rem;
-  font-style: italic;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
   color: var(--ink-soft);
-  letter-spacing: 0.42em;
-  text-transform: lowercase;
-  margin-bottom: 2rem;
-  opacity: 0.65;
-  font-weight: 300;
+  letter-spacing: 0.05em;
+  text-transform: none;
+  margin-bottom: 1.6rem;
+  opacity: 0.75;
+  font-weight: 500;
 }
 
 .totem-input {
   width: 100%;
   background: transparent;
   border: none;
-  /* Hand-drawn feel underline: two-color soft wash instead of a
-   * sharp rule. The second layer (via box-shadow) is offset a hair
-   * so the line looks inked rather than CSS-geometric. */
-  border-bottom: 1px solid rgba(47, 42, 34, 0.14);
-  box-shadow: 0 2px 0 -1px rgba(210, 123, 78, 0.12);
+  /* Rounded, slightly-wavy underline drawn via repeating-linear
+   * gradient so it reads like a crayon-scribbled line, not a CSS rule. */
+  border-bottom: 2px dotted rgba(74, 64, 52, 0.18);
+  box-shadow: 0 3px 0 -1px rgba(230, 155, 110, 0.14);
   outline: none;
   color: var(--ink);
-  font-family: var(--serif);
-  font-weight: 300;
-  font-size: clamp(1.15rem, 2.05vw, 1.55rem);
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: clamp(1.2rem, 2.1vw, 1.6rem);
   line-height: 1.7;
   text-align: center;
   resize: none;
@@ -207,38 +225,41 @@ body,
 }
 
 .totem-input::placeholder {
+  font-family: var(--font-display);
   color: var(--ink-dim);
-  font-style: italic;
-  opacity: 0.55;
+  font-style: normal;
+  opacity: 0.6;
   letter-spacing: 0.02em;
+  font-size: 1.15em;
 }
 
 .totem-input:focus {
-  border-bottom-color: rgba(47, 42, 34, 0.34);
-  box-shadow: 0 3px 0 -1px rgba(210, 123, 78, 0.24);
+  border-bottom-color: rgba(74, 64, 52, 0.36);
+  box-shadow: 0 4px 0 -1px rgba(230, 155, 110, 0.28);
 }
 
 .totem-input:disabled { cursor: wait; }
 
 .totem-hint {
-  margin-top: 1.8rem;
-  font-size: 0.72rem;
-  font-style: italic;
+  margin-top: 1.6rem;
+  font-family: var(--font-display);
+  font-size: 1rem;
   color: var(--ink-dim);
-  letter-spacing: 0.12em;
+  letter-spacing: 0.04em;
   opacity: 0;
   transition: opacity 0.4s ease;
 }
-.totem-hint.visible { opacity: 0.55; }
+.totem-hint.visible { opacity: 0.7; }
 
 .totem-hint kbd {
-  font-family: var(--serif);
+  font-family: var(--font-body);
+  font-weight: 600;
   font-size: 0.72rem;
-  background: transparent;
-  border: 1px solid rgba(47, 42, 34, 0.25);
-  border-radius: 2px;
-  padding: 0.06em 0.45em;
-  margin: 0 0.2em;
+  background: rgba(255, 248, 232, 0.5);
+  border: 1px solid rgba(74, 64, 52, 0.22);
+  border-radius: 6px;
+  padding: 0.1em 0.5em;
+  margin: 0 0.25em;
   color: var(--ink-soft);
 }
 
@@ -253,11 +274,11 @@ body,
 .totem-reading-inner {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-style: italic;
+  gap: 0.6rem;
+  font-family: var(--font-display);
   color: var(--ink-dim);
-  letter-spacing: 0.2em;
-  font-size: 1rem;
+  letter-spacing: 0.06em;
+  font-size: 1.35rem;
 }
 
 .dots { display: inline-flex; gap: 0.2em; }
@@ -281,11 +302,11 @@ body,
   transform: translateX(-50%);
   max-width: 80vw;
   padding: 1rem 1.4rem;
-  background: rgba(244, 237, 224, 0.95);
-  border: 1px solid rgba(47, 42, 34, 0.18);
-  border-radius: 8px;
+  background: rgba(252, 247, 234, 0.95);
+  border: 1.5px dashed rgba(74, 64, 52, 0.22);
+  border-radius: 14px;
   color: var(--ink-dim);
-  font-style: italic;
+  font-family: var(--font-body);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -295,8 +316,9 @@ body,
 }
 
 .error-toast > div:first-child {
-  font-style: italic;
-  letter-spacing: 0.15em;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  letter-spacing: 0.04em;
   color: var(--ink);
 }
 
@@ -311,20 +333,20 @@ body,
 
 .error-toast button {
   background: transparent;
-  border: 1px solid rgba(47, 42, 34, 0.25);
+  border: 1.5px dashed rgba(74, 64, 52, 0.28);
   color: var(--ink-soft);
-  font-family: var(--serif);
-  font-style: italic;
-  padding: 0.45rem 1.4rem;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  padding: 0.4rem 1.4rem;
   cursor: pointer;
-  letter-spacing: 0.2em;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  transition: border-color 0.3s, color 0.3s;
+  letter-spacing: 0.08em;
+  border-radius: 10px;
+  transition: border-color 0.3s, color 0.3s, background 0.3s;
 }
 .error-toast button:hover {
   border-color: var(--ink);
   color: var(--ink);
+  background: rgba(255, 249, 232, 0.6);
 }
 
 /* ---- Mute toggle ---- */
@@ -333,23 +355,23 @@ body,
   right: 20px;
   bottom: 20px;
   z-index: 30;
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: transparent;
-  border: 1px solid rgba(47, 42, 34, 0.12);
+  background: rgba(255, 250, 235, 0.5);
+  border: 1.5px dashed rgba(74, 64, 52, 0.16);
   border-radius: 50%;
   color: var(--ink-soft);
-  font-family: var(--serif);
+  font-family: var(--font-body);
   font-size: 1.1rem;
   cursor: pointer;
-  opacity: 0.45;
+  opacity: 0.55;
   transition: opacity 0.3s, border-color 0.3s, background 0.3s;
 }
 .mute-toggle:hover {
-  opacity: 0.85;
-  border-color: rgba(47, 42, 34, 0.32);
-  background: rgba(255, 255, 255, 0.35);
+  opacity: 0.95;
+  border-color: rgba(74, 64, 52, 0.36);
+  background: rgba(255, 248, 232, 0.8);
 }
