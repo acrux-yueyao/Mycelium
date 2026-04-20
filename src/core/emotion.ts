@@ -21,7 +21,12 @@ export class EmotionApiError extends Error {
   }
 }
 
-const REQUEST_TIMEOUT_MS = 30_000;
+// Must sit ABOVE the backend's combined waits:
+//   api/emotion.ts UPSTREAM_TIMEOUT_MS (45s) + JSON/response overhead.
+// If we abort earlier than the backend can, we mask the real error
+// and always show generic "timeout" instead of the specific upstream
+// detail (upstream-timeout / upstream-4xx / llm-bad-json / ...).
+const REQUEST_TIMEOUT_MS = 65_000;
 
 export async function readEmotion(text: string): Promise<EmotionReading> {
   // Hard cap the request: without this, a stalled /api/emotion would
