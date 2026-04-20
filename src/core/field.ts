@@ -66,6 +66,13 @@ const SPRING_K = 0.012;
 // bodies toward each other. Tuned so two bodies roughly half-close
 // their separation over the 2.2s retract window.
 const RETRACT_PULL_K = 0.14;
+// How much a stretched tether bleeds off its away-from-partner
+// velocity component. 1.0 = hard projection (velocity forced to
+// zero along that axis, previous behaviour that caused the
+// "wrestle" lock-up with ≥3 stacked tethers); 0 = no resistance at
+// all. 0.35 keeps the "body follows tendril" visual but lets
+// multiple stacked tethers slow motion instead of freezing it.
+const TETHER_SOFT = 0.35;
 
 export function findNearestBody<T extends PhysBody>(
   self: T,
@@ -135,14 +142,19 @@ export function stepField<T extends PhysBody>(
   const retractPulls = new Map<string, number>();          // pairKey → pull scalar 0..1
   // Per-body list of normalized partner directions for active
   // (growing / bonded) connections. Used at the end of the step to
-  // strip any velocity component that would move the body AWAY from
-  // an active tendril — bodies can only glide "toward" or
-  // perpendicular to their tendrils, never backward.
-  const tetherDirs = new Map<string, Array<{ nx: number; ny: number }>>();
-  const addTether = (id: string, nx: number, ny: number) => {
+  // SOFTLY resist any velocity component that would move the body
+  // AWAY from an active tendril — bodies can glide perpendicular or
+  // toward their tendrils freely, and can drift backward with some
+  // resistance (no hard lock). `stretched` flags tethers whose pair
+  // is currently stretched past rest length; only those actually
+  // contribute to the projection, so a stable cluster at rest length
+  // doesn't accumulate lock-up forces.
+  const tetherDirs = new Map<string, Array<{ nx: number; ny: number; stretched: boolean }>>();
+  const addTether = (id: string, nx: number, ny: number, stretched: boolean) => {
     const list = tetherDirs.get(id);
-    if (list) list.push({ nx, ny });
-    else tetherDirs.set(id, [{ nx, ny }]);
+    const entry = { nx, ny, stretched };
+    if (list) list.push(entry);
+    else tetherDirs.set(id, [entry]);
   };
   if (connections) {
     const bodyById = new Map(bodies.map((b) => [b.id, b]));
@@ -171,8 +183,13 @@ export function stepField<T extends PhysBody>(
         const d = Math.hypot(dx, dy) || 1;
         const nx = dx / d;
         const ny = dy / d;
-        addTether(ab.id, nx, ny);
-        addTether(bb.id, -nx, -ny);
+        // Tether only resists motion when the pair is ACTUALLY being
+        // pulled apart. 1.05× grace ensures a stable bond at or just
+        // past rest length doesn't re-activate on tiny jitter.
+        const rest = c.restLength;
+        const stretched = rest != null && d > rest * 1.05;
+        addTether(ab.id, nx, ny, stretched);
+        addTether(bb.id, -nx, -ny, stretched);
       }
     }
   }
@@ -311,18 +328,23 @@ export function stepField<T extends PhysBody>(
     let vx = (a.vx + fx) * DAMPING;
     let vy = (a.vy + fy) * DAMPING;
 
-    // Tether constraint: for every active (growing/bonded) tendril on
-    // this body, project out any velocity component pointing AWAY
-    // from the partner. Bodies can move toward or perpendicular to
-    // their tendrils, but never backward. Implements the user's
-    // "菌子跟着触手的方向走，不要反方向移动" requirement.
+    // Tether constraint (soft). For every STRETCHED active tendril
+    // on this body, attenuate (don't kill) the velocity component
+    // pointing away from the partner. Previously this was a hard
+    // projection (`vx -= tnx * dot`) applied to every active tendril;
+    // in dense clusters the stacked hard projections could reduce a
+    // body's net velocity to zero, producing the "wrestle" lock-up
+    // reported by users. Now: only stretched bonds contribute, and
+    // each one bleeds off TETHER_SOFT × of the away-component so
+    // several tethers can overlap without fully freezing motion.
     const tethers = tetherDirs.get(a.id);
     if (tethers) {
-      for (const { nx: tnx, ny: tny } of tethers) {
+      for (const { nx: tnx, ny: tny, stretched } of tethers) {
+        if (!stretched) continue;
         const dot = vx * tnx + vy * tny;
         if (dot < 0) {
-          vx -= tnx * dot;
-          vy -= tny * dot;
+          vx -= tnx * dot * TETHER_SOFT;
+          vy -= tny * dot * TETHER_SOFT;
         }
       }
     }

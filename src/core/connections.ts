@@ -174,14 +174,32 @@ export function stepConnections(
     });
   }
 
+  // Per-body active bond count. Pre-computed from `next` (which
+  // already has all surviving previous-frame bonds at this point)
+  // and decremented as new bonds are added below. Used to cap each
+  // body at MAX_BONDS_PER_BODY simultaneous connections — dense
+  // clusters used to stack N-1 bonds on every creature, and the
+  // stacked tether constraints (field.ts) locked them up in a
+  // "wrestle" state. Already-formed connections are never dropped
+  // here; the cap only prevents NEW bonds from forming.
+  const activeCounts = new Map<string, number>();
+  for (const c of next.values()) {
+    if (c.state === 'retracting') continue;
+    activeCounts.set(c.a.id, (activeCounts.get(c.a.id) ?? 0) + 1);
+    activeCounts.set(c.b.id, (activeCounts.get(c.b.id) ?? 0) + 1);
+  }
+  const MAX_BONDS_PER_BODY = 3;
+
   // Then: form new connections on pairs newly inside CONNECT_RANGE,
-  // respecting per-pair cooldown.
+  // respecting per-pair cooldown and the per-body bond cap.
   for (let i = 0; i < bodies.length; i++) {
     for (let j = i + 1; j < bodies.length; j++) {
       const a = bodies[i];
       const b = bodies[j];
       const key = pairKey(a.id, b.id);
       if (next.has(key)) continue;                         // already live
+      if ((activeCounts.get(a.id) ?? 0) >= MAX_BONDS_PER_BODY) continue;
+      if ((activeCounts.get(b.id) ?? 0) >= MAX_BONDS_PER_BODY) continue;
       const cooldownUntil = cooldowns.get(key);
       if (cooldownUntil != null) {
         if (now < cooldownUntil) continue;                 // still resting
@@ -210,6 +228,8 @@ export function stepConnections(
         state: 'growing',
         tendrilCount,
       });
+      activeCounts.set(a.id, (activeCounts.get(a.id) ?? 0) + 1);
+      activeCounts.set(b.id, (activeCounts.get(b.id) ?? 0) + 1);
     }
   }
 
