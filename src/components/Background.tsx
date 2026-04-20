@@ -15,7 +15,28 @@
  *                        very low alpha — the paper/film grain.
  *   6. Soft vignette     almost invisible corner fall-off.
  */
+import { useEffect, useMemo } from 'react';
+import { readTimeMood } from '../core/timeMood';
+
 export function Background() {
+  // Read the time-of-day mood once on mount (and any time the URL
+  // query changes are handled by a full reload, which is the Vite
+  // dev workflow). paletteShift ∈ [-1..+1] is written to the root
+  // as a CSS variable so styles.css can color-mix between the cool
+  // and warm palette ends without any JS on the render path.
+  const mood = useMemo(() => readTimeMood(), []);
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty('--palette-shift', String(mood.paletteShift));
+    root.style.setProperty('--vibration-gain', String(mood.vibrationGain));
+    root.classList.toggle('mood-exam', mood.isExamWeek);
+    return () => {
+      root.style.removeProperty('--palette-shift');
+      root.style.removeProperty('--vibration-gain');
+      root.classList.remove('mood-exam');
+    };
+  }, [mood]);
+
   return (
     <>
       <svg width="0" height="0" style={{ position: 'absolute' }}>

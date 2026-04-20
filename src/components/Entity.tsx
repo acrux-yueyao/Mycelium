@@ -82,6 +82,17 @@ const NON_BLINK_EXPRESSIONS: ExpressionKind[] = [
   'happy',
 ];
 
+/** Read a numeric CSS custom property from :root. Falls back if the
+ *  var isn't set or isn't a finite number. Kept inline rather than
+ *  reactive because these values only change on full reload
+ *  (URL query string drives them). */
+function readRootNumber(name: string, fallback: number): number {
+  if (typeof document === 'undefined') return fallback;
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(name);
+  const n = parseFloat(raw);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 const GAZE_RANGE_PX = 5;
 
 // Sprite crossfade duration (seconds). Should roughly match TRANSFORM_MS
@@ -127,10 +138,14 @@ export function Entity({
 
   // Agitation → wobble frequency (shorter period) and amplitude.
   // Calm creatures tilt slowly by ±1°; panicked ones oscillate hard.
-  const wobbleDur = 8 - agitation * 4.5;        // 3.5s..8s
-  const wobbleAmp = 1.2 + agitation * 3.2;      // 1.2°..4.4°
-  const breatheDur = 3.5 - agitation * 1.2;     // 2.3s..3.5s
-  const breatheAmp = 0.04 + agitation * 0.05;   // 0.04..0.09
+  // Final amplitudes are multiplied by the time-of-day vibration
+  // gain (set on :root by Background), so exam-week creatures
+  // tremble more without any per-entity coordination.
+  const vibrationGain = readRootNumber('--vibration-gain', 1);
+  const wobbleDur = (8 - agitation * 4.5) / Math.max(0.4, vibrationGain);
+  const wobbleAmp = (1.2 + agitation * 3.2) * vibrationGain;
+  const breatheDur = (3.5 - agitation * 1.2) / Math.max(0.4, vibrationGain);
+  const breatheAmp = (0.04 + agitation * 0.05) * vibrationGain;
   const character = CHARACTERS[charId];
   const breatheDelay = (phaseOffset % 1) * 3.5;
   const floatDelay = (phaseOffset % 1) * 5;
