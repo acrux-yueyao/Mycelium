@@ -1,7 +1,8 @@
 /**
- * Emotion API proxy — Vercel Node.js serverless function.
+ * Emotion API proxy — Vercel Edge function.
  *
  * POST { text: string } → EmotionReading JSON.
+ * GET                    → health check JSON (alive + key-configured).
  *
  * LLM is a hard dependency; failures return non-2xx with detail. The
  * frontend surfaces a visible failure state — no local fallback.
@@ -10,21 +11,21 @@
  * to the 18 tags in src/data/characters.ts so the client can do a direct
  * charId lookup without fuzzy matching.
  *
- * Runtime note: we ran this as an Edge function initially, but Edge
- * has a 25s hard cap on Hobby with no dial, which surfaced as
- * FUNCTION_INVOCATION_TIMEOUT (http 504) on slow upstream days.
- * Node serverless lets us raise maxDuration to 60s. Handler keeps
- * the Web API Request/Response signature — @vercel/node supports it.
+ * Runtime: Edge. Node serverless was tried to lift the 25s cap, but
+ * configuring it from a plain Vite api/ file didn't route responses
+ * cleanly (frontend hung past 60s with no 504 surfaced), so we're back
+ * on Edge with a tighter upstream cap (18s) that always returns a
+ * clean JSON error inside the Edge 25s limit.
  */
 
-export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const runtime = 'edge';
 
 const MODEL = 'claude-haiku-4-5-20251001';
 const API_URL = 'https://api.anthropic.com/v1/messages';
-// Upstream fetch cap. Sits inside maxDuration with headroom so we
-// always return a clean 504 body instead of being killed by Vercel.
-const UPSTREAM_TIMEOUT_MS = 45_000;
+// Must land inside the Edge 25s hard cap with comfortable headroom so
+// we can always return a structured 504 body instead of being killed
+// by Vercel and surfacing as a generic FUNCTION_INVOCATION_TIMEOUT.
+const UPSTREAM_TIMEOUT_MS = 18_000;
 
 const SYSTEM_PROMPT = `You interpret a single anonymous sentence (Chinese, English, or mixed) written on a screen, and translate it into an emotional reading that will grow a kawaii character on screen in response.
 
@@ -62,10 +63,31 @@ interface AnthropicRequest {
 }
 
 export default async function handler(req: Request): Promise<Response> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const t0 = Date.now();
+  console.log('[emotion] handler entry', req.method, new Date(t0).toISOString());
+
+  // GET /api/emotion — open in a browser tab to verify the function
+  // is reachable and the API key env var is wired up without having
+  // to type into the UI.
+  if (req.method === 'GET') {
+    return json({
+      status: 'alive',
+      runtime: 'edge',
+      model: MODEL,
+      hasApiKey: !!apiKey,
+      apiKeyLen: apiKey ? apiKey.length : 0,
+      apiKeyPrefix: apiKey ? apiKey.slice(0, 7) : null,
+      now: new Date().toISOString(),
+    }, 200);
+  }
+
   if (req.method !== 'POST') return json({ error: 'method-not-allowed' }, 405);
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return json({ error: 'missing-api-key' }, 500);
+  if (!apiKey) {
+    console.error('[emotion] ANTHROPIC_API_KEY is not set');
+    return json({ error: 'missing-api-key' }, 500);
+  }
 
   let body: { text?: unknown };
   try {
@@ -78,9 +100,6 @@ export default async function handler(req: Request): Promise<Response> {
 
   const payload: AnthropicRequest = {
     model: MODEL,
-    // Dropped from 320 → 180. The schema is small (primary + secondary
-    // + intensity + an 18-char rationale); 180 tokens is plenty and
-    // shaves generation time, which is the critical factor on slow days.
     max_tokens: 180,
     system: [
       {
@@ -111,17 +130,14 @@ export default async function handler(req: Request): Promise<Response> {
   } catch (e) {
     clearTimeout(timer);
     const isAbort = (e as { name?: string })?.name === 'AbortError';
-    return json(
-      {
-        error: isAbort ? 'upstream-timeout' : 'upstream-unreachable',
-        detail: String(e),
-      },
-      504,
-    );
+    const error = isAbort ? 'upstream-timeout' : 'upstream-unreachable';
+    console.error('[emotion]', error, 'after', Date.now() - t0, 'ms', String(e));
+    return json({ error, detail: String(e), elapsedMs: Date.now() - t0 }, 504);
   }
   clearTimeout(timer);
   if (!upstream.ok) {
     const detail = await upstream.text();
+    console.error('[emotion] upstream', upstream.status, detail.slice(0, 200));
     return json({ error: `upstream-${upstream.status}`, detail }, 502);
   }
 
@@ -131,8 +147,10 @@ export default async function handler(req: Request): Promise<Response> {
   const textOut = result.content?.find((c) => c.type === 'text')?.text ?? '';
   const parsed = extractJson(textOut);
   if (!parsed) {
+    console.error('[emotion] llm-bad-json', textOut.slice(0, 200));
     return json({ error: 'llm-bad-json', detail: textOut.slice(0, 500) }, 502);
   }
+  console.log('[emotion] ok in', Date.now() - t0, 'ms');
   return json(parsed, 200);
 }
 
