@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Background } from './components/Background';
+import { Butterflies } from './components/Butterflies';
 import { DebugSpawnBar } from './components/DebugSpawnBar';
 import { Entity } from './components/Entity';
 import { Gallery } from './components/Gallery';
@@ -600,6 +601,7 @@ export default function App() {
       })}
 
       <SparkleLayer />
+      <Butterflies />
 
       {showDebug && <DebugSpawnBar onSpawn={handleDebugSpawn} />}
 
