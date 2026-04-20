@@ -11,7 +11,7 @@
  * charId lookup without fuzzy matching.
  */
 
-export const config = { runtime: 'edge' };
+export const runtime = 'edge';
 
 const MODEL = 'claude-haiku-4-5-20251001';
 const API_URL = 'https://api.anthropic.com/v1/messages';
