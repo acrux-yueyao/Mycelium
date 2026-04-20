@@ -12,6 +12,15 @@ import { CHARACTERS, type CharId } from './data/characters';
 import { findNearestBody, stepField } from './core/field';
 import { stepConnections, isActive, type Connection } from './core/connections';
 import { type ExplorationProbe } from './core/probes';
+import {
+  ambientStart,
+  cueSpawn,
+  cueConnect,
+  cueInfect,
+  ensureAudioContext,
+  isMuted,
+  setMuted,
+} from './core/audio';
 
 const EMPTY_PROBES: ExplorationProbe[] = [];
 
@@ -86,6 +95,7 @@ export default function App() {
   const [entities, setEntities] = useState<LiveEntity[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
   const [probes, setProbes] = useState<ExplorationProbe[]>([]);
+  const [muted, setMutedState] = useState(false);
   const { loading, error, read, clearError } = useEmotion();
 
   useEffect(() => {
@@ -93,6 +103,25 @@ export default function App() {
     update();
     window.addEventListener('resize', update);
     return () => window.removeEventListener('resize', update);
+  }, []);
+
+  // Audio: browsers block context creation until a user gesture. Wire
+  // a one-shot listener; on the first keydown or click we boot the
+  // context and start the ambient bed. After that, cue functions can
+  // play on demand.
+  useEffect(() => {
+    const onFirstGesture = () => {
+      ensureAudioContext();
+      ambientStart();
+      window.removeEventListener('pointerdown', onFirstGesture);
+      window.removeEventListener('keydown', onFirstGesture);
+    };
+    window.addEventListener('pointerdown', onFirstGesture, { once: false });
+    window.addEventListener('keydown', onFirstGesture, { once: false });
+    return () => {
+      window.removeEventListener('pointerdown', onFirstGesture);
+      window.removeEventListener('keydown', onFirstGesture);
+    };
   }, []);
 
   const vpRef = useRef(viewport);
@@ -140,13 +169,24 @@ export default function App() {
           connCooldownRef.current,
           now,
         );
+        const prevConnMap = connectionMapRef.current;
         const nextConn = stepConnections(
           stepped,
-          connectionMapRef.current,
+          prevConnMap,
           connCooldownRef.current,
           now,
         );
         connectionMapRef.current = nextConn;
+
+        // Cue sound on growing → bonded transitions: a tendril just
+        // reached its target. Positive compat only — repellers don't
+        // chime.
+        for (const [key, c] of nextConn) {
+          if (c.state !== 'bonded' || c.compat < 0) continue;
+          const prev = prevConnMap.get(key);
+          if (prev && prev.state === 'bonded') continue;  // already chimed
+          cueConnect();
+        }
 
         const entityById = new Map(stepped.map((e) => [e.id, e]));
 
@@ -204,6 +244,7 @@ export default function App() {
           }
           rolls.push({ aId: c.a.id, bId: c.b.id, aInfected, bInfected, pair });
           rolledPairsRef.current.delete(c.id);
+          cueInfect();
         }
 
         // GC old roll-cooldown entries for pairs that no longer exist.
@@ -397,6 +438,7 @@ export default function App() {
       });
       return [...bumped, entity];
     });
+    cueSpawn();
   };
 
   const handleSubmit = async (text: string) => {
@@ -454,6 +496,23 @@ export default function App() {
 
       {showDebug && <DebugSpawnBar onSpawn={handleDebugSpawn} />}
 
+      {/* Mute toggle — tiny corner button, wakes the audio context on
+       *  first tap so users who click it get ambient audio too. */}
+      <button
+        type="button"
+        className="mute-toggle"
+        aria-label={muted ? 'unmute audio' : 'mute audio'}
+        onClick={() => {
+          ensureAudioContext();
+          ambientStart();
+          const next = !isMuted();
+          setMuted(next);
+          setMutedState(next);
+        }}
+      >
+        {muted ? '♪̸' : '♪'}
+      </button>
+
       <TreeHoleInput onSubmit={handleSubmit} disabled={loading} loading={loading} />
 
       <AnimatePresence>
@@ -466,9 +525,9 @@ export default function App() {
             exit={{ opacity: 0, y: 10 }}
             transition={{ duration: 0.35 }}
           >
-            <div>\u83cc\u4e1d\u672a\u80fd\u6210\u5f62</div>
+            <div>the mycelium couldn't take shape</div>
             <div className="error-detail">{error}</div>
-            <button onClick={clearError}>\u518d\u547c\u51fa\u4e00\u6b21</button>
+            <button onClick={clearError}>try again</button>
           </motion.div>
         )}
       </AnimatePresence>

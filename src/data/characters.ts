@@ -26,6 +26,7 @@ export interface FaceConfig {
 export interface Character {
   id: CharId;
   slug: string;
+  /** English short name — used in UI / Gallery / debug labels. */
   name: string;
   color: string;
   emotions: string[];
@@ -38,7 +39,7 @@ export const CHARACTERS: Record<CharId, Character> = {
   0: {
     id: 0,
     slug: 'char0_radial',
-    name: '放射星',
+    name: 'radial',
     color: '#E8A28A',
     emotions: ['tender', 'nostalgic', 'soft'],
     face: { eyeY: 0.52, eyeLeftX: 0.55, eyeRightX: 0.71, eyeSize: 0.028, mouthY: 0.60 },
@@ -46,7 +47,7 @@ export const CHARACTERS: Record<CharId, Character> = {
   1: {
     id: 1,
     slug: 'char1_bubble',
-    name: '水泡',
+    name: 'bubble',
     color: '#A7C8D6',
     emotions: ['calm', 'clear', 'empty'],
     face: { eyeY: 0.43, eyeLeftX: 0.42, eyeRightX: 0.58, eyeSize: 0.028, mouthY: 0.51 },
@@ -54,25 +55,23 @@ export const CHARACTERS: Record<CharId, Character> = {
   2: {
     id: 2,
     slug: 'char2_mushroom',
-    name: '蘑菇',
+    name: 'mushroom',
     color: '#E89A5C',
     emotions: ['curious', 'playful', 'clumsy'],
-    // Face on the cap (umbrella top), not the stem.
     face: { eyeY: 0.34, eyeLeftX: 0.32, eyeRightX: 0.48, eyeSize: 0.028, mouthY: 0.42 },
   },
   3: {
     id: 3,
     slug: 'char3_glitter',
-    name: '亮片',
+    name: 'glitter',
     color: '#9AAEE0',
     emotions: ['dreamy', 'excited', 'romantic'],
-    // Face on the glitter ball (the "cap"), above the orange stem.
     face: { eyeY: 0.37, eyeLeftX: 0.48, eyeRightX: 0.64, eyeSize: 0.028, mouthY: 0.45 },
   },
   4: {
     id: 4,
     slug: 'char4_cups',
-    name: '双子杯',
+    name: 'cups',
     color: '#7CC8B8',
     emotions: ['companion', 'social', 'attached'],
     face: { eyeY: 0.42, eyeLeftX: 0.18, eyeRightX: 0.33, eyeSize: 0.024, mouthY: 0.50 },
@@ -81,7 +80,7 @@ export const CHARACTERS: Record<CharId, Character> = {
   5: {
     id: 5,
     slug: 'char5_shrub',
-    name: '枯枝',
+    name: 'shrub',
     color: '#6E6C6A',
     emotions: ['lonely', 'restrained', 'quiet'],
     face: { eyeY: 0.50, eyeLeftX: 0.37, eyeRightX: 0.53, eyeSize: 0.026, mouthY: 0.58 },
