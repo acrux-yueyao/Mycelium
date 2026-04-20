@@ -5,10 +5,12 @@ import { Butterflies } from './components/Butterflies';
 import { DebugSpawnBar } from './components/DebugSpawnBar';
 import { Entity } from './components/Entity';
 import { Gallery } from './components/Gallery';
+import { HandLayer } from './components/HandLayer';
 import { SparkleLayer } from './components/SparkleLayer';
 import { TendrilLayer } from './components/TendrilLayer';
 import { TreeHoleInput } from './components/TreeHoleInput';
 import { useEmotion } from './hooks/useEmotion';
+import { useHandTracking } from './hooks/useHandTracking';
 import { CHARACTERS, type CharId } from './data/characters';
 import { randomName } from './core/names';
 import { findNearestBody, stepField } from './core/field';
@@ -129,6 +131,17 @@ export default function App() {
   const [probes, setProbes] = useState<ExplorationProbe[]>([]);
   const [muted, setMutedState] = useState(false);
   const { loading, error, read, clearError } = useEmotion();
+
+  // Hand tracking — lives beside audio/mute as a separate toggleable
+  // input modality. The hook owns MediaPipe; this component only
+  // threads its snapshotRef into the RAF loop for gesture physics.
+  const handVideoRef = useRef<HTMLVideoElement | null>(null);
+  const hand = useHandTracking(handVideoRef);
+  // Records the entity currently pinch-grabbed by a hand. Separate
+  // from pointer drag so both can coexist without fighting.
+  const pinchGrabRef = useRef<string | null>(null);
+  const pinchPosRef = useRef<{ x: number; y: number } | null>(null);
+  const pinchPrevPalmRef = useRef<{ x: number; y: number; t: number } | null>(null);
 
   useEffect(() => {
     const update = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
@@ -264,6 +277,118 @@ export default function App() {
             grabbedPrevRef.current = { x: gpos.x, y: gpos.y, t: now };
             stepped[idx] = { ...stepped[idx], x: gpos.x, y: gpos.y, vx, vy };
           }
+        }
+
+        // === Hand-tracking gestures ===
+        // Three forces run off the live HandSnapshot list. None of
+        // them trigger re-renders: we mutate `stepped` in place the
+        // same way the drag override above does.
+        const handSnaps = hand.snapshotRef.current;
+        if (handSnaps && handSnaps.length > 0) {
+          for (const h of handSnaps) {
+            // (A) Index-finger attraction. When the hand is pointing,
+            // every nearby mushroom drifts toward the index tip.
+            if (h.isPointing) {
+              for (let i = 0; i < stepped.length; i++) {
+                const e = stepped[i];
+                if (e.id === pinchGrabRef.current) continue;
+                if (e.id === grabbedIdRef.current) continue;
+                const dx = h.indexTip.x - e.x;
+                const dy = h.indexTip.y - e.y;
+                const d = Math.hypot(dx, dy);
+                if (d > 40 && d < 340) {
+                  const f = (1 - d / 340) * 0.22;
+                  stepped[i] = {
+                    ...e,
+                    vx: e.vx + (dx / d) * f,
+                    vy: e.vy + (dy / d) * f,
+                  };
+                }
+              }
+            }
+
+            // (B) Pinch to grab + drag. Midpoint of thumb and index
+            // tips is the cursor; on a fresh pinch we snap onto the
+            // nearest mushroom within 120px, then track it until the
+            // pinch opens again.
+            const pinchX = (h.indexTip.x + h.thumbTip.x) / 2;
+            const pinchY = (h.indexTip.y + h.thumbTip.y) / 2;
+            if (h.isPinching) {
+              if (!pinchGrabRef.current) {
+                let best: { id: string; d: number } | null = null;
+                for (const e of stepped) {
+                  const d = Math.hypot(e.x - pinchX, e.y - pinchY);
+                  if (d < 120 && (!best || d < best.d)) best = { id: e.id, d };
+                }
+                if (best) pinchGrabRef.current = best.id;
+              }
+              if (pinchGrabRef.current) {
+                const idx = stepped.findIndex(
+                  (e) => e.id === pinchGrabRef.current,
+                );
+                if (idx >= 0) {
+                  const prevP = pinchPosRef.current;
+                  let vx = 0, vy = 0;
+                  if (prevP) {
+                    // Use the last pinch sample for velocity; scale
+                    // matches the mouse-drag feel.
+                    vx = ((pinchX - prevP.x) / 16) * 12;
+                    vy = ((pinchY - prevP.y) / 16) * 12;
+                  }
+                  stepped[idx] = {
+                    ...stepped[idx], x: pinchX, y: pinchY, vx, vy,
+                  };
+                }
+              }
+              pinchPosRef.current = { x: pinchX, y: pinchY };
+            } else if (pinchGrabRef.current) {
+              pinchGrabRef.current = null;
+              pinchPosRef.current = null;
+            }
+
+            // (C) Open-palm sweep. When the palm is open and moving,
+            // mushrooms in a forward arc get a push in the palm's
+            // motion direction — like parting tall grass.
+            const prevPalm = pinchPrevPalmRef.current;
+            if (h.isOpen && prevPalm) {
+              const dtMs = Math.max(1, now - prevPalm.t);
+              const pvx = (h.palmCenter.x - prevPalm.x) / dtMs;
+              const pvy = (h.palmCenter.y - prevPalm.y) / dtMs;
+              const speed = Math.hypot(pvx, pvy);
+              if (speed > 0.25) {
+                const ux = pvx / speed;
+                const uy = pvy / speed;
+                const reach = Math.max(180, h.palmRadius * 3.5);
+                for (let i = 0; i < stepped.length; i++) {
+                  const e = stepped[i];
+                  if (e.id === pinchGrabRef.current) continue;
+                  if (e.id === grabbedIdRef.current) continue;
+                  const dx = e.x - h.palmCenter.x;
+                  const dy = e.y - h.palmCenter.y;
+                  const d = Math.hypot(dx, dy);
+                  if (d > reach) continue;
+                  // Only push creatures that are in front of the
+                  // palm's motion (dot product positive).
+                  const forward = (dx * ux + dy * uy) / (d || 1);
+                  if (forward < -0.2) continue;
+                  const falloff = 1 - d / reach;
+                  const push = Math.min(6, speed * 3.5) * falloff;
+                  stepped[i] = {
+                    ...e,
+                    vx: e.vx + ux * push,
+                    vy: e.vy + uy * push,
+                  };
+                }
+              }
+            }
+            pinchPrevPalmRef.current = {
+              x: h.palmCenter.x, y: h.palmCenter.y, t: now,
+            };
+          }
+        } else if (pinchGrabRef.current) {
+          // Hand left the frame mid-pinch — release gracefully.
+          pinchGrabRef.current = null;
+          pinchPosRef.current = null;
         }
 
         const prevConnMap = connectionMapRef.current;
@@ -674,6 +799,14 @@ export default function App() {
 
       <SparkleLayer />
       <Butterflies />
+
+      <HandLayer
+        videoRef={handVideoRef}
+        state={hand.state}
+        snapshotRef={hand.snapshotRef}
+        onEnable={hand.enable}
+        onDisable={hand.disable}
+      />
 
       {showDebug && <DebugSpawnBar onSpawn={handleDebugSpawn} />}
 

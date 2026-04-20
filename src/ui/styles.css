@@ -366,6 +366,47 @@ body,
   background: rgba(255, 249, 232, 0.6);
 }
 
+/* ---- Hand-tracking toggle pill ---- */
+.hand-toggle {
+  position: absolute;
+  right: 68px;
+  bottom: 20px;
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 38px;
+  padding: 0 0.9rem;
+  background: rgba(255, 250, 235, 0.5);
+  border: 1.5px dashed rgba(74, 64, 52, 0.16);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.65;
+  transition: opacity 0.3s, border-color 0.3s, background 0.3s;
+}
+.hand-toggle:hover:not(:disabled) {
+  opacity: 1;
+  border-color: rgba(74, 64, 52, 0.36);
+  background: rgba(255, 248, 232, 0.8);
+}
+.hand-toggle[aria-pressed='true'] {
+  opacity: 0.95;
+  border-color: rgba(230, 155, 110, 0.55);
+  background: rgba(255, 244, 224, 0.7);
+}
+.hand-toggle:disabled { cursor: wait; }
+.hand-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transition: background 0.3s;
+}
+
 /* ---- Mute toggle ---- */
 .mute-toggle {
   position: absolute;
