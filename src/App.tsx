@@ -288,6 +288,9 @@ export default function App() {
           for (const h of handSnaps) {
             // (A) Index-finger attraction. When the hand is pointing,
             // every nearby mushroom drifts toward the index tip.
+            // Reach and strength bumped — at 340 / 0.22 the pull was
+            // barely noticeable until the finger was right on top of
+            // a creature.
             if (h.isPointing) {
               for (let i = 0; i < stepped.length; i++) {
                 const e = stepped[i];
@@ -296,8 +299,8 @@ export default function App() {
                 const dx = h.indexTip.x - e.x;
                 const dy = h.indexTip.y - e.y;
                 const d = Math.hypot(dx, dy);
-                if (d > 40 && d < 340) {
-                  const f = (1 - d / 340) * 0.22;
+                if (d > 30 && d < 480) {
+                  const f = (1 - d / 480) * 0.48;
                   stepped[i] = {
                     ...e,
                     vx: e.vx + (dx / d) * f,
@@ -348,17 +351,21 @@ export default function App() {
 
             // (C) Open-palm sweep. When the palm is open and moving,
             // mushrooms in a forward arc get a push in the palm's
-            // motion direction — like parting tall grass.
+            // motion direction — like parting tall grass. Tuned
+            // looser than the first pass: lower speed gate (so a
+            // slow wave counts), wider arc (-0.4 fwd cutoff), and
+            // stronger push so a single gesture visibly scatters
+            // nearby creatures.
             const prevPalm = pinchPrevPalmRef.current;
             if (h.isOpen && prevPalm) {
               const dtMs = Math.max(1, now - prevPalm.t);
               const pvx = (h.palmCenter.x - prevPalm.x) / dtMs;
               const pvy = (h.palmCenter.y - prevPalm.y) / dtMs;
               const speed = Math.hypot(pvx, pvy);
-              if (speed > 0.25) {
+              if (speed > 0.12) {
                 const ux = pvx / speed;
                 const uy = pvy / speed;
-                const reach = Math.max(180, h.palmRadius * 3.5);
+                const reach = Math.max(240, h.palmRadius * 4.6);
                 for (let i = 0; i < stepped.length; i++) {
                   const e = stepped[i];
                   if (e.id === pinchGrabRef.current) continue;
@@ -367,12 +374,10 @@ export default function App() {
                   const dy = e.y - h.palmCenter.y;
                   const d = Math.hypot(dx, dy);
                   if (d > reach) continue;
-                  // Only push creatures that are in front of the
-                  // palm's motion (dot product positive).
                   const forward = (dx * ux + dy * uy) / (d || 1);
-                  if (forward < -0.2) continue;
+                  if (forward < -0.4) continue;
                   const falloff = 1 - d / reach;
-                  const push = Math.min(6, speed * 3.5) * falloff;
+                  const push = Math.min(12, speed * 6.5) * falloff;
                   stepped[i] = {
                     ...e,
                     vx: e.vx + ux * push,

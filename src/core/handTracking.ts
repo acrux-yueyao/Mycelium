@@ -168,13 +168,18 @@ function buildSnapshot(
   const extRing   = isExtended(pts[0], pts[14], pts[16]);
   const extPinky  = isExtended(pts[0], pts[18], pts[20]);
 
-  // Pointing: only the index is extended.
-  const isPointing = extIndex && !extMid && !extRing && !extPinky && !isPinching;
-  // Open palm: all four non-thumb fingers extended and the fingers
-  // are splayed (so a claw-fist doesn't count).
+  // Pointing: index extended and middle curled. We intentionally
+  // don't require the ring / pinky to be curled — in a natural
+  // point, those two often stay half-extended and the strict check
+  // used to fail on them, making the gesture feel unresponsive.
+  const isPointing = extIndex && !extMid && !isPinching;
+  // Open palm: at least three of the four non-thumb fingers are
+  // extended and the fingers are splayed. Relaxed from "all four"
+  // so a slightly curled pinky (common when waving) still counts.
+  const extendedCount =
+    (extIndex ? 1 : 0) + (extMid ? 1 : 0) + (extRing ? 1 : 0) + (extPinky ? 1 : 0);
   const spread = dist(pts[8], pts[20]); // index tip to pinky tip
-  const isOpen =
-    extIndex && extMid && extRing && extPinky && spread > palmRadius * 1.4;
+  const isOpen = extendedCount >= 3 && spread > palmRadius * 1.25;
 
   return {
     handedness,
