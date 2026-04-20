@@ -218,7 +218,7 @@ function ribbonD(b: BezierPts, widthAt: (t: number) => number, samples = 30): st
 // they fill out toward their mature width. During bonded the whole
 // structure keeps breathing subtly. During retract everything thins.
 const MATURE_S = 3.0;             // time for a newly-reached point to fully thicken
-const INITIAL_WIDTH_FRAC = 0.06;  // fresh-tip width as fraction of mature (very thin)
+const INITIAL_WIDTH_FRAC = 0.03;  // fresh-tip width as fraction of mature (extremely thin)
 const BREATHE_AMP = 0.08;         // bonded breathing amplitude
 const BREATHE_PERIOD_S = 4.5;
 
@@ -328,7 +328,7 @@ export function TendrilLayer({
       for (const c of conns) {
         if (c.compat < 0) continue;       // negative-compat stays bezier-based
         const style = tendrilStyle(c);
-        const maxW = style.width * 2.6;
+        const maxW = style.width * 3.4;
         const primaryId = `${c.id}-primary0`;
         if (!filaments.has(primaryId)) {
           const f = initFilament(c, 'primary', 0, now, ents, maxW);
@@ -366,32 +366,33 @@ export function TendrilLayer({
   return (
     <svg className="overlay-layer" width="100%" height="100%" aria-hidden>
       <defs>
-        {/* Goo / fusion filter: a slight Gaussian blur followed by an
-         *  alpha threshold turns crossing ribbons into a single
-         *  continuous blob at the intersection (the classic SVG
-         *  "metaball" trick). All positive-compat ribbons share this
-         *  filter so any two that cross visibly fuse instead of just
-         *  stacking with z-order. */}
+        {/* Goo / fusion filter: big Gaussian blur + alpha threshold
+         *  produces a blob whose halo extends around each ribbon and
+         *  DOUBLES IN SIZE where two ribbons cross (the classic SVG
+         *  "metaball" trick). The blob is rendered BEHIND the source
+         *  via `operator="over"` so at intersections the blob extends
+         *  past the ribbons — the fused area visibly chunks up, while
+         *  single-ribbon stretches just get a slight edge softening. */}
         <filter
           id="tendril-fusion"
-          x="-10%"
-          y="-10%"
-          width="120%"
-          height="120%"
+          x="-15%"
+          y="-15%"
+          width="130%"
+          height="130%"
         >
-          <feGaussianBlur in="SourceGraphic" stdDeviation="2.4" result="blur" />
+          <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur" />
           <feColorMatrix
             in="blur"
             mode="matrix"
             values="1 0 0 0 0
                     0 1 0 0 0
                     0 0 1 0 0
-                    0 0 0 11 -4"
+                    0 0 0 14 -5"
             result="goo"
           />
-          {/* Composite the source over the goo so soft tendril edges
-           *  remain (we get the fusion blob look + the original color). */}
-          <feComposite in="SourceGraphic" in2="goo" operator="atop" />
+          {/* Source drawn OVER goo: at crossings, goo extends past the
+           *  ribbons → we see a thicker blob wrapping around. */}
+          <feComposite in="SourceGraphic" in2="goo" operator="over" />
         </filter>
         {connections.map((c) => {
           const style = tendrilStyle(c);

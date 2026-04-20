@@ -28,9 +28,12 @@ export interface PhysBody {
   infectionState?: 'normal' | 'infecting' | 'transforming' | 'hybrid';
 }
 
-const ATTRACT_K = 0.10;
+// Attraction is weak and short-ranged now: mushrooms out of close
+// contact drift on their own wander rather than gravitating toward
+// every compatible neighbor. ATTRACT_MAX keeps it local.
+const ATTRACT_K = 0.035;
 const ATTRACT_MIN = 180;
-const ATTRACT_MAX = 500;
+const ATTRACT_MAX = 280;
 const REPEL_R = 160;
 const REPEL_K = 0.18;
 const WALL_MARGIN = 100;
@@ -46,6 +49,11 @@ const BONDED_ATTRACT_SCALE = 0.25;
 // the body tries to drift past the tendril's rest length. Too high feels
 // rigid; too low lets the body escape without the tendril reacting.
 const SPRING_K = 0.012;
+// Retract pull — while a connection is retracting, this force ramps
+// from 0 to its peak over the retract duration and actively drags both
+// bodies toward each other. Tuned so two bodies roughly half-close
+// their separation over the 2.2s retract window.
+const RETRACT_PULL_K = 0.14;
 
 export function findNearestBody<T extends PhysBody>(
   self: T,
@@ -91,6 +99,11 @@ export function stepField<T extends PhysBody>(
   viewportW: number,
   viewportH: number,
   connections?: Map<string, Connection>,
+  /** Pair keys (sorted a__b) mapped to wall-clock ms until which the
+   *  pair is in post-disconnect cooldown. Pairs in cooldown have
+   *  their mutual attraction zeroed, so a just-retracted pair drifts
+   *  freely instead of being re-magneted back together. */
+  cooldowns?: Map<string, number>,
   now: number = performance.now(),
 ): T[] {
   if (bodies.length === 0 || viewportW === 0 || viewportH === 0) {
@@ -101,20 +114,53 @@ export function stepField<T extends PhysBody>(
 
   // Pre-index bonded pairs for O(1) lookup inside the nested loop.
   // A pair is "bonded" if it has a live connection in growing/bonded state.
-  // Retracting connections no longer exert attraction scaling or springs.
+  // Retracting connections no longer exert attraction scaling or springs
+  // — they switch to a RETRACT PULL that actively drags the bodies
+  // together while the tendril reels in (so the body closes distance
+  // in sync with tendril shortening, not left behind in open space).
   const bondedPairs = new Set<string>();
-  // Tendril-as-spring: once a connection reaches 'bonded', its restLength
-  // is captured (in connections.ts). While stretched beyond rest, the
-  // tendril pulls the pair back together — the body can't just drift away
-  // carrying the tendril. Retracting connections release the spring.
-  const bondedSprings = new Map<string, number>();  // pairKey → restLength
+  const bondedSprings = new Map<string, number>();         // pairKey → restLength
+  const retractPulls = new Map<string, number>();          // pairKey → pull scalar 0..1
+  // Per-body list of normalized partner directions for active
+  // (growing / bonded) connections. Used at the end of the step to
+  // strip any velocity component that would move the body AWAY from
+  // an active tendril — bodies can only glide "toward" or
+  // perpendicular to their tendrils, never backward.
+  const tetherDirs = new Map<string, Array<{ nx: number; ny: number }>>();
+  const addTether = (id: string, nx: number, ny: number) => {
+    const list = tetherDirs.get(id);
+    if (list) list.push({ nx, ny });
+    else tetherDirs.set(id, [{ nx, ny }]);
+  };
   if (connections) {
+    const bodyById = new Map(bodies.map((b) => [b.id, b]));
     for (const c of connections.values()) {
-      if (c.state === 'retracting') continue;
       const k = c.a.id < c.b.id ? `${c.a.id}|${c.b.id}` : `${c.b.id}|${c.a.id}`;
+      if (c.state === 'retracting') {
+        const retractElapsedS = c.retractStart != null
+          ? (now - c.retractStart) / 1000
+          : 0;
+        // Ramp from 0 → 1 over the retract duration. RETRACT_S
+        // mirrors connections.ts; duplicating to avoid import cycles.
+        const retractProgress = Math.min(1, retractElapsedS / 2.2);
+        retractPulls.set(k, retractProgress);
+        continue;
+      }
       bondedPairs.add(k);
       if (c.state === 'bonded' && c.restLength != null) {
         bondedSprings.set(k, c.restLength);
+      }
+      // Record tether direction for both endpoints (growing + bonded).
+      const ab = bodyById.get(c.a.id);
+      const bb = bodyById.get(c.b.id);
+      if (ab && bb) {
+        const dx = bb.x - ab.x;
+        const dy = bb.y - ab.y;
+        const d = Math.hypot(dx, dy) || 1;
+        const nx = dx / d;
+        const ny = dy / d;
+        addTether(ab.id, nx, ny);
+        addTether(bb.id, -nx, -ny);
       }
     }
   }
@@ -135,6 +181,14 @@ export function stepField<T extends PhysBody>(
       const bBusy = b.infectionState === 'infecting' || b.infectionState === 'transforming';
       if (!aBusy && !bBusy && d > ATTRACT_MIN && d < ATTRACT_MAX) {
         const pairKey = a.id < b.id ? `${a.id}|${b.id}` : `${b.id}|${a.id}`;
+        // Pairs that recently finished a connection cycle are in
+        // cooldown — zero their mutual attraction so they don't get
+        // magneted back together. Gives "菌子找完别的菌是自由的".
+        // (connections.ts uses pair keys joined by '__'; field uses
+        // '|'. Normalize to the connections.ts format here.)
+        const cdKey = a.id < b.id ? `${a.id}__${b.id}` : `${b.id}__${a.id}`;
+        const cdUntil = cooldowns?.get(cdKey);
+        if (cdUntil != null && now < cdUntil) continue;
         const scale = bondedPairs.has(pairKey) ? BONDED_ATTRACT_SCALE : 1;
         const f = ATTRACT_K * compatibility(a.charId, b.charId) * scale;
         fx += nx * f;
@@ -147,12 +201,25 @@ export function stepField<T extends PhysBody>(
         fy -= ny * f;
       }
 
+      const pKey = a.id < b.id ? `${a.id}|${b.id}` : `${b.id}|${a.id}`;
+
+      // Retract pull: while the tendril reels in, both bodies actively
+      // close distance toward each other. Ramps from 0 → RETRACT_PULL_K
+      // over the retract duration so the bodies noticeably approach
+      // as the ribbon shortens. Without this, the body stays where it
+      // was and the tendril visually "disappears behind" it.
+      const retractProg = retractPulls.get(pKey);
+      if (retractProg != null) {
+        const pull = RETRACT_PULL_K * retractProg;
+        fx += nx * pull;
+        fy += ny * pull;
+      }
+
       // Tendril spring: inward pull only when the pair is stretched past
       // the tendril's rest length. Gives the "本体受触手约束" feel —
       // connected bodies can't drift apart freely. If the stretch exceeds
       // STRETCH_RETRACT_FACTOR (in connections.ts) the connection itself
       // will transition to retracting this frame, and the spring goes away.
-      const pKey = a.id < b.id ? `${a.id}|${b.id}` : `${b.id}|${a.id}`;
       const rest = bondedSprings.get(pKey);
       if (rest != null && d > rest) {
         const stretch = d - rest;
@@ -187,8 +254,25 @@ export function stepField<T extends PhysBody>(
       fy += (dcy / dc) * push * CENTER_R * 0.1;
     }
 
-    const vx = (a.vx + fx) * DAMPING;
-    const vy = (a.vy + fy) * DAMPING;
+    let vx = (a.vx + fx) * DAMPING;
+    let vy = (a.vy + fy) * DAMPING;
+
+    // Tether constraint: for every active (growing/bonded) tendril on
+    // this body, project out any velocity component pointing AWAY
+    // from the partner. Bodies can move toward or perpendicular to
+    // their tendrils, but never backward. Implements the user's
+    // "菌子跟着触手的方向走，不要反方向移动" requirement.
+    const tethers = tetherDirs.get(a.id);
+    if (tethers) {
+      for (const { nx: tnx, ny: tny } of tethers) {
+        const dot = vx * tnx + vy * tny;
+        if (dot < 0) {
+          vx -= tnx * dot;
+          vy -= tny * dot;
+        }
+      }
+    }
+
     const x = a.x + vx;
     const y = a.y + vy;
 

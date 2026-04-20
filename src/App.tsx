@@ -137,6 +137,7 @@ export default function App() {
           vpRef.current.w,
           vpRef.current.h,
           connectionMapRef.current,
+          connCooldownRef.current,
           now,
         );
         const nextConn = stepConnections(

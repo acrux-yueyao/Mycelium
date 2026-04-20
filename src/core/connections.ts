@@ -34,8 +34,11 @@ const BONDED_MIN_MS = 5500;
 const BONDED_COMPAT_BONUS_MS = 4500;
 const LIFETIME_JITTER = 0.2;
 // Cooldown window that blocks the same pair from reconnecting.
-const COOLDOWN_BASE_MS = 3500;
-const COOLDOWN_JITTER_MS = 1500;
+// After a connection fully retracts, that pair goes "free" for this
+// long — no mutual attraction, no reconnection. Lets mushrooms drift
+// freely after meeting someone instead of clumping right back.
+const COOLDOWN_BASE_MS = 12000;
+const COOLDOWN_JITTER_MS = 6000;
 // If a bonded pair is pulled past this factor of its rest length,
 // the tendril gives up and transitions to retracting — so the body
 // is never dragged around while still latched.
