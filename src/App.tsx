@@ -159,6 +159,46 @@ export default function App() {
   const vpRef = useRef(viewport);
   useEffect(() => { vpRef.current = viewport; }, [viewport]);
 
+  // === Pointer drag ===
+  // A mushroom can be picked up with a mouse or finger and dragged
+  // around. While held, the RAF loop overrides its position and
+  // derives a velocity from cursor delta so the creature has
+  // momentum when released.
+  const [grabbedId, setGrabbedId] = useState<string | null>(null);
+  const grabbedIdRef = useRef<string | null>(null);
+  // Target position the grabbed entity should snap to each frame.
+  const grabbedPosRef = useRef<{ x: number; y: number } | null>(null);
+  // Previous pointer sample, used to compute release velocity.
+  const grabbedPrevRef = useRef<{ x: number; y: number; t: number } | null>(null);
+
+  useEffect(() => {
+    if (!grabbedId) return;
+    const onMove = (e: PointerEvent) => {
+      grabbedPosRef.current = { x: e.clientX, y: e.clientY };
+    };
+    const onUp = () => {
+      setGrabbedId(null);
+      grabbedIdRef.current = null;
+      grabbedPosRef.current = null;
+      grabbedPrevRef.current = null;
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+  }, [grabbedId]);
+
+  const handleGrab = (id: string, x: number, y: number) => {
+    setGrabbedId(id);
+    grabbedIdRef.current = id;
+    grabbedPosRef.current = { x, y };
+    grabbedPrevRef.current = { x, y, t: performance.now() };
+  };
+
   // Ref mirrors of state, so spawnAt() always sees the latest.
   const entitiesRef = useRef<LiveEntity[]>([]);
   useEffect(() => { entitiesRef.current = entities; }, [entities]);
@@ -201,6 +241,31 @@ export default function App() {
           connCooldownRef.current,
           now,
         );
+
+        // === Drag override ===
+        // If an entity is being dragged, overwrite its stepped position
+        // with the cursor target and derive an instantaneous velocity
+        // so release throws the creature with current motion.
+        const gid = grabbedIdRef.current;
+        const gpos = grabbedPosRef.current;
+        if (gid && gpos) {
+          const idx = stepped.findIndex((e) => e.id === gid);
+          if (idx >= 0) {
+            const prevSample = grabbedPrevRef.current;
+            let vx = 0;
+            let vy = 0;
+            if (prevSample) {
+              const dtMs = Math.max(1, now - prevSample.t);
+              // Scale down: raw pixels-per-ms is too hot; ~0.5 gives a
+              // natural "flick" feel on release.
+              vx = ((gpos.x - prevSample.x) / dtMs) * 12;
+              vy = ((gpos.y - prevSample.y) / dtMs) * 12;
+            }
+            grabbedPrevRef.current = { x: gpos.x, y: gpos.y, t: now };
+            stepped[idx] = { ...stepped[idx], x: gpos.x, y: gpos.y, vx, vy };
+          }
+        }
+
         const prevConnMap = connectionMapRef.current;
         const nextConn = stepConnections(
           stepped,
@@ -601,6 +666,8 @@ export default function App() {
             infectionPair={e.infectionPair}
             partnerColor={partnerColor}
             isMotherTree={isMotherTree}
+            isDragged={grabbedId === e.id}
+            onGrab={handleGrab}
           />
         );
       })}

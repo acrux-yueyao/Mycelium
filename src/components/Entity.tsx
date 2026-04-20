@@ -35,6 +35,12 @@ export interface EntityProps {
   charId: CharId;
   /** Whimsical label drawn in Caveat script just below the sprite. */
   name?: string;
+  /** True while the user is actively holding this entity with a
+   *  pointer. Drives a small lift/shadow tweak for feedback. */
+  isDragged?: boolean;
+  /** Pointer-down callback — parent records that this entity is the
+   *  one being dragged and starts following the cursor. */
+  onGrab?: (id: string, clientX: number, clientY: number) => void;
   x: number;
   y: number;
   size?: number;
@@ -80,6 +86,8 @@ export function Entity({
   id,
   charId,
   name,
+  isDragged = false,
+  onGrab,
   x,
   y,
   size = 180,
@@ -197,21 +205,41 @@ export function Entity({
 
   return (
     <motion.div
-      className="entity"
+      className={`entity${isDragged ? ' entity-dragged' : ''}`}
       data-id={id}
+      onPointerDown={(e) => {
+        // Ignore clicks coming out of the initial scale=0 frame —
+        // spawn animation runs 0 → 1.1 → 1 over 1.8s and the hit-box
+        // is mis-sized mid-grow. After that, any pointer down on the
+        // sprite box picks the creature up.
+        if (!onGrab) return;
+        e.stopPropagation();
+        onGrab(id, e.clientX, e.clientY);
+      }}
       style={{
         position: 'absolute',
         left: x - size / 2,
         top: y - size / 2,
         width: size,
         height: size,
-        pointerEvents: 'none',
+        // Pointer events are enabled so the sprite can be dragged.
+        // Transparent PNG padding also counts as hit-area — acceptable
+        // for now given the round sprite shapes, can refine with a
+        // circular clip-path later if it becomes a problem.
+        pointerEvents: onGrab ? 'auto' : 'none',
+        cursor: isDragged ? 'grabbing' : onGrab ? 'grab' : 'default',
+        touchAction: 'none',
         willChange: 'transform',
       }}
       initial={{ scale: 0, opacity: 0 }}
-      animate={{ scale: [0, 1.1, 1], opacity: 1 }}
+      animate={{
+        scale: isDragged ? 1.08 : [0, 1.1, 1],
+        opacity: 1,
+      }}
       transition={{
-        scale: { duration: 1.8, times: [0, 0.7, 1], ease: 'easeOut' },
+        scale: isDragged
+          ? { duration: 0.25, ease: 'easeOut' }
+          : { duration: 1.8, times: [0, 0.7, 1], ease: 'easeOut' },
         opacity: { duration: 1.4, ease: 'easeOut' },
       }}
       onAnimationComplete={() => onMount?.()}

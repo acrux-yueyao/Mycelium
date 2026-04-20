@@ -164,6 +164,23 @@ body,
   filter: blur(4px);
   z-index: -1;
   pointer-events: none;
+  transition: width 0.25s ease, height 0.25s ease, filter 0.25s ease,
+              background 0.25s ease;
+}
+
+/* While dragged: sprite lifted via framer-motion scale, shadow
+ * expands and softens as if the creature rose off the page. */
+.entity-dragged { z-index: 6; }
+.entity-dragged::after {
+  width: 68%;
+  height: 10%;
+  filter: blur(7px);
+  background: radial-gradient(
+    ellipse at center,
+    rgba(90, 70, 45, 0.26) 0%,
+    rgba(90, 70, 45, 0.08) 55%,
+    transparent 85%
+  );
 }
 
 /* ---- TreeHoleInput (totem portal) ---- */
