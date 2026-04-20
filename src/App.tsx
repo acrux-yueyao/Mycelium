@@ -59,15 +59,21 @@ const LONELY_RECOVER_PER_S = 0.08;
 const LONELY_SAT_FLOOR = 0.55;
 
 // === Mother-tree mechanic ===
+// In `?debug` we collapse all the waiting windows so the effect is
+// observable within seconds instead of nearly a minute — otherwise
+// the mechanic is invisible during hands-on testing.
+const IS_DEBUG =
+  typeof window !== 'undefined' &&
+  new URLSearchParams(window.location.search).has('debug');
 // After this much time on stage, an entity quietly becomes a "mother
 // tree" — not flagged to the user, not elevated in rank, just a node
 // that the system considers as a potential source of support for
 // isolated mushrooms nearby.
-const MOTHER_AGE_MS = 40_000;
+const MOTHER_AGE_MS = IS_DEBUG ? 6_000 : 40_000;
 // An entity is considered isolated once it has been without an
 // active connection for this long. Mother trees will then try to
 // reach toward it.
-const ISOLATION_MS = 18_000;
+const ISOLATION_MS = IS_DEBUG ? 4_000 : 18_000;
 // How far a mother tree can extend a support connection.
 const MOTHER_REACH = 400;
 // Support connections live considerably longer than organic bonds —

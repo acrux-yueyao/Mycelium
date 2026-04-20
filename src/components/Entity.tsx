@@ -213,30 +213,54 @@ export function Entity({
       }}
       onAnimationComplete={() => onMount?.()}
     >
-      {/* Mother-tree halo: soft warm radial glow behind the sprite.
-       *  Appears only once an entity has earned mother-tree status
-       *  (set by App.tsx based on age). Extremely subtle — easy to
-       *  miss on a first pass, which is the intent. */}
+      {/* Mother-tree halo: warm ringed glow behind the sprite. Two
+       *  stacked layers — an inner multiply wash that actually tints
+       *  the paper (survives the light-cream background), and an
+       *  outer screen-blended rim so the halo reads as "lit from
+       *  within" rather than just a peach blob. */}
       {isMotherTree && (
-        <motion.div
-          aria-hidden
-          initial={{ opacity: 0, scale: 0.7 }}
-          animate={{ opacity: 1, scale: [0.95, 1.0, 0.95] }}
-          transition={{
-            opacity: { duration: 3.5, ease: 'easeOut' },
-            scale: { duration: 8, repeat: Infinity, ease: 'easeInOut' },
-          }}
-          style={{
-            position: 'absolute',
-            inset: '-18%',
-            borderRadius: '50%',
-            background:
-              'radial-gradient(circle at 50% 55%, rgba(240, 205, 150, 0.36) 0%, rgba(240, 205, 150, 0.18) 30%, rgba(240, 205, 150, 0.0) 70%)',
-            pointerEvents: 'none',
-            zIndex: -2,
-            filter: 'blur(3px)',
-          }}
-        />
+        <>
+          <motion.div
+            aria-hidden
+            initial={{ opacity: 0, scale: 0.7 }}
+            animate={{ opacity: 1, scale: [0.95, 1.0, 0.95] }}
+            transition={{
+              opacity: { duration: 3.5, ease: 'easeOut' },
+              scale: { duration: 8, repeat: Infinity, ease: 'easeInOut' },
+            }}
+            style={{
+              position: 'absolute',
+              inset: '-22%',
+              borderRadius: '50%',
+              background:
+                'radial-gradient(circle at 50% 55%, rgba(230, 170, 110, 0.55) 0%, rgba(230, 170, 110, 0.28) 35%, rgba(230, 170, 110, 0.0) 72%)',
+              pointerEvents: 'none',
+              zIndex: -2,
+              mixBlendMode: 'multiply',
+              filter: 'blur(4px)',
+            }}
+          />
+          <motion.div
+            aria-hidden
+            initial={{ opacity: 0, scale: 0.75 }}
+            animate={{ opacity: 0.9, scale: [0.92, 1.04, 0.92] }}
+            transition={{
+              opacity: { duration: 3.5, ease: 'easeOut' },
+              scale: { duration: 8, repeat: Infinity, ease: 'easeInOut' },
+            }}
+            style={{
+              position: 'absolute',
+              inset: '-14%',
+              borderRadius: '50%',
+              background:
+                'radial-gradient(circle at 50% 55%, rgba(255, 225, 175, 0.7) 0%, rgba(255, 225, 175, 0.25) 40%, rgba(255, 225, 175, 0.0) 72%)',
+              pointerEvents: 'none',
+              zIndex: -2,
+              mixBlendMode: 'screen',
+              filter: 'blur(3px)',
+            }}
+          />
+        </>
       )}
 
       {/* Aura: invisible until the moment we transition into 'hybrid'. */}
