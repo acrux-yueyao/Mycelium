@@ -213,47 +213,72 @@ export function Entity({
       }}
       onAnimationComplete={() => onMount?.()}
     >
-      {/* Mother-tree halo: warm ringed glow behind the sprite. Two
-       *  stacked layers — an inner multiply wash that actually tints
-       *  the paper (survives the light-cream background), and an
-       *  outer screen-blended rim so the halo reads as "lit from
-       *  within" rather than just a peach blob. */}
+      {/* Mother-tree halo: three stacked layers that together make a
+       *  mother tree unmistakable without turning it into a badge.
+       *    1. A slow-breathing outer ring that expands and fades — a
+       *       visible pulse of warmth radiating outward.
+       *    2. A bigger peach multiply wash that tints the paper under
+       *       the sprite (survives the light-cream bg).
+       *    3. An inner screen-blended bloom so the sprite looks lit
+       *       from within. */}
       {isMotherTree && (
         <>
+          {/* 1 · expanding breath ring */}
+          <motion.div
+            aria-hidden
+            initial={{ opacity: 0, scale: 0.55 }}
+            animate={{ opacity: [0, 0.55, 0], scale: [0.75, 1.4, 1.65] }}
+            transition={{
+              duration: 4.8,
+              repeat: Infinity,
+              ease: 'easeOut',
+              delay: 0.3,
+            }}
+            style={{
+              position: 'absolute',
+              inset: '-32%',
+              borderRadius: '50%',
+              border: '2.5px solid rgba(224, 150, 100, 0.55)',
+              pointerEvents: 'none',
+              zIndex: -3,
+            }}
+          />
+          {/* 2 · warm peach multiply wash (bigger, more saturated) */}
           <motion.div
             aria-hidden
             initial={{ opacity: 0, scale: 0.7 }}
-            animate={{ opacity: 1, scale: [0.95, 1.0, 0.95] }}
+            animate={{ opacity: 1, scale: [0.93, 1.06, 0.93] }}
             transition={{
               opacity: { duration: 3.5, ease: 'easeOut' },
-              scale: { duration: 8, repeat: Infinity, ease: 'easeInOut' },
+              scale: { duration: 7, repeat: Infinity, ease: 'easeInOut' },
             }}
             style={{
               position: 'absolute',
-              inset: '-22%',
+              inset: '-28%',
               borderRadius: '50%',
               background:
-                'radial-gradient(circle at 50% 55%, rgba(230, 170, 110, 0.55) 0%, rgba(230, 170, 110, 0.28) 35%, rgba(230, 170, 110, 0.0) 72%)',
+                'radial-gradient(circle at 50% 55%, rgba(224, 150, 100, 0.78) 0%, rgba(224, 150, 100, 0.40) 35%, rgba(224, 150, 100, 0.0) 72%)',
               pointerEvents: 'none',
               zIndex: -2,
               mixBlendMode: 'multiply',
-              filter: 'blur(4px)',
+              filter: 'blur(5px)',
             }}
           />
+          {/* 3 · inner screen bloom — makes the sprite feel lit */}
           <motion.div
             aria-hidden
             initial={{ opacity: 0, scale: 0.75 }}
-            animate={{ opacity: 0.9, scale: [0.92, 1.04, 0.92] }}
+            animate={{ opacity: 1, scale: [0.90, 1.06, 0.90] }}
             transition={{
               opacity: { duration: 3.5, ease: 'easeOut' },
-              scale: { duration: 8, repeat: Infinity, ease: 'easeInOut' },
+              scale: { duration: 7, repeat: Infinity, ease: 'easeInOut' },
             }}
             style={{
               position: 'absolute',
-              inset: '-14%',
+              inset: '-10%',
               borderRadius: '50%',
               background:
-                'radial-gradient(circle at 50% 55%, rgba(255, 225, 175, 0.7) 0%, rgba(255, 225, 175, 0.25) 40%, rgba(255, 225, 175, 0.0) 72%)',
+                'radial-gradient(circle at 50% 55%, rgba(255, 228, 185, 0.92) 0%, rgba(255, 228, 185, 0.40) 38%, rgba(255, 228, 185, 0.0) 72%)',
               pointerEvents: 'none',
               zIndex: -2,
               mixBlendMode: 'screen',
