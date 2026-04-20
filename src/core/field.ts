@@ -26,6 +26,13 @@ export interface PhysBody {
   /** If 'infecting' or 'transforming', pairwise attraction is skipped
    *  so the entity can wander freely while it morphs. */
   infectionState?: 'normal' | 'infecting' | 'transforming' | 'hybrid';
+  /** Wall-clock ms of last time this body had an active connection.
+   *  Used by stepField to detect long-term isolation and apply a
+   *  gentle drift toward the group's centre. */
+  lastSocialAt?: number;
+  /** Birth timestamp — used as an initial lastSocialAt fallback so
+   *  freshly spawned creatures aren't treated as already isolated. */
+  bornAt?: number;
 }
 
 // Attraction is weak and short-ranged now: mushrooms out of close
@@ -165,6 +172,29 @@ export function stepField<T extends PhysBody>(
     }
   }
 
+  // === Cluster drift for isolated bodies ===
+  // A body that hasn't had an active connection for ISOLATION_MS
+  // gets a gentle pull toward the centroid of the still-social
+  // bodies. This realises the vision line "孤立的微生物会缓慢向
+  // 群落漂移". We compute the centroid once per step using only
+  // social-recent bodies so the isolated ones don't pull each
+  // other into their own lonely cluster.
+  const ISOLATION_MS = 8_000;
+  const ISOLATION_DRIFT = 0.05;
+  let sumX = 0;
+  let sumY = 0;
+  let socialCount = 0;
+  for (const b of bodies) {
+    const lastSoc = b.lastSocialAt ?? b.bornAt ?? now;
+    if (now - lastSoc < ISOLATION_MS) {
+      sumX += b.x;
+      sumY += b.y;
+      socialCount += 1;
+    }
+  }
+  const clusterX = socialCount > 0 ? sumX / socialCount : null;
+  const clusterY = socialCount > 0 ? sumY / socialCount : null;
+
   return bodies.map((a) => {
     let fx = 0;
     let fy = 0;
@@ -252,6 +282,25 @@ export function stepField<T extends PhysBody>(
       const push = ((CENTER_R - dc) / CENTER_R) * CENTER_K;
       fx += (dcx / dc) * push * CENTER_R * 0.1;
       fy += (dcy / dc) * push * CENTER_R * 0.1;
+    }
+
+    // Isolation → drift toward cluster centroid. Skip while the body
+    // is mid-transformation or itself already social. Strength is
+    // tiny so it reads as a slow yearning rather than a magnet.
+    if (
+      clusterX != null &&
+      clusterY != null &&
+      a.infectionState !== 'infecting' &&
+      a.infectionState !== 'transforming'
+    ) {
+      const aLastSoc = a.lastSocialAt ?? a.bornAt ?? now;
+      if (now - aLastSoc >= ISOLATION_MS) {
+        const ddx = clusterX - a.x;
+        const ddy = clusterY - a.y;
+        const dd = Math.hypot(ddx, ddy) || 1;
+        fx += (ddx / dd) * ISOLATION_DRIFT;
+        fy += (ddy / dd) * ISOLATION_DRIFT;
+      }
     }
 
     let vx = (a.vx + fx) * DAMPING;
