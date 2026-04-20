@@ -28,9 +28,12 @@ export interface PhysBody {
   infectionState?: 'normal' | 'infecting' | 'transforming' | 'hybrid';
 }
 
-const ATTRACT_K = 0.10;
+// Attraction is weak and short-ranged now: mushrooms out of close
+// contact drift on their own wander rather than gravitating toward
+// every compatible neighbor. ATTRACT_MAX keeps it local.
+const ATTRACT_K = 0.035;
 const ATTRACT_MIN = 180;
-const ATTRACT_MAX = 500;
+const ATTRACT_MAX = 280;
 const REPEL_R = 160;
 const REPEL_K = 0.18;
 const WALL_MARGIN = 100;
@@ -96,6 +99,11 @@ export function stepField<T extends PhysBody>(
   viewportW: number,
   viewportH: number,
   connections?: Map<string, Connection>,
+  /** Pair keys (sorted a__b) mapped to wall-clock ms until which the
+   *  pair is in post-disconnect cooldown. Pairs in cooldown have
+   *  their mutual attraction zeroed, so a just-retracted pair drifts
+   *  freely instead of being re-magneted back together. */
+  cooldowns?: Map<string, number>,
   now: number = performance.now(),
 ): T[] {
   if (bodies.length === 0 || viewportW === 0 || viewportH === 0) {
@@ -173,6 +181,14 @@ export function stepField<T extends PhysBody>(
       const bBusy = b.infectionState === 'infecting' || b.infectionState === 'transforming';
       if (!aBusy && !bBusy && d > ATTRACT_MIN && d < ATTRACT_MAX) {
         const pairKey = a.id < b.id ? `${a.id}|${b.id}` : `${b.id}|${a.id}`;
+        // Pairs that recently finished a connection cycle are in
+        // cooldown — zero their mutual attraction so they don't get
+        // magneted back together. Gives "菌子找完别的菌是自由的".
+        // (connections.ts uses pair keys joined by '__'; field uses
+        // '|'. Normalize to the connections.ts format here.)
+        const cdKey = a.id < b.id ? `${a.id}__${b.id}` : `${b.id}__${a.id}`;
+        const cdUntil = cooldowns?.get(cdKey);
+        if (cdUntil != null && now < cdUntil) continue;
         const scale = bondedPairs.has(pairKey) ? BONDED_ATTRACT_SCALE : 1;
         const f = ATTRACT_K * compatibility(a.charId, b.charId) * scale;
         fx += nx * f;
