@@ -75,6 +75,11 @@ export interface Connection {
    *  Defaults to STRETCH_RETRACT_FACTOR = 1.55. Support connections
    *  use a higher value so they don't snap under normal movement. */
   stretchFactor?: number;
+  /** Number of parallel tendrils to render for this bond. Derived
+   *  from the two bodies' morphology.tendrilCount at creation time
+   *  (clamped to 1..4 — purely a visual density knob, not physics).
+   *  Default 1 when neither body carries morphology. */
+  tendrilCount?: number;
 }
 
 export function pairKey(a: string, b: string): string {
@@ -186,6 +191,15 @@ export function stepConnections(
       if (d >= CONNECT_RANGE) continue;
 
       const compat = compatibility(a.charId, b.charId);
+      // How many parallel tendrils to render. Only creatures with
+      // a morphology reading contribute; others count as 1. Cap at
+      // 4 so a pair of very-branchy mushrooms doesn't swamp the
+      // layer with 10 overlapping ribbons. Mapped from raw 3..10
+      // morphology value down to 1..4 visible tendrils.
+      const rawMax = Math.max(a.tendrilCount ?? 1, b.tendrilCount ?? 1);
+      const tendrilCount = rawMax <= 1
+        ? 1
+        : Math.max(1, Math.min(4, Math.round(1 + (rawMax - 3) * 0.5)));
       next.set(key, {
         id: key,
         a: snap(a),
@@ -194,6 +208,7 @@ export function stepConnections(
         compat,
         maxLifeMs: rollLifetime(compat),
         state: 'growing',
+        tendrilCount,
       });
     }
   }

@@ -33,6 +33,11 @@ export interface PhysBody {
   /** Birth timestamp — used as an initial lastSocialAt fallback so
    *  freshly spawned creatures aren't treated as already isolated. */
   bornAt?: number;
+  /** Per-creature tendril branching count (1..10). Higher = this
+   *  creature wants more parallel filaments on every bond, not just
+   *  a single tendril. Flattened from morphology.tendrilCount so
+   *  stepConnections can read it without coupling to LiveEntity. */
+  tendrilCount?: number;
 }
 
 // Attraction is weak and short-ranged now: mushrooms out of close

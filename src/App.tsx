@@ -42,6 +42,10 @@ interface LiveEntity {
    *  Undefined for debug-spawned entities; Entity falls back to
    *  visually neutral defaults when absent. */
   morphology?: Morphology;
+  /** Flattened copy of morphology.tendrilCount so stepConnections
+   *  (which consumes PhysBody, not LiveEntity) can read it without
+   *  knowing about morphology. Undefined → defaults to 1 tendril. */
+  tendrilCount?: number;
   x: number;
   y: number;
   vx: number;
@@ -726,6 +730,7 @@ export default function App() {
       charId,
       name: randomName(),
       morphology,
+      tendrilCount: morphology?.tendrilCount,
       x,
       y,
       vx: Math.cos(a) * v0,

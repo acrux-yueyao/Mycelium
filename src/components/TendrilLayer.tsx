@@ -478,6 +478,75 @@ export function TendrilLayer({
       {/* Positive-compat: filament bundles, all wrapped in the fusion
        *  filter so two ribbons crossing in space visually merge. */}
       <g filter="url(#tendril-fusion)">
+      {/* Multi-tendril companions — thin parallel bezier strokes for
+       *  connections where at least one side has a high morphology
+       *  tendrilCount. Renders (tendrilCount - 1) extra strokes at
+       *  alternating perpendicular offsets. Purely cosmetic; they
+       *  share the main connection's gradient so the whole bundle
+       *  reads as one warm rope with extra filaments. */}
+      {connections
+        .filter((c) => c.compat >= 0 && (c.tendrilCount ?? 1) > 1)
+        .map((c) => {
+          const extra = (c.tendrilCount ?? 1) - 1;
+          const style = tendrilStyle(c);
+          const dx = c.b.x - c.a.x;
+          const dy = c.b.y - c.a.y;
+          const d = Math.hypot(dx, dy) || 1;
+          const nx = dx / d;
+          const ny = dy / d;
+          const px = -ny;
+          const py = nx;
+          const ax = c.a.x + nx * ANCHOR_RADIUS;
+          const ay = c.a.y + ny * ANCHOR_RADIUS;
+          const bx = c.b.x - nx * ANCHOR_RADIUS;
+          const by = c.b.y - ny * ANCHOR_RADIUS;
+          const seed = hashId(c.id);
+          const growing = c.state === 'growing';
+          const retracting = c.state === 'retracting';
+          const anim = growing
+            ? { pathLength: 1 }
+            : retracting
+              ? { pathLength: [1, 0] as number[] }
+              : { pathLength: 1 };
+          const trans = growing
+            ? { duration: GROW_S, ease: 'easeInOut' as const }
+            : retracting
+              ? { duration: RETRACT_S, ease: 'easeInOut' as const }
+              : { duration: 0.2 };
+          return (
+            <g key={`companion-${c.id}`}>
+              {Array.from({ length: extra }).map((_, i) => {
+                // Alternate sides: +9, -9, +16, -16, ... so tendrils
+                // fan out evenly either side of the main ribbon.
+                const lane = Math.floor(i / 2) + 1;
+                const side = i % 2 === 0 ? 1 : -1;
+                const offset = lane * 9 * side;
+                // Tiny per-tendril sway perturbation for organic feel.
+                const jitter = (((seed >> (i * 3)) & 0x7) - 3) * 1.8;
+                const sway = offset + jitter;
+                const p1x = ax + (bx - ax) * 0.32 + px * sway;
+                const p1y = ay + (by - ay) * 0.32 + py * sway;
+                const p2x = ax + (bx - ax) * 0.68 + px * sway * 0.85;
+                const p2y = ay + (by - ay) * 0.68 + py * sway * 0.85;
+                const pathD = `M ${ax} ${ay} C ${p1x} ${p1y}, ${p2x} ${p2y}, ${bx} ${by}`;
+                return (
+                  <motion.path
+                    key={i}
+                    d={pathD}
+                    stroke={`url(#tendril-grad-${c.id})`}
+                    strokeWidth={Math.max(0.7, style.width * 0.45)}
+                    strokeOpacity={style.opacity * 0.55}
+                    fill="none"
+                    strokeLinecap="round"
+                    initial={{ pathLength: 0 }}
+                    animate={anim}
+                    transition={trans}
+                  />
+                );
+              })}
+            </g>
+          );
+        })}
       {connections.filter((c) => c.compat >= 0).map((c) => {
         const style = tendrilStyle(c);
         const retracting = c.state === 'retracting';
