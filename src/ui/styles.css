@@ -76,6 +76,24 @@ body,
   z-index: 2;
 }
 
+/* Ambient twinkle layer — sits under everything, above the paper
+ * background. Tiny warm dots pulsing at different phases. */
+.sparkle-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  mix-blend-mode: lighten;
+}
+.sparkle-layer circle {
+  filter: blur(0.08px);
+}
+@keyframes sparklePulse {
+  0%, 100% { opacity: 0; }
+  45%      { opacity: var(--sparkle-peak, 0.5); }
+  55%      { opacity: var(--sparkle-peak, 0.5); }
+}
+
 /* ---- Entity (character sprite) ---- */
 .entity { z-index: 3; }
 
@@ -123,43 +141,50 @@ body,
 }
 
 .totem-eyebrow {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-style: italic;
-  color: var(--ink-dim);
-  letter-spacing: 0.35em;
-  text-transform: uppercase;
+  color: var(--ink-soft);
+  letter-spacing: 0.42em;
+  text-transform: lowercase;
   margin-bottom: 2rem;
-  opacity: 0.7;
+  opacity: 0.65;
+  font-weight: 300;
 }
 
 .totem-input {
   width: 100%;
   background: transparent;
   border: none;
-  border-bottom: 1px solid rgba(47, 42, 34, 0.18);
+  /* Hand-drawn feel underline: two-color soft wash instead of a
+   * sharp rule. The second layer (via box-shadow) is offset a hair
+   * so the line looks inked rather than CSS-geometric. */
+  border-bottom: 1px solid rgba(47, 42, 34, 0.14);
+  box-shadow: 0 2px 0 -1px rgba(210, 123, 78, 0.12);
   outline: none;
   color: var(--ink);
   font-family: var(--serif);
   font-weight: 300;
-  font-size: clamp(1.1rem, 2vw, 1.5rem);
+  font-size: clamp(1.15rem, 2.05vw, 1.55rem);
   line-height: 1.7;
   text-align: center;
   resize: none;
   caret-color: var(--accent);
-  padding: 0.8rem 0;
+  padding: 0.8rem 0 0.9rem;
   max-height: 200px;
   overflow-y: auto;
-  transition: border-color 0.6s ease;
+  transition: border-color 0.8s ease, box-shadow 0.8s ease;
 }
 
 .totem-input::placeholder {
   color: var(--ink-dim);
   font-style: italic;
-  opacity: 0.5;
+  opacity: 0.55;
+  letter-spacing: 0.02em;
 }
 
 .totem-input:focus {
-  border-bottom-color: rgba(47, 42, 34, 0.45);
+  border-bottom-color: rgba(47, 42, 34, 0.34);
+  box-shadow: 0 3px 0 -1px rgba(210, 123, 78, 0.24);
 }
 
 .totem-input:disabled { cursor: wait; }
@@ -269,4 +294,31 @@ body,
 .error-toast button:hover {
   border-color: var(--ink);
   color: var(--ink);
+}
+
+/* ---- Mute toggle ---- */
+.mute-toggle {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  z-index: 30;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid rgba(47, 42, 34, 0.12);
+  border-radius: 50%;
+  color: var(--ink-soft);
+  font-family: var(--serif);
+  font-size: 1.1rem;
+  cursor: pointer;
+  opacity: 0.45;
+  transition: opacity 0.3s, border-color 0.3s, background 0.3s;
+}
+.mute-toggle:hover {
+  opacity: 0.85;
+  border-color: rgba(47, 42, 34, 0.32);
+  background: rgba(255, 255, 255, 0.35);
 }

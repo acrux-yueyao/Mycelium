@@ -81,7 +81,7 @@ export function DebugSpawnBar({ onSpawn }: Props) {
           }}
         />
         <button onClick={submit} style={btn(0)}>
-          召唤
+          spawn
         </button>
       </div>
       <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap' }}>

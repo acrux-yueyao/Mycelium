@@ -165,7 +165,7 @@ export function Gallery() {
         boxSizing: 'border-box',
       }}
     >
-      <div style={headingStyle}>字母对照（代码里的 charId → 字母）</div>
+      <div style={headingStyle}>Letter key (current charId → letter mapping)</div>
       <div
         style={{
           position: 'relative',
@@ -184,13 +184,13 @@ export function Gallery() {
         )}
       </div>
       <div style={warnStyle}>
-        ⚠️ 下面 15 张杂交图的标签只写文件名字母对（A_B / B_E / …），
-        <strong>不写"放射星×水泡"这种中文 pair 名</strong>。
-        因为手绘 hybrid PNG 里实际画的东西不一定等于上方"字母 → 角色"表推出来的组合——
-        这正是要用这个视图检查的。对不上的 pair 告诉我文件名（比如 "A_C 画的其实是 …"），我再修 HYBRID_LETTER 映射或者替换文件。
+        Heads up: the 15 hybrid tiles below are labelled with the
+        filename letter-pair only (A_B / B_E / …).
+        The hand-drawn hybrid PNGs don't always depict the character
+        pair the filename implies — this view is for catching those.
       </div>
 
-      <div style={headingStyle}>基础菌（6 只）</div>
+      <div style={headingStyle}>Base mushrooms (6)</div>
       <div
         style={{
           position: 'relative',
@@ -204,7 +204,7 @@ export function Gallery() {
         )}
       </div>
 
-      <div style={headingStyle}>杂交菌（15 张 · hybrid 终态 · 标签为文件名）</div>
+      <div style={headingStyle}>Hybrids (15 · final state · label = filename)</div>
       <div
         style={{
           position: 'relative',
@@ -229,7 +229,7 @@ export function Gallery() {
           color: '#8a7f76',
         }}
       >
-        回到主界面：把 URL 里的 <code>?gallery</code> 去掉
+        back to the stage: drop <code>?gallery</code> from the URL
       </div>
     </div>
   );
