@@ -12,6 +12,7 @@ import { TreeHoleInput } from './components/TreeHoleInput';
 import { useEmotion } from './hooks/useEmotion';
 import { useHandTracking } from './hooks/useHandTracking';
 import { CHARACTERS, type CharId } from './data/characters';
+import type { Morphology } from './core/emotion';
 import { randomName } from './core/names';
 import { findNearestBody, stepField } from './core/field';
 import { stepConnections, isActive, type Connection } from './core/connections';
@@ -35,6 +36,11 @@ interface LiveEntity {
   charId: CharId;
   /** Whimsical two-word label ("Sleepy Mochi") drawn below the sprite. */
   name: string;
+  /** Per-creature visual parameters from the LLM emotion reading —
+   *  density / agitation / glow / tintHue / particles / tendrilCount.
+   *  Undefined for debug-spawned entities; Entity falls back to
+   *  visually neutral defaults when absent. */
+  morphology?: Morphology;
   x: number;
   y: number;
   vx: number;
@@ -704,7 +710,11 @@ export default function App() {
   };
 
   // Build a fresh LiveEntity at a random non-overlapping spawn point.
-  const makeEntity = (charId: CharId, rationale?: string): LiveEntity => {
+  const makeEntity = (
+    charId: CharId,
+    rationale?: string,
+    morphology?: Morphology,
+  ): LiveEntity => {
     const { x, y } = spawnAt();
     const a = Math.random() * Math.PI * 2;
     const v0 = 0.4;
@@ -712,6 +722,7 @@ export default function App() {
       id: `e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       charId,
       name: randomName(),
+      morphology,
       x,
       y,
       vx: Math.cos(a) * v0,
@@ -742,7 +753,13 @@ export default function App() {
   const handleSubmit = async (text: string) => {
     const result = await read(text);
     if (!result) return;
-    pushEntity(makeEntity(result.charId, result.reading.rationale));
+    pushEntity(
+      makeEntity(
+        result.charId,
+        result.reading.rationale,
+        result.reading.morphology,
+      ),
+    );
   };
 
   // Debug bar handler: spawn one entity per CharId from a typed letter sequence.
@@ -784,6 +801,7 @@ export default function App() {
             id={e.id}
             charId={e.charId}
             name={e.name}
+            morphology={e.morphology}
             x={e.x}
             y={e.y}
             size={e.size}

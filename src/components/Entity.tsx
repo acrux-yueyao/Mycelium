@@ -20,6 +20,8 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { motion, useAnimationControls } from 'framer-motion';
+import { EntityParticles } from './EntityParticles';
+import type { Morphology } from '../core/emotion';
 import {
   CHARACTERS,
   charAsset,
@@ -35,6 +37,10 @@ export interface EntityProps {
   charId: CharId;
   /** Whimsical label drawn in Caveat script just below the sprite. */
   name?: string;
+  /** Per-creature visual parameters from the LLM emotion reading.
+   *  Drives overall opacity, glow, wobble frequency/amplitude, hue
+   *  overlay, and optional drifting particles. */
+  morphology?: Morphology;
   /** True while the user is actively holding this entity with a
    *  pointer. Drives a small lift/shadow tweak for feedback. */
   isDragged?: boolean;
@@ -86,6 +92,7 @@ export function Entity({
   id,
   charId,
   name,
+  morphology,
   isDragged = false,
   onGrab,
   x,
@@ -102,6 +109,28 @@ export function Entity({
   isMotherTree = false,
   onMount,
 }: EntityProps) {
+  // Derive the visual knobs from morphology once per render. When the
+  // creature was debug-spawned (no LLM reading) we pick visually
+  // neutral middle values so it still looks like a mushroom, just
+  // unremarkable in its morphology-driven dimensions.
+  const density = morphology?.density ?? 0.7;
+  const agitation = morphology?.agitation ?? 0.3;
+  const glow = morphology?.glow ?? 0.15;
+  const tintHue = morphology?.tintHue ?? -1; // -1 = skip tint overlay
+  const emitParticles = morphology?.particles === true;
+
+  // Density → overall opacity (0 is wispy, 1 is fully present) and
+  // a subtle scale. Lonely / translucent creatures should read as
+  // barely-there without shrinking into invisibility.
+  const bodyOpacity = 0.55 + density * 0.45;
+  const bodyScaleBase = 0.92 + density * 0.12;
+
+  // Agitation → wobble frequency (shorter period) and amplitude.
+  // Calm creatures tilt slowly by ±1°; panicked ones oscillate hard.
+  const wobbleDur = 8 - agitation * 4.5;        // 3.5s..8s
+  const wobbleAmp = 1.2 + agitation * 3.2;      // 1.2°..4.4°
+  const breatheDur = 3.5 - agitation * 1.2;     // 2.3s..3.5s
+  const breatheAmp = 0.04 + agitation * 0.05;   // 0.04..0.09
   const character = CHARACTERS[charId];
   const breatheDelay = (phaseOffset % 1) * 3.5;
   const floatDelay = (phaseOffset % 1) * 5;
@@ -319,6 +348,32 @@ export function Entity({
         </>
       )}
 
+      {/* Morphology glow — radiant core for warm/grateful readings.
+       *  Sits behind the sprite, tinted by tintHue so the color
+       *  matches the creature's overall mood (amber for warmth,
+       *  green-yellow for joy, etc). Skipped when glow is trivial. */}
+      {glow > 0.05 && (
+        <motion.div
+          aria-hidden
+          initial={{ opacity: 0, scale: 0.7 }}
+          animate={{ opacity: 1, scale: [0.92, 1.05, 0.92] }}
+          transition={{
+            opacity: { duration: 2.5, ease: 'easeOut' },
+            scale: { duration: 6 + agitation * 2, repeat: Infinity, ease: 'easeInOut' },
+          }}
+          style={{
+            position: 'absolute',
+            inset: `-${10 + glow * 18}%`,
+            borderRadius: '50%',
+            background: `radial-gradient(circle at 50% 55%, hsla(${tintHue < 0 ? 36 : tintHue}, 72%, 72%, ${0.28 + glow * 0.55}) 0%, hsla(${tintHue < 0 ? 36 : tintHue}, 72%, 72%, ${0.10 + glow * 0.30}) 38%, hsla(${tintHue < 0 ? 36 : tintHue}, 72%, 72%, 0) 72%)`,
+            pointerEvents: 'none',
+            zIndex: -2,
+            mixBlendMode: 'screen',
+            filter: `blur(${2 + glow * 3}px)`,
+          }}
+        />
+      )}
+
       {/* Aura: invisible until the moment we transition into 'hybrid'. */}
       <motion.div
         initial={{ scale: 0.5, opacity: 0 }}
@@ -340,17 +395,25 @@ export function Entity({
       >
         <motion.div
           style={{ width: '100%', height: '100%', willChange: 'transform' }}
-          animate={{ rotate: [-1.5, 1.5, -1.5] }}
-          transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut', delay: wobbleDelay }}
+          animate={{ rotate: [-wobbleAmp, wobbleAmp, -wobbleAmp] }}
+          transition={{ duration: wobbleDur, repeat: Infinity, ease: 'easeInOut', delay: wobbleDelay }}
         >
           <motion.div
             style={{ width: '100%', height: '100%', willChange: 'transform' }}
             animate={greetControls}
           >
             <motion.div
-              style={{ width: '100%', height: '100%', position: 'relative', willChange: 'transform' }}
-              animate={{ scale: [1, 1.04, 1] }}
-              transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut', delay: breatheDelay }}
+              style={{
+                width: '100%',
+                height: '100%',
+                position: 'relative',
+                willChange: 'transform',
+                // density ∈ [0..1] → opacity, so wispy/lonely creatures
+                // read as barely-there without actually shrinking.
+                opacity: bodyOpacity,
+              }}
+              animate={{ scale: [bodyScaleBase - breatheAmp, bodyScaleBase + breatheAmp, bodyScaleBase - breatheAmp] }}
+              transition={{ duration: breatheDur, repeat: Infinity, ease: 'easeInOut', delay: breatheDelay }}
             >
               <motion.div
                 style={{ width: '100%', height: '100%', position: 'relative' }}
@@ -388,6 +451,34 @@ export function Entity({
                     transition={{
                       opacity: { duration: CROSSFADE_S, ease: 'easeInOut' },
                       filter: { duration: 1.2, ease: 'easeOut' },
+                    }}
+                  />
+                )}
+
+                {/* Morphology hue tint — a translucent colour wash
+                    clipped to the sprite silhouette via an alpha mask
+                    on the base PNG. Topic determines hue; density
+                    determines how strong the wash reads. We skip it
+                    during transform/hybrid since the sprite is
+                    mid-crossfade and the mask would flicker. */}
+                {tintHue >= 0 && !isMidTransform && !isHybridNow && (
+                  <div
+                    aria-hidden
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      background: `hsl(${tintHue}, 58%, 62%)`,
+                      pointerEvents: 'none',
+                      opacity: 0.22 + density * 0.25,
+                      WebkitMaskImage: `url(${baseSrc})`,
+                      WebkitMaskSize: 'contain',
+                      WebkitMaskRepeat: 'no-repeat',
+                      WebkitMaskPosition: 'center',
+                      maskImage: `url(${baseSrc})`,
+                      maskSize: 'contain',
+                      maskRepeat: 'no-repeat',
+                      maskPosition: 'center',
+                      mixBlendMode: 'color',
                     }}
                   />
                 )}
@@ -475,6 +566,13 @@ export function Entity({
        *  Outside the float/wobble/breathe chain so it stays steady
        *  and readable instead of dancing with the mushroom. Fades
        *  in on a slight delay so it appears after the spawn grow. */}
+      {/* Particle emitter — triggered by morphology.particles for
+       *  "releasing / weightless" readings. Dots rise from the
+       *  sprite centre in the creature's own tint. */}
+      {emitParticles && (
+        <EntityParticles hue={tintHue < 0 ? 36 : tintHue} size={size} />
+      )}
+
       {name && (
         <motion.div
           aria-hidden
