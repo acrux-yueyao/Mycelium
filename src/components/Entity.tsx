@@ -33,6 +33,8 @@ import type { InfectionState } from '../App';
 export interface EntityProps {
   id: string;
   charId: CharId;
+  /** Whimsical label drawn in Caveat script just below the sprite. */
+  name?: string;
   x: number;
   y: number;
   size?: number;
@@ -77,6 +79,7 @@ const CROSSFADE_S = 2.4;
 export function Entity({
   id,
   charId,
+  name,
   x,
   y,
   size = 180,
@@ -439,6 +442,35 @@ export function Entity({
           </motion.div>
         </motion.div>
       </motion.div>
+
+      {/* Name label — sits just below the sprite in Caveat script.
+       *  Outside the float/wobble/breathe chain so it stays steady
+       *  and readable instead of dancing with the mushroom. Fades
+       *  in on a slight delay so it appears after the spawn grow. */}
+      {name && (
+        <motion.div
+          aria-hidden
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 0.72, y: 0 }}
+          transition={{ delay: 1.6, duration: 1.4, ease: 'easeOut' }}
+          style={{
+            position: 'absolute',
+            left: '50%',
+            top: '100%',
+            transform: 'translate(-50%, 4px)',
+            fontFamily: "'Caveat', 'ZCOOL KuaiLe', cursive",
+            fontSize: '1.1rem',
+            color: '#6B5B47',
+            letterSpacing: '0.02em',
+            whiteSpace: 'nowrap',
+            pointerEvents: 'none',
+            userSelect: 'none',
+            textShadow: '0 1px 0 rgba(255, 248, 232, 0.8)',
+          }}
+        >
+          {name}
+        </motion.div>
+      )}
     </motion.div>
   );
 }

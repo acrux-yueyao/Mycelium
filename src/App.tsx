@@ -10,6 +10,7 @@ import { TendrilLayer } from './components/TendrilLayer';
 import { TreeHoleInput } from './components/TreeHoleInput';
 import { useEmotion } from './hooks/useEmotion';
 import { CHARACTERS, type CharId } from './data/characters';
+import { randomName } from './core/names';
 import { findNearestBody, stepField } from './core/field';
 import { stepConnections, isActive, type Connection } from './core/connections';
 import { type ExplorationProbe } from './core/probes';
@@ -30,6 +31,8 @@ export type InfectionState = 'normal' | 'infecting' | 'transforming' | 'hybrid';
 interface LiveEntity {
   id: string;
   charId: CharId;
+  /** Whimsical two-word label ("Sleepy Mochi") drawn below the sprite. */
+  name: string;
   x: number;
   y: number;
   vx: number;
@@ -513,6 +516,7 @@ export default function App() {
     return {
       id: `e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       charId,
+      name: randomName(),
       x,
       y,
       vx: Math.cos(a) * v0,
@@ -584,6 +588,7 @@ export default function App() {
             key={e.id}
             id={e.id}
             charId={e.charId}
+            name={e.name}
             x={e.x}
             y={e.y}
             size={e.size}
