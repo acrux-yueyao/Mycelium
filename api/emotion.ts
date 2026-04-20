@@ -1,5 +1,5 @@
 /**
- * Emotion API proxy — Vercel Edge function.
+ * Emotion API proxy — Vercel Node.js serverless function.
  *
  * POST { text: string } → EmotionReading JSON.
  *
@@ -9,12 +9,22 @@
  * Labels returned by `primary.label` / `secondary.label` are constrained
  * to the 18 tags in src/data/characters.ts so the client can do a direct
  * charId lookup without fuzzy matching.
+ *
+ * Runtime note: we ran this as an Edge function initially, but Edge
+ * has a 25s hard cap on Hobby with no dial, which surfaced as
+ * FUNCTION_INVOCATION_TIMEOUT (http 504) on slow upstream days.
+ * Node serverless lets us raise maxDuration to 60s. Handler keeps
+ * the Web API Request/Response signature — @vercel/node supports it.
  */
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 const MODEL = 'claude-haiku-4-5-20251001';
 const API_URL = 'https://api.anthropic.com/v1/messages';
+// Upstream fetch cap. Sits inside maxDuration with headroom so we
+// always return a clean 504 body instead of being killed by Vercel.
+const UPSTREAM_TIMEOUT_MS = 45_000;
 
 const SYSTEM_PROMPT = `You interpret a single anonymous sentence (Chinese, English, or mixed) written on a screen, and translate it into an emotional reading that will grow a kawaii character on screen in response.
 
@@ -68,7 +78,10 @@ export default async function handler(req: Request): Promise<Response> {
 
   const payload: AnthropicRequest = {
     model: MODEL,
-    max_tokens: 320,
+    // Dropped from 320 → 180. The schema is small (primary + secondary
+    // + intensity + an 18-char rationale); 180 tokens is plenty and
+    // shaves generation time, which is the critical factor on slow days.
+    max_tokens: 180,
     system: [
       {
         type: 'text',
@@ -78,6 +91,9 @@ export default async function handler(req: Request): Promise<Response> {
     ],
     messages: [{ role: 'user', content: text }],
   };
+
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), UPSTREAM_TIMEOUT_MS);
 
   let upstream: Response;
   try {
@@ -90,10 +106,20 @@ export default async function handler(req: Request): Promise<Response> {
         'anthropic-beta': 'prompt-caching-2024-07-31',
       },
       body: JSON.stringify(payload),
+      signal: ctrl.signal,
     });
   } catch (e) {
-    return json({ error: 'upstream-unreachable', detail: String(e) }, 502);
+    clearTimeout(timer);
+    const isAbort = (e as { name?: string })?.name === 'AbortError';
+    return json(
+      {
+        error: isAbort ? 'upstream-timeout' : 'upstream-unreachable',
+        detail: String(e),
+      },
+      504,
+    );
   }
+  clearTimeout(timer);
   if (!upstream.ok) {
     const detail = await upstream.text();
     return json({ error: `upstream-${upstream.status}`, detail }, 502);
