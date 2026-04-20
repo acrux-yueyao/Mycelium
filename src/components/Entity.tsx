@@ -450,22 +450,22 @@ export function Entity({
       {name && (
         <motion.div
           aria-hidden
-          initial={{ opacity: 0, y: -4 }}
-          animate={{ opacity: 0.72, y: 0 }}
+          initial={{ opacity: 0, y: -3 }}
+          animate={{ opacity: 0.42, y: 0 }}
           transition={{ delay: 1.6, duration: 1.4, ease: 'easeOut' }}
           style={{
             position: 'absolute',
             left: '50%',
             top: '100%',
-            transform: 'translate(-50%, 4px)',
+            transform: 'translate(-50%, -14px)',
             fontFamily: "'Caveat', 'ZCOOL KuaiLe', cursive",
-            fontSize: '1.1rem',
+            fontSize: '0.85rem',
             color: '#6B5B47',
             letterSpacing: '0.02em',
             whiteSpace: 'nowrap',
             pointerEvents: 'none',
             userSelect: 'none',
-            textShadow: '0 1px 0 rgba(255, 248, 232, 0.8)',
+            textShadow: '0 1px 0 rgba(255, 248, 232, 0.7)',
           }}
         >
           {name}
