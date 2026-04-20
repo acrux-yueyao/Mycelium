@@ -98,14 +98,16 @@ const SUPPORT_STRETCH_FACTOR = 2.4;
 // Contact → hold → roll outcome → infecting → transforming → hybrid.
 // No extra entities ever spawned: the original entity IS the hybrid once
 // its state flips to 'hybrid'.
-const INFECT_HOLD_MS = 3500;         // connection must hold this long before rolling
+// Per the design vision, compatible pairs should mostly drift
+// parallel and stay connected via tendrils — fusion is an unusual
+// event, not the main relationship mode. These thresholds make it a
+// rare surprise: only very high compat, only after a long sustained
+// touch, and with a low per-frame roll even once eligible.
+const INFECT_HOLD_MS = 30_000;       // 30s of continuous contact before even rolling
 const INFECTING_MS = 3500;           // color / texture drift phase (tint pulse)
 const TRANSFORM_MS = 2400;           // sprite + face crossfade phase
-const INFECTION_MIN_COMPAT = 0.5;    // below this, pairs bond but never infect
-// Base chance an eligible pair actually rolls for infection on any given
-// frame (gated by compat on top, so likely infection is ≈ BASE * compat).
-// Lower → rarer hybrid events, closer bonds without transforming.
-const BASE_INFECTION_PROB = 0.25;    // per-frame chance once HOLD is satisfied
+const INFECTION_MIN_COMPAT = 0.9;    // only highly compatible pairs are eligible
+const BASE_INFECTION_PROB = 0.04;    // per-frame chance once HOLD is satisfied
 const ROLL_COOLDOWN_MS = 6000;       // after a "didn't fire" roll, wait this long
 const MUTUAL_COMPAT_CUTOFF = 0.85;   // at or above: both sides always transform
 const ONEWAY_COMPAT_CUTOFF = 0.65;   // at or above: 50/50 mutual vs one-way
