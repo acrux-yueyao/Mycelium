@@ -48,6 +48,10 @@ export interface EntityProps {
   infectionPair?: [CharId, CharId];
   /** Character color of the entity currently infecting this one; drives tint. */
   partnerColor?: string;
+  /** True once this entity has been on stage long enough to serve as a
+   *  "mother tree" for isolated neighbors. Renders a very soft warm
+   *  halo behind the sprite — no badge, no crown, just presence. */
+  isMotherTree?: boolean;
   onMount?: () => void;
 }
 
@@ -84,6 +88,7 @@ export function Entity({
   infectionState = 'normal',
   infectionPair,
   partnerColor,
+  isMotherTree = false,
   onMount,
 }: EntityProps) {
   const character = CHARACTERS[charId];
@@ -208,6 +213,32 @@ export function Entity({
       }}
       onAnimationComplete={() => onMount?.()}
     >
+      {/* Mother-tree halo: soft warm radial glow behind the sprite.
+       *  Appears only once an entity has earned mother-tree status
+       *  (set by App.tsx based on age). Extremely subtle — easy to
+       *  miss on a first pass, which is the intent. */}
+      {isMotherTree && (
+        <motion.div
+          aria-hidden
+          initial={{ opacity: 0, scale: 0.7 }}
+          animate={{ opacity: 1, scale: [0.95, 1.0, 0.95] }}
+          transition={{
+            opacity: { duration: 3.5, ease: 'easeOut' },
+            scale: { duration: 8, repeat: Infinity, ease: 'easeInOut' },
+          }}
+          style={{
+            position: 'absolute',
+            inset: '-18%',
+            borderRadius: '50%',
+            background:
+              'radial-gradient(circle at 50% 55%, rgba(240, 205, 150, 0.36) 0%, rgba(240, 205, 150, 0.18) 30%, rgba(240, 205, 150, 0.0) 70%)',
+            pointerEvents: 'none',
+            zIndex: -2,
+            filter: 'blur(3px)',
+          }}
+        />
+      )}
+
       {/* Aura: invisible until the moment we transition into 'hybrid'. */}
       <motion.div
         initial={{ scale: 0.5, opacity: 0 }}

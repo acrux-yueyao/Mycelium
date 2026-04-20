@@ -33,24 +33,52 @@ body,
   overflow: hidden;
 }
 
-/* ---- Background layers ---- */
+/* ---- Background layers ----
+ * Stacking (back → front):
+ *   1. .stage-bg            soft cream radial (nearly flat base)
+ *   2. .stage-warm-wash     large peach mottle, soft-light blend
+ *   3. .stage-mottle        mid-scale cloudy patches, multiply
+ *   4. .stage-grain         fine paper/film grain, multiply
+ *   5. .stage-vignette      very faint corner fall-off
+ */
 .stage-bg {
   position: absolute;
   inset: 0;
+  /* Almost-flat warm cream. The second-stop is only a hair deeper
+   * than the first so the base reads as uniform paper, not as a lit
+   * sphere. */
   background: radial-gradient(
-    ellipse at center,
-    var(--cream) 0%,
-    var(--cream-deep) 70%,
-    var(--cream-edge) 100%
+    ellipse at 50% 45%,
+    #F6EDDC 0%,
+    #F2E6D0 55%,
+    #EDDEC4 100%
   );
   z-index: 0;
+}
+
+.stage-warm-wash {
+  position: absolute;
+  inset: 0;
+  filter: url(#warmWash);
+  opacity: 0.55;
+  mix-blend-mode: soft-light;
+  pointer-events: none;
+}
+
+.stage-mottle {
+  position: absolute;
+  inset: 0;
+  filter: url(#paperMottle);
+  opacity: 0.55;
+  mix-blend-mode: multiply;
+  pointer-events: none;
 }
 
 .stage-grain {
   position: absolute;
   inset: 0;
-  filter: url(#paperGrain);
-  opacity: 0.7;
+  filter: url(#paperGrainFine);
+  opacity: 0.65;
   mix-blend-mode: multiply;
   pointer-events: none;
 }
@@ -58,10 +86,13 @@ body,
 .stage-vignette {
   position: absolute;
   inset: 0;
+  /* Barely-there corner shadow so a centered figure feels gently lit
+   * from within the page. Stops far outside the visible center so the
+   * fall-off is almost subliminal. */
   background: radial-gradient(
-    ellipse at center,
-    transparent 55%,
-    rgba(122, 102, 70, 0.12) 100%
+    ellipse at 50% 50%,
+    transparent 62%,
+    rgba(140, 110, 75, 0.07) 100%
   );
   pointer-events: none;
 }
