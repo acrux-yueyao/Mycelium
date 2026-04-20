@@ -778,13 +778,19 @@ export default function App() {
 
   return (
     <div className="stage">
-      <Background />
-      <HeatmapLayer connections={connections} />
-      <TendrilLayer
-        connections={connections}
-        probes={probes}
-        entityById={entityByIdMap}
-      />
+      {/* Everything inside .stage-breath slowly inhales and exhales
+       *  together on a 7-second loop, ±1.2% scale. Gives the network
+       *  a single shared heartbeat distinct from per-entity breathing.
+       *  UI (input, buttons, toasts) is intentionally OUTSIDE this
+       *  wrapper so type rendering and hit-testing stay stable. */}
+      <div className="stage-breath">
+        <Background />
+        <HeatmapLayer connections={connections} />
+        <TendrilLayer
+          connections={connections}
+          probes={probes}
+          entityById={entityByIdMap}
+        />
 
       {entities.map((e, i) => {
         const t = gazeMap.get(e.id);
@@ -824,8 +830,9 @@ export default function App() {
         );
       })}
 
-      <SparkleLayer />
-      <Butterflies />
+        <SparkleLayer />
+        <Butterflies />
+      </div>
 
       <HandLayer
         videoRef={handVideoRef}

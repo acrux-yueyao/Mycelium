@@ -45,6 +45,23 @@ body,
   overflow: hidden;
 }
 
+/* Collective breath — a shared slow scale cycle over every content
+ * layer (background, heatmap, tendrils, entities, sparkles,
+ * butterflies). Amplitude is intentionally tiny (~1.2%) so it reads
+ * as a live organism rather than a looping animation. UI elements
+ * live OUTSIDE this wrapper so they don't scale with the network. */
+@keyframes collectiveBreath {
+  0%, 100% { transform: scale(0.988); }
+  50%      { transform: scale(1.012); }
+}
+.stage-breath {
+  position: absolute;
+  inset: 0;
+  transform-origin: center;
+  animation: collectiveBreath 7s ease-in-out infinite;
+  will-change: transform;
+}
+
 /* ---- Background layers ----
  * Stacking (back → front):
  *   1. .stage-bg            very light cream radial (almost flat)
