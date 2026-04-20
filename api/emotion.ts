@@ -18,7 +18,7 @@
  * clean JSON error inside the Edge 25s limit.
  */
 
-export const runtime = 'edge';
+export const config = { runtime: 'edge' };
 
 const MODEL = 'claude-haiku-4-5-20251001';
 const API_URL = 'https://api.anthropic.com/v1/messages';
