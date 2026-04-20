@@ -20,6 +20,21 @@ let master: GainNode | null = null;
 let muted = false;
 let ambientNodes: OscillatorNode[] = [];
 let ambientGain: GainNode | null = null;
+let melodyTimer: number | null = null;
+// Melody state: C major pentatonic over two octaves (C4 → E5). Any
+// random walk through these notes lands in tune, so we don't need a
+// tonal-gravity model to keep it consonant.
+const PENTATONIC_HZ = [
+  261.63, // C4
+  293.66, // D4
+  329.63, // E4
+  392.00, // G4
+  440.00, // A4
+  523.25, // C5
+  587.33, // D5
+  659.25, // E5
+];
+let lastNoteIdx = 2; // start around E4, middle of the range
 
 export function ensureAudioContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;
@@ -51,44 +66,127 @@ export function isMuted(): boolean {
   return muted;
 }
 
-/** Gentle ambient drone: two detuned sines + a very slow breathing gain. */
+/**
+ * Healing ambient: a sparse pentatonic melody over a barely-there
+ * low pad. Replaces the earlier open-fifth drone, which read as a
+ * power-supply hum rather than music.
+ *
+ * Layers:
+ *   1. Pad — two sines at C2 (65.4 Hz) + G2 (98 Hz), each with a
+ *      slow detune LFO so the base never sits still. Volume stays
+ *      around 0.08 so it's felt more than heard.
+ *   2. Melody — every 3–6 s a single note from C-major pentatonic
+ *      (two octaves), each with an 0.8 s slow attack and a 5–7 s
+ *      exponential decay, run through a soft lowpass. Next note
+ *      steps ±2 within the scale from the previous, biasing toward
+ *      stepwise motion so lines feel like phrases, not dice rolls.
+ *      A tiny octave-up triangle rings with each note for a hint
+ *      of music-box shimmer.
+ */
 export function ambientStart(): void {
   ensureAudioContext();
   if (!ctx || !master) return;
-  if (ambientNodes.length > 0) return;
+  if (ambientGain) return;
+
   ambientGain = ctx.createGain();
   ambientGain.gain.value = 0;
   ambientGain.connect(master);
-  // Swell in gently.
-  ambientGain.gain.linearRampToValueAtTime(0.22, ctx.currentTime + 4);
+  ambientGain.gain.linearRampToValueAtTime(0.85, ctx.currentTime + 4);
 
-  // Two layered sines, slightly detuned, with a very slow LFO on
-  // one of them for "wind" feel.
-  const freqs = [110, 165];   // A2 + E3 — warm, non-harmonic-1 open fifth
-  for (const base of freqs) {
-    const osc = ctx.createOscillator();
-    osc.type = 'sine';
-    osc.frequency.value = base;
-    const oscGain = ctx.createGain();
-    oscGain.gain.value = base === 110 ? 0.45 : 0.3;
-    // Slow detune LFO
-    const lfo = ctx.createOscillator();
-    lfo.type = 'sine';
-    lfo.frequency.value = 0.07 + Math.random() * 0.05;
-    const lfoGain = ctx.createGain();
-    lfoGain.gain.value = 6; // cents range
-    lfo.connect(lfoGain);
-    lfoGain.connect(osc.detune);
-    osc.connect(oscGain);
-    oscGain.connect(ambientGain);
-    osc.start();
-    lfo.start();
-    ambientNodes.push(osc, lfo);
-  }
+  // Two very soft low pad tones — C2 + G2 open fifth, barely there.
+  startPadTone(65.41, 0.09);
+  startPadTone(98.00, 0.06);
+
+  // First melody note a couple seconds in so the page doesn't open
+  // with a bell ringing.
+  melodyTimer = window.setTimeout(playMelodyAndScheduleNext, 2200);
+}
+
+function startPadTone(frequency: number, volume: number): void {
+  if (!ctx || !ambientGain) return;
+  const osc = ctx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.value = frequency;
+  const g = ctx.createGain();
+  g.gain.value = volume;
+  // Subtle pitch drift so the pad never sits static.
+  const lfo = ctx.createOscillator();
+  lfo.type = 'sine';
+  lfo.frequency.value = 0.06 + Math.random() * 0.05;
+  const lfoGain = ctx.createGain();
+  lfoGain.gain.value = 5; // cents
+  lfo.connect(lfoGain);
+  lfoGain.connect(osc.detune);
+  osc.connect(g);
+  g.connect(ambientGain);
+  osc.start();
+  lfo.start();
+  ambientNodes.push(osc, lfo);
+}
+
+function playMelodyAndScheduleNext(): void {
+  if (!ctx || !ambientGain) return;
+
+  // Biased random walk: step ±(0..2) so phrases feel connected, not
+  // a pure rand-across-the-range scatter. Clamp to the scale bounds.
+  const step = Math.floor(Math.random() * 5) - 2;
+  lastNoteIdx = Math.max(
+    0,
+    Math.min(PENTATONIC_HZ.length - 1, lastNoteIdx + step),
+  );
+  const freq = PENTATONIC_HZ[lastNoteIdx];
+  playMelodyNote(freq);
+
+  const gapMs = 3000 + Math.random() * 3500; // 3–6.5 s between notes
+  melodyTimer = window.setTimeout(playMelodyAndScheduleNext, gapMs);
+}
+
+function playMelodyNote(freq: number): void {
+  if (!ctx || !ambientGain) return;
+  const t0 = ctx.currentTime;
+  const dur = 5 + Math.random() * 2;
+
+  // Soft lowpass keeps the tone round, never glassy.
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 2400;
+  filter.Q.value = 0.5;
+  filter.connect(ambientGain);
+
+  // Main sine — slow attack, long exponential tail.
+  const osc = ctx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  osc.detune.value = (Math.random() - 0.5) * 4;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0, t0);
+  g.gain.linearRampToValueAtTime(0.28, t0 + 0.8);
+  g.gain.exponentialRampToValueAtTime(0.0005, t0 + dur);
+  osc.connect(g);
+  g.connect(filter);
+  osc.start(t0);
+  osc.stop(t0 + dur + 0.3);
+
+  // Tiny triangle an octave up — just a hint of shimmer.
+  const harm = ctx.createOscillator();
+  harm.type = 'triangle';
+  harm.frequency.value = freq * 2;
+  const hg = ctx.createGain();
+  hg.gain.setValueAtTime(0, t0);
+  hg.gain.linearRampToValueAtTime(0.06, t0 + 1.0);
+  hg.gain.exponentialRampToValueAtTime(0.0005, t0 + dur * 0.85);
+  harm.connect(hg);
+  hg.connect(filter);
+  harm.start(t0);
+  harm.stop(t0 + dur + 0.3);
 }
 
 export function ambientStop(): void {
   if (!ctx || !ambientGain) return;
+  if (melodyTimer != null) {
+    window.clearTimeout(melodyTimer);
+    melodyTimer = null;
+  }
   const g = ambientGain;
   g.gain.cancelScheduledValues(ctx.currentTime);
   g.gain.linearRampToValueAtTime(0, ctx.currentTime + 1.2);
@@ -96,9 +194,9 @@ export function ambientStop(): void {
   ambientNodes = [];
   setTimeout(() => {
     for (const n of toKill) {
-      try { n.stop(); } catch {}
+      try { n.stop(); } catch { /* already stopped */ }
     }
-    try { g.disconnect(); } catch {}
+    try { g.disconnect(); } catch { /* already disconnected */ }
     if (ambientGain === g) ambientGain = null;
   }, 1300);
 }
