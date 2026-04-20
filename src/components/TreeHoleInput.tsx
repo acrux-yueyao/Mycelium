@@ -11,7 +11,7 @@
  *    keystrokes are ignored.
  *  - Clears on successful submit (parent cues it via onSubmit callback).
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export interface TreeHoleInputProps {
@@ -26,7 +26,25 @@ export function TreeHoleInput({ onSubmit, disabled, loading }: TreeHoleInputProp
   const [text, setText] = useState('');
   const [focused, setFocused] = useState(false);
   const [visible, setVisible] = useState(false);
+  const [loadingSecs, setLoadingSecs] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Tick a seconds counter while loading so we can show progressive
+  // reassurance text instead of leaving the user staring at the same
+  // three dots for 30s when the backend is slow.
+  useEffect(() => {
+    if (!loading) { setLoadingSecs(0); return; }
+    setLoadingSecs(0);
+    const id = window.setInterval(() => setLoadingSecs((s) => s + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [loading]);
+
+  const loadingMessage = useMemo(() => {
+    if (loadingSecs < 6)  return 'the mycelium is listening';
+    if (loadingSecs < 14) return 'still listening, slow wind today';
+    if (loadingSecs < 24) return 'taking longer than usual…';
+    return 'mycelium is very slow today, hang on';
+  }, [loadingSecs]);
 
   // Hold back for 2s on mount, then fade in.
   useEffect(() => {
@@ -112,7 +130,17 @@ export function TreeHoleInput({ onSubmit, disabled, loading }: TreeHoleInputProp
             transition={{ duration: 0.4 }}
           >
             <div className="totem-reading-inner">
-              <span>the mycelium is listening</span>
+              <AnimatePresence mode="wait">
+                <motion.span
+                  key={loadingMessage}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.35 }}
+                >
+                  {loadingMessage}
+                </motion.span>
+              </AnimatePresence>
               <span className="dots">
                 <span>·</span><span>·</span><span>·</span>
               </span>
