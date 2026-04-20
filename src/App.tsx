@@ -6,6 +6,7 @@ import { DebugSpawnBar } from './components/DebugSpawnBar';
 import { Entity } from './components/Entity';
 import { Gallery } from './components/Gallery';
 import { HandLayer } from './components/HandLayer';
+import { HeatmapLayer } from './components/HeatmapLayer';
 import { SparkleLayer } from './components/SparkleLayer';
 import { TendrilLayer } from './components/TendrilLayer';
 import { TreeHoleInput } from './components/TreeHoleInput';
@@ -778,6 +779,7 @@ export default function App() {
   return (
     <div className="stage">
       <Background />
+      <HeatmapLayer connections={connections} />
       <TendrilLayer
         connections={connections}
         probes={probes}
