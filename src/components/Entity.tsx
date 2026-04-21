@@ -363,10 +363,13 @@ export function Entity({
         </>
       )}
 
-      {/* Morphology glow — radiant core for warm/grateful readings.
-       *  Sits behind the sprite, tinted by tintHue so the color
-       *  matches the creature's overall mood (amber for warmth,
-       *  green-yellow for joy, etc). Skipped when glow is trivial. */}
+      {/* Morphology glow — soft warm AMBER bloom behind the sprite.
+       *  Used to be tinted by mood (tintHue), which produced a
+       *  rainbow of glows that visually buried the sprite itself.
+       *  Mood colour now lives in the floating bubbles instead, so
+       *  this layer is just the gentle "lit from within" warmth
+       *  — same warm amber for every creature, scaled by its
+       *  morphology.glow strength. */}
       {glow > 0.05 && (
         <motion.div
           aria-hidden
@@ -380,7 +383,7 @@ export function Entity({
             position: 'absolute',
             inset: `-${10 + glow * 18}%`,
             borderRadius: '50%',
-            background: `radial-gradient(circle at 50% 55%, hsla(${tintHue < 0 ? 36 : tintHue}, 72%, 72%, ${0.28 + glow * 0.55}) 0%, hsla(${tintHue < 0 ? 36 : tintHue}, 72%, 72%, ${0.10 + glow * 0.30}) 38%, hsla(${tintHue < 0 ? 36 : tintHue}, 72%, 72%, 0) 72%)`,
+            background: `radial-gradient(circle at 50% 55%, rgba(232, 188, 138, ${0.20 + glow * 0.40}) 0%, rgba(232, 188, 138, ${0.08 + glow * 0.22}) 38%, rgba(232, 188, 138, 0) 72%)`,
             pointerEvents: 'none',
             zIndex: -2,
             mixBlendMode: 'screen',
@@ -470,34 +473,6 @@ export function Entity({
                   />
                 )}
 
-                {/* Morphology hue tint — a translucent colour wash
-                    clipped to the sprite silhouette via an alpha mask
-                    on the base PNG. Topic determines hue; density
-                    determines how strong the wash reads. We skip it
-                    during transform/hybrid since the sprite is
-                    mid-crossfade and the mask would flicker. */}
-                {tintHue >= 0 && !isMidTransform && !isHybridNow && (
-                  <div
-                    aria-hidden
-                    style={{
-                      position: 'absolute',
-                      inset: 0,
-                      background: `hsl(${tintHue}, 58%, 62%)`,
-                      pointerEvents: 'none',
-                      opacity: 0.22 + density * 0.25,
-                      WebkitMaskImage: `url(${baseSrc})`,
-                      WebkitMaskSize: 'contain',
-                      WebkitMaskRepeat: 'no-repeat',
-                      WebkitMaskPosition: 'center',
-                      maskImage: `url(${baseSrc})`,
-                      maskSize: 'contain',
-                      maskRepeat: 'no-repeat',
-                      maskPosition: 'center',
-                      mixBlendMode: 'color',
-                    }}
-                  />
-                )}
-
                 {/* Infecting tint: partner's color pulses ON the mushroom
                     silhouette only. We use the base PNG's alpha channel
                     as a CSS mask, so the colored layer is clipped to the
@@ -581,12 +556,18 @@ export function Entity({
        *  Outside the float/wobble/breathe chain so it stays steady
        *  and readable instead of dancing with the mushroom. Fades
        *  in on a slight delay so it appears after the spawn grow. */}
-      {/* Particle emitter — triggered by morphology.particles for
-       *  "releasing / weightless" readings. Dots rise from the
-       *  sprite centre in the creature's own tint. */}
-      {emitParticles && (
-        <EntityParticles hue={tintHue < 0 ? 36 : tintHue} size={size} />
-      )}
+      {/* Mood bubbles — small translucent spores in the creature's
+       *  tint hue drift up and out at a slow steady rate. This is
+       *  where the LLM's mood colour now lives (was previously a
+       *  hue wash on the sprite + a hue-tinted glow blob, both of
+       *  which read as "ambient soup" that buried the artwork).
+       *  When morphology.particles is true (releasing / weightless
+       *  readings) the emitter switches to a much faster burst rate. */}
+      <EntityParticles
+        hue={tintHue < 0 ? 36 : tintHue}
+        size={size}
+        burst={emitParticles}
+      />
 
       {name && (
         <motion.div
