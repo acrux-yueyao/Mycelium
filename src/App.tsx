@@ -1,14 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Background } from './components/Background';
+import { Butterflies } from './components/Butterflies';
 import { DebugSpawnBar } from './components/DebugSpawnBar';
 import { Entity } from './components/Entity';
 import { Gallery } from './components/Gallery';
+import { HandLayer } from './components/HandLayer';
+import { HeatmapLayer } from './components/HeatmapLayer';
 import { SparkleLayer } from './components/SparkleLayer';
 import { TendrilLayer } from './components/TendrilLayer';
 import { TreeHoleInput } from './components/TreeHoleInput';
 import { useEmotion } from './hooks/useEmotion';
+import { useHandTracking } from './hooks/useHandTracking';
 import { CHARACTERS, type CharId } from './data/characters';
+import type { Morphology } from './core/emotion';
+import { randomName } from './core/names';
 import { findNearestBody, stepField } from './core/field';
 import { stepConnections, isActive, type Connection } from './core/connections';
 import { type ExplorationProbe } from './core/probes';
@@ -29,6 +35,17 @@ export type InfectionState = 'normal' | 'infecting' | 'transforming' | 'hybrid';
 interface LiveEntity {
   id: string;
   charId: CharId;
+  /** Whimsical two-word label ("Sleepy Mochi") drawn below the sprite. */
+  name: string;
+  /** Per-creature visual parameters from the LLM emotion reading —
+   *  density / agitation / glow / tintHue / particles / tendrilCount.
+   *  Undefined for debug-spawned entities; Entity falls back to
+   *  visually neutral defaults when absent. */
+  morphology?: Morphology;
+  /** Flattened copy of morphology.tendrilCount so stepConnections
+   *  (which consumes PhysBody, not LiveEntity) can read it without
+   *  knowing about morphology. Undefined → defaults to 1 tendril. */
+  tendrilCount?: number;
   x: number;
   y: number;
   vx: number;
@@ -86,14 +103,16 @@ const SUPPORT_STRETCH_FACTOR = 2.4;
 // Contact → hold → roll outcome → infecting → transforming → hybrid.
 // No extra entities ever spawned: the original entity IS the hybrid once
 // its state flips to 'hybrid'.
-const INFECT_HOLD_MS = 3500;         // connection must hold this long before rolling
+// Per the design vision, compatible pairs should mostly drift
+// parallel and stay connected via tendrils — fusion is an unusual
+// event, not the main relationship mode. These thresholds make it a
+// rare surprise: only very high compat, only after a long sustained
+// touch, and with a low per-frame roll even once eligible.
+const INFECT_HOLD_MS = 30_000;       // 30s of continuous contact before even rolling
 const INFECTING_MS = 3500;           // color / texture drift phase (tint pulse)
 const TRANSFORM_MS = 2400;           // sprite + face crossfade phase
-const INFECTION_MIN_COMPAT = 0.5;    // below this, pairs bond but never infect
-// Base chance an eligible pair actually rolls for infection on any given
-// frame (gated by compat on top, so likely infection is ≈ BASE * compat).
-// Lower → rarer hybrid events, closer bonds without transforming.
-const BASE_INFECTION_PROB = 0.25;    // per-frame chance once HOLD is satisfied
+const INFECTION_MIN_COMPAT = 0.9;    // only highly compatible pairs are eligible
+const BASE_INFECTION_PROB = 0.04;    // per-frame chance once HOLD is satisfied
 const ROLL_COOLDOWN_MS = 6000;       // after a "didn't fire" roll, wait this long
 const MUTUAL_COMPAT_CUTOFF = 0.85;   // at or above: both sides always transform
 const ONEWAY_COMPAT_CUTOFF = 0.65;   // at or above: 50/50 mutual vs one-way
@@ -126,6 +145,17 @@ export default function App() {
   const [muted, setMutedState] = useState(false);
   const { loading, error, read, clearError } = useEmotion();
 
+  // Hand tracking — lives beside audio/mute as a separate toggleable
+  // input modality. The hook owns MediaPipe; this component only
+  // threads its snapshotRef into the RAF loop for gesture physics.
+  const handVideoRef = useRef<HTMLVideoElement | null>(null);
+  const hand = useHandTracking(handVideoRef);
+  // Records the entity currently pinch-grabbed by a hand. Separate
+  // from pointer drag so both can coexist without fighting.
+  const pinchGrabRef = useRef<string | null>(null);
+  const pinchPosRef = useRef<{ x: number; y: number } | null>(null);
+  const pinchPrevPalmRef = useRef<{ x: number; y: number; t: number } | null>(null);
+
   useEffect(() => {
     const update = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
     update();
@@ -154,6 +184,46 @@ export default function App() {
 
   const vpRef = useRef(viewport);
   useEffect(() => { vpRef.current = viewport; }, [viewport]);
+
+  // === Pointer drag ===
+  // A mushroom can be picked up with a mouse or finger and dragged
+  // around. While held, the RAF loop overrides its position and
+  // derives a velocity from cursor delta so the creature has
+  // momentum when released.
+  const [grabbedId, setGrabbedId] = useState<string | null>(null);
+  const grabbedIdRef = useRef<string | null>(null);
+  // Target position the grabbed entity should snap to each frame.
+  const grabbedPosRef = useRef<{ x: number; y: number } | null>(null);
+  // Previous pointer sample, used to compute release velocity.
+  const grabbedPrevRef = useRef<{ x: number; y: number; t: number } | null>(null);
+
+  useEffect(() => {
+    if (!grabbedId) return;
+    const onMove = (e: PointerEvent) => {
+      grabbedPosRef.current = { x: e.clientX, y: e.clientY };
+    };
+    const onUp = () => {
+      setGrabbedId(null);
+      grabbedIdRef.current = null;
+      grabbedPosRef.current = null;
+      grabbedPrevRef.current = null;
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+  }, [grabbedId]);
+
+  const handleGrab = (id: string, x: number, y: number) => {
+    setGrabbedId(id);
+    grabbedIdRef.current = id;
+    grabbedPosRef.current = { x, y };
+    grabbedPrevRef.current = { x, y, t: performance.now() };
+  };
 
   // Ref mirrors of state, so spawnAt() always sees the latest.
   const entitiesRef = useRef<LiveEntity[]>([]);
@@ -197,6 +267,148 @@ export default function App() {
           connCooldownRef.current,
           now,
         );
+
+        // === Drag override ===
+        // If an entity is being dragged, overwrite its stepped position
+        // with the cursor target and derive an instantaneous velocity
+        // so release throws the creature with current motion.
+        const gid = grabbedIdRef.current;
+        const gpos = grabbedPosRef.current;
+        if (gid && gpos) {
+          const idx = stepped.findIndex((e) => e.id === gid);
+          if (idx >= 0) {
+            const prevSample = grabbedPrevRef.current;
+            let vx = 0;
+            let vy = 0;
+            if (prevSample) {
+              const dtMs = Math.max(1, now - prevSample.t);
+              // Scale down: raw pixels-per-ms is too hot; ~0.5 gives a
+              // natural "flick" feel on release.
+              vx = ((gpos.x - prevSample.x) / dtMs) * 12;
+              vy = ((gpos.y - prevSample.y) / dtMs) * 12;
+            }
+            grabbedPrevRef.current = { x: gpos.x, y: gpos.y, t: now };
+            stepped[idx] = { ...stepped[idx], x: gpos.x, y: gpos.y, vx, vy };
+          }
+        }
+
+        // === Hand-tracking gestures ===
+        // Three forces run off the live HandSnapshot list. None of
+        // them trigger re-renders: we mutate `stepped` in place the
+        // same way the drag override above does.
+        const handSnaps = hand.snapshotRef.current;
+        if (handSnaps && handSnaps.length > 0) {
+          for (const h of handSnaps) {
+            // (A) Index-finger attraction. When the hand is pointing,
+            // every nearby mushroom drifts toward the index tip.
+            // Reach and strength bumped — at 340 / 0.22 the pull was
+            // barely noticeable until the finger was right on top of
+            // a creature.
+            if (h.isPointing) {
+              for (let i = 0; i < stepped.length; i++) {
+                const e = stepped[i];
+                if (e.id === pinchGrabRef.current) continue;
+                if (e.id === grabbedIdRef.current) continue;
+                const dx = h.indexTip.x - e.x;
+                const dy = h.indexTip.y - e.y;
+                const d = Math.hypot(dx, dy);
+                if (d > 30 && d < 480) {
+                  const f = (1 - d / 480) * 0.48;
+                  stepped[i] = {
+                    ...e,
+                    vx: e.vx + (dx / d) * f,
+                    vy: e.vy + (dy / d) * f,
+                  };
+                }
+              }
+            }
+
+            // (B) Pinch to grab + drag. Midpoint of thumb and index
+            // tips is the cursor; on a fresh pinch we snap onto the
+            // nearest mushroom within 120px, then track it until the
+            // pinch opens again.
+            const pinchX = (h.indexTip.x + h.thumbTip.x) / 2;
+            const pinchY = (h.indexTip.y + h.thumbTip.y) / 2;
+            if (h.isPinching) {
+              if (!pinchGrabRef.current) {
+                let best: { id: string; d: number } | null = null;
+                for (const e of stepped) {
+                  const d = Math.hypot(e.x - pinchX, e.y - pinchY);
+                  if (d < 120 && (!best || d < best.d)) best = { id: e.id, d };
+                }
+                if (best) pinchGrabRef.current = best.id;
+              }
+              if (pinchGrabRef.current) {
+                const idx = stepped.findIndex(
+                  (e) => e.id === pinchGrabRef.current,
+                );
+                if (idx >= 0) {
+                  const prevP = pinchPosRef.current;
+                  let vx = 0, vy = 0;
+                  if (prevP) {
+                    // Use the last pinch sample for velocity; scale
+                    // matches the mouse-drag feel.
+                    vx = ((pinchX - prevP.x) / 16) * 12;
+                    vy = ((pinchY - prevP.y) / 16) * 12;
+                  }
+                  stepped[idx] = {
+                    ...stepped[idx], x: pinchX, y: pinchY, vx, vy,
+                  };
+                }
+              }
+              pinchPosRef.current = { x: pinchX, y: pinchY };
+            } else if (pinchGrabRef.current) {
+              pinchGrabRef.current = null;
+              pinchPosRef.current = null;
+            }
+
+            // (C) Open-palm sweep. When the palm is open and moving,
+            // mushrooms in a forward arc get a push in the palm's
+            // motion direction — like parting tall grass. Tuned
+            // looser than the first pass: lower speed gate (so a
+            // slow wave counts), wider arc (-0.4 fwd cutoff), and
+            // stronger push so a single gesture visibly scatters
+            // nearby creatures.
+            const prevPalm = pinchPrevPalmRef.current;
+            if (h.isOpen && prevPalm) {
+              const dtMs = Math.max(1, now - prevPalm.t);
+              const pvx = (h.palmCenter.x - prevPalm.x) / dtMs;
+              const pvy = (h.palmCenter.y - prevPalm.y) / dtMs;
+              const speed = Math.hypot(pvx, pvy);
+              if (speed > 0.12) {
+                const ux = pvx / speed;
+                const uy = pvy / speed;
+                const reach = Math.max(240, h.palmRadius * 4.6);
+                for (let i = 0; i < stepped.length; i++) {
+                  const e = stepped[i];
+                  if (e.id === pinchGrabRef.current) continue;
+                  if (e.id === grabbedIdRef.current) continue;
+                  const dx = e.x - h.palmCenter.x;
+                  const dy = e.y - h.palmCenter.y;
+                  const d = Math.hypot(dx, dy);
+                  if (d > reach) continue;
+                  const forward = (dx * ux + dy * uy) / (d || 1);
+                  if (forward < -0.4) continue;
+                  const falloff = 1 - d / reach;
+                  const push = Math.min(12, speed * 6.5) * falloff;
+                  stepped[i] = {
+                    ...e,
+                    vx: e.vx + ux * push,
+                    vy: e.vy + uy * push,
+                  };
+                }
+              }
+            }
+            pinchPrevPalmRef.current = {
+              x: h.palmCenter.x, y: h.palmCenter.y, t: now,
+            };
+          }
+        } else if (pinchGrabRef.current) {
+          // Hand left the frame mid-pinch — release gracefully.
+          pinchGrabRef.current = null;
+          pinchPosRef.current = null;
+        }
+
         const prevConnMap = connectionMapRef.current;
         const nextConn = stepConnections(
           stepped,
@@ -505,13 +717,20 @@ export default function App() {
   };
 
   // Build a fresh LiveEntity at a random non-overlapping spawn point.
-  const makeEntity = (charId: CharId, rationale?: string): LiveEntity => {
+  const makeEntity = (
+    charId: CharId,
+    rationale?: string,
+    morphology?: Morphology,
+  ): LiveEntity => {
     const { x, y } = spawnAt();
     const a = Math.random() * Math.PI * 2;
     const v0 = 0.4;
     return {
       id: `e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       charId,
+      name: randomName(),
+      morphology,
+      tendrilCount: morphology?.tendrilCount,
       x,
       y,
       vx: Math.cos(a) * v0,
@@ -542,7 +761,13 @@ export default function App() {
   const handleSubmit = async (text: string) => {
     const result = await read(text);
     if (!result) return;
-    pushEntity(makeEntity(result.charId, result.reading.rationale));
+    pushEntity(
+      makeEntity(
+        result.charId,
+        result.reading.rationale,
+        result.reading.morphology,
+      ),
+    );
   };
 
   // Debug bar handler: spawn one entity per CharId from a typed letter sequence.
@@ -558,12 +783,19 @@ export default function App() {
 
   return (
     <div className="stage">
-      <Background />
-      <TendrilLayer
-        connections={connections}
-        probes={probes}
-        entityById={entityByIdMap}
-      />
+      {/* Everything inside .stage-breath slowly inhales and exhales
+       *  together on a 7-second loop, ±1.2% scale. Gives the network
+       *  a single shared heartbeat distinct from per-entity breathing.
+       *  UI (input, buttons, toasts) is intentionally OUTSIDE this
+       *  wrapper so type rendering and hit-testing stay stable. */}
+      <div className="stage-breath">
+        <Background />
+        <HeatmapLayer connections={connections} />
+        <TendrilLayer
+          connections={connections}
+          probes={probes}
+          entityById={entityByIdMap}
+        />
 
       {entities.map((e, i) => {
         const t = gazeMap.get(e.id);
@@ -583,6 +815,8 @@ export default function App() {
             key={e.id}
             id={e.id}
             charId={e.charId}
+            name={e.name}
+            morphology={e.morphology}
             x={e.x}
             y={e.y}
             size={e.size}
@@ -595,11 +829,23 @@ export default function App() {
             infectionPair={e.infectionPair}
             partnerColor={partnerColor}
             isMotherTree={isMotherTree}
+            isDragged={grabbedId === e.id}
+            onGrab={handleGrab}
           />
         );
       })}
 
-      <SparkleLayer />
+        <SparkleLayer />
+        <Butterflies />
+      </div>
+
+      <HandLayer
+        videoRef={handVideoRef}
+        state={hand.state}
+        snapshotRef={hand.snapshotRef}
+        onEnable={hand.enable}
+        onDisable={hand.disable}
+      />
 
       {showDebug && <DebugSpawnBar onSpawn={handleDebugSpawn} />}
 

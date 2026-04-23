@@ -45,6 +45,23 @@ body,
   overflow: hidden;
 }
 
+/* Collective breath — a shared slow scale cycle over every content
+ * layer (background, heatmap, tendrils, entities, sparkles,
+ * butterflies). Amplitude is intentionally tiny (~1.2%) so it reads
+ * as a live organism rather than a looping animation. UI elements
+ * live OUTSIDE this wrapper so they don't scale with the network. */
+@keyframes collectiveBreath {
+  0%, 100% { transform: scale(0.988); }
+  50%      { transform: scale(1.012); }
+}
+.stage-breath {
+  position: absolute;
+  inset: 0;
+  transform-origin: center;
+  animation: collectiveBreath 7s ease-in-out infinite;
+  will-change: transform;
+}
+
 /* ---- Background layers ----
  * Stacking (back → front):
  *   1. .stage-bg            very light cream radial (almost flat)
@@ -54,6 +71,12 @@ body,
  *   5. .stage-grain         fine paper/film grain, multiply
  *   6. .stage-vignette      very faint corner fall-off
  */
+/* Paper base. A warm cream radial — the stable amber-beige ground
+ * that the user wants dominant at all hours. Time-of-day cooling
+ * is applied as a SEPARATE overlay on ::before, whose opacity is
+ * driven by --palette-shift. This avoids the previous color-mix
+ * approach, which interpolated in oklch hue space and went through
+ * green at intermediate mixes. */
 .stage-bg {
   position: absolute;
   inset: 0;
@@ -64,6 +87,50 @@ body,
     #F4EBD1 100%
   );
   z-index: 0;
+}
+
+/* Cool-hours wash — a very soft blue-grey overlay whose opacity
+ * scales with how cool the palette shift is. At full warm (shift =
+ * +1) opacity is 0; at full cool (shift = -1) it's ~0.35, multiply-
+ * blended so it reads as evening-light on cream paper rather than
+ * a blue tint. Transition 6s so hour changes (URL swap) fade in. */
+.stage-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    rgba(150, 170, 200, 0.32) 0%,
+    rgba(150, 170, 200, 0.18) 60%,
+    rgba(150, 170, 200, 0.05) 100%
+  );
+  /* (1 - (shift + 1) / 2) maps shift +1 → 0, 0 → 0.5, -1 → 1 */
+  opacity: calc(1 - (var(--palette-shift, 0.25) + 1) / 2);
+  mix-blend-mode: multiply;
+  pointer-events: none;
+  transition: opacity 6s ease;
+}
+
+/* Exam week: a colder violet flicker on top of both the base and
+ * the hour wash. Stacks on ::after so the hour overlay is never
+ * hidden. */
+.mood-exam .stage-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    rgba(140, 160, 210, 0.18) 0%,
+    rgba(150, 130, 200, 0.10) 55%,
+    transparent 100%
+  );
+  mix-blend-mode: multiply;
+  pointer-events: none;
+  animation: examFlicker 7s ease-in-out infinite;
+}
+@keyframes examFlicker {
+  0%, 100% { opacity: 0.7; }
+  50%      { opacity: 1.0; }
 }
 
 .stage-warm-wash {
@@ -164,6 +231,23 @@ body,
   filter: blur(4px);
   z-index: -1;
   pointer-events: none;
+  transition: width 0.25s ease, height 0.25s ease, filter 0.25s ease,
+              background 0.25s ease;
+}
+
+/* While dragged: sprite lifted via framer-motion scale, shadow
+ * expands and softens as if the creature rose off the page. */
+.entity-dragged { z-index: 6; }
+.entity-dragged::after {
+  width: 68%;
+  height: 10%;
+  filter: blur(7px);
+  background: radial-gradient(
+    ellipse at center,
+    rgba(90, 70, 45, 0.26) 0%,
+    rgba(90, 70, 45, 0.08) 55%,
+    transparent 85%
+  );
 }
 
 /* ---- TreeHoleInput (totem portal) ---- */
@@ -347,6 +431,47 @@ body,
   border-color: var(--ink);
   color: var(--ink);
   background: rgba(255, 249, 232, 0.6);
+}
+
+/* ---- Hand-tracking toggle pill ---- */
+.hand-toggle {
+  position: absolute;
+  right: 68px;
+  bottom: 20px;
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 38px;
+  padding: 0 0.9rem;
+  background: rgba(255, 250, 235, 0.5);
+  border: 1.5px dashed rgba(74, 64, 52, 0.16);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.65;
+  transition: opacity 0.3s, border-color 0.3s, background 0.3s;
+}
+.hand-toggle:hover:not(:disabled) {
+  opacity: 1;
+  border-color: rgba(74, 64, 52, 0.36);
+  background: rgba(255, 248, 232, 0.8);
+}
+.hand-toggle[aria-pressed='true'] {
+  opacity: 0.95;
+  border-color: rgba(230, 155, 110, 0.55);
+  background: rgba(255, 244, 224, 0.7);
+}
+.hand-toggle:disabled { cursor: wait; }
+.hand-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transition: background 0.3s;
 }
 
 /* ---- Mute toggle ---- */

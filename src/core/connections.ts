@@ -75,6 +75,11 @@ export interface Connection {
    *  Defaults to STRETCH_RETRACT_FACTOR = 1.55. Support connections
    *  use a higher value so they don't snap under normal movement. */
   stretchFactor?: number;
+  /** Number of parallel tendrils to render for this bond. Derived
+   *  from the two bodies' morphology.tendrilCount at creation time
+   *  (clamped to 1..4 — purely a visual density knob, not physics).
+   *  Default 1 when neither body carries morphology. */
+  tendrilCount?: number;
 }
 
 export function pairKey(a: string, b: string): string {
@@ -169,14 +174,32 @@ export function stepConnections(
     });
   }
 
+  // Per-body active bond count. Pre-computed from `next` (which
+  // already has all surviving previous-frame bonds at this point)
+  // and decremented as new bonds are added below. Used to cap each
+  // body at MAX_BONDS_PER_BODY simultaneous connections — dense
+  // clusters used to stack N-1 bonds on every creature, and the
+  // stacked tether constraints (field.ts) locked them up in a
+  // "wrestle" state. Already-formed connections are never dropped
+  // here; the cap only prevents NEW bonds from forming.
+  const activeCounts = new Map<string, number>();
+  for (const c of next.values()) {
+    if (c.state === 'retracting') continue;
+    activeCounts.set(c.a.id, (activeCounts.get(c.a.id) ?? 0) + 1);
+    activeCounts.set(c.b.id, (activeCounts.get(c.b.id) ?? 0) + 1);
+  }
+  const MAX_BONDS_PER_BODY = 3;
+
   // Then: form new connections on pairs newly inside CONNECT_RANGE,
-  // respecting per-pair cooldown.
+  // respecting per-pair cooldown and the per-body bond cap.
   for (let i = 0; i < bodies.length; i++) {
     for (let j = i + 1; j < bodies.length; j++) {
       const a = bodies[i];
       const b = bodies[j];
       const key = pairKey(a.id, b.id);
       if (next.has(key)) continue;                         // already live
+      if ((activeCounts.get(a.id) ?? 0) >= MAX_BONDS_PER_BODY) continue;
+      if ((activeCounts.get(b.id) ?? 0) >= MAX_BONDS_PER_BODY) continue;
       const cooldownUntil = cooldowns.get(key);
       if (cooldownUntil != null) {
         if (now < cooldownUntil) continue;                 // still resting
@@ -186,6 +209,15 @@ export function stepConnections(
       if (d >= CONNECT_RANGE) continue;
 
       const compat = compatibility(a.charId, b.charId);
+      // How many parallel tendrils to render. Only creatures with
+      // a morphology reading contribute; others count as 1. Cap at
+      // 4 so a pair of very-branchy mushrooms doesn't swamp the
+      // layer with 10 overlapping ribbons. Mapped from raw 3..10
+      // morphology value down to 1..4 visible tendrils.
+      const rawMax = Math.max(a.tendrilCount ?? 1, b.tendrilCount ?? 1);
+      const tendrilCount = rawMax <= 1
+        ? 1
+        : Math.max(1, Math.min(4, Math.round(1 + (rawMax - 3) * 0.5)));
       next.set(key, {
         id: key,
         a: snap(a),
@@ -194,7 +226,10 @@ export function stepConnections(
         compat,
         maxLifeMs: rollLifetime(compat),
         state: 'growing',
+        tendrilCount,
       });
+      activeCounts.set(a.id, (activeCounts.get(a.id) ?? 0) + 1);
+      activeCounts.set(b.id, (activeCounts.get(b.id) ?? 0) + 1);
     }
   }
 

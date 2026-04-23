@@ -20,6 +20,8 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { motion, useAnimationControls } from 'framer-motion';
+import { EntityParticles } from './EntityParticles';
+import type { Morphology } from '../core/emotion';
 import {
   CHARACTERS,
   charAsset,
@@ -33,6 +35,18 @@ import type { InfectionState } from '../App';
 export interface EntityProps {
   id: string;
   charId: CharId;
+  /** Whimsical label drawn in Caveat script just below the sprite. */
+  name?: string;
+  /** Per-creature visual parameters from the LLM emotion reading.
+   *  Drives overall opacity, glow, wobble frequency/amplitude, hue
+   *  overlay, and optional drifting particles. */
+  morphology?: Morphology;
+  /** True while the user is actively holding this entity with a
+   *  pointer. Drives a small lift/shadow tweak for feedback. */
+  isDragged?: boolean;
+  /** Pointer-down callback — parent records that this entity is the
+   *  one being dragged and starts following the cursor. */
+  onGrab?: (id: string, clientX: number, clientY: number) => void;
   x: number;
   y: number;
   size?: number;
@@ -68,6 +82,17 @@ const NON_BLINK_EXPRESSIONS: ExpressionKind[] = [
   'happy',
 ];
 
+/** Read a numeric CSS custom property from :root. Falls back if the
+ *  var isn't set or isn't a finite number. Kept inline rather than
+ *  reactive because these values only change on full reload
+ *  (URL query string drives them). */
+function readRootNumber(name: string, fallback: number): number {
+  if (typeof document === 'undefined') return fallback;
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(name);
+  const n = parseFloat(raw);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 const GAZE_RANGE_PX = 5;
 
 // Sprite crossfade duration (seconds). Should roughly match TRANSFORM_MS
@@ -77,6 +102,10 @@ const CROSSFADE_S = 2.4;
 export function Entity({
   id,
   charId,
+  name,
+  morphology,
+  isDragged = false,
+  onGrab,
   x,
   y,
   size = 180,
@@ -91,6 +120,32 @@ export function Entity({
   isMotherTree = false,
   onMount,
 }: EntityProps) {
+  // Derive the visual knobs from morphology once per render. When the
+  // creature was debug-spawned (no LLM reading) we pick visually
+  // neutral middle values so it still looks like a mushroom, just
+  // unremarkable in its morphology-driven dimensions.
+  const density = morphology?.density ?? 0.7;
+  const agitation = morphology?.agitation ?? 0.3;
+  const glow = morphology?.glow ?? 0.15;
+  const tintHue = morphology?.tintHue ?? -1; // -1 = skip tint overlay
+  const emitParticles = morphology?.particles === true;
+
+  // Density → overall opacity (0 is wispy, 1 is fully present) and
+  // a subtle scale. Lonely / translucent creatures should read as
+  // barely-there without shrinking into invisibility.
+  const bodyOpacity = 0.55 + density * 0.45;
+  const bodyScaleBase = 0.92 + density * 0.12;
+
+  // Agitation → wobble frequency (shorter period) and amplitude.
+  // Calm creatures tilt slowly by ±1°; panicked ones oscillate hard.
+  // Final amplitudes are multiplied by the time-of-day vibration
+  // gain (set on :root by Background), so exam-week creatures
+  // tremble more without any per-entity coordination.
+  const vibrationGain = readRootNumber('--vibration-gain', 1);
+  const wobbleDur = (8 - agitation * 4.5) / Math.max(0.4, vibrationGain);
+  const wobbleAmp = (1.2 + agitation * 3.2) * vibrationGain;
+  const breatheDur = (3.5 - agitation * 1.2) / Math.max(0.4, vibrationGain);
+  const breatheAmp = (0.04 + agitation * 0.05) * vibrationGain;
   const character = CHARACTERS[charId];
   const breatheDelay = (phaseOffset % 1) * 3.5;
   const floatDelay = (phaseOffset % 1) * 5;
@@ -194,66 +249,111 @@ export function Entity({
 
   return (
     <motion.div
-      className="entity"
+      className={`entity${isDragged ? ' entity-dragged' : ''}`}
       data-id={id}
+      onPointerDown={(e) => {
+        // Ignore clicks coming out of the initial scale=0 frame —
+        // spawn animation runs 0 → 1.1 → 1 over 1.8s and the hit-box
+        // is mis-sized mid-grow. After that, any pointer down on the
+        // sprite box picks the creature up.
+        if (!onGrab) return;
+        e.stopPropagation();
+        onGrab(id, e.clientX, e.clientY);
+      }}
       style={{
         position: 'absolute',
         left: x - size / 2,
         top: y - size / 2,
         width: size,
         height: size,
-        pointerEvents: 'none',
+        // Pointer events are enabled so the sprite can be dragged.
+        // Transparent PNG padding also counts as hit-area — acceptable
+        // for now given the round sprite shapes, can refine with a
+        // circular clip-path later if it becomes a problem.
+        pointerEvents: onGrab ? 'auto' : 'none',
+        cursor: isDragged ? 'grabbing' : onGrab ? 'grab' : 'default',
+        touchAction: 'none',
         willChange: 'transform',
       }}
       initial={{ scale: 0, opacity: 0 }}
-      animate={{ scale: [0, 1.1, 1], opacity: 1 }}
+      animate={{
+        scale: isDragged ? 1.08 : [0, 1.1, 1],
+        opacity: 1,
+      }}
       transition={{
-        scale: { duration: 1.8, times: [0, 0.7, 1], ease: 'easeOut' },
+        scale: isDragged
+          ? { duration: 0.25, ease: 'easeOut' }
+          : { duration: 1.8, times: [0, 0.7, 1], ease: 'easeOut' },
         opacity: { duration: 1.4, ease: 'easeOut' },
       }}
       onAnimationComplete={() => onMount?.()}
     >
-      {/* Mother-tree halo: warm ringed glow behind the sprite. Two
-       *  stacked layers — an inner multiply wash that actually tints
-       *  the paper (survives the light-cream background), and an
-       *  outer screen-blended rim so the halo reads as "lit from
-       *  within" rather than just a peach blob. */}
+      {/* Mother-tree halo: three stacked layers that together make a
+       *  mother tree unmistakable without turning it into a badge.
+       *    1. A slow-breathing outer ring that expands and fades — a
+       *       visible pulse of warmth radiating outward.
+       *    2. A bigger peach multiply wash that tints the paper under
+       *       the sprite (survives the light-cream bg).
+       *    3. An inner screen-blended bloom so the sprite looks lit
+       *       from within. */}
       {isMotherTree && (
         <>
+          {/* 1 · expanding breath ring */}
+          <motion.div
+            aria-hidden
+            initial={{ opacity: 0, scale: 0.55 }}
+            animate={{ opacity: [0, 0.55, 0], scale: [0.75, 1.4, 1.65] }}
+            transition={{
+              duration: 4.8,
+              repeat: Infinity,
+              ease: 'easeOut',
+              delay: 0.3,
+            }}
+            style={{
+              position: 'absolute',
+              inset: '-32%',
+              borderRadius: '50%',
+              border: '2.5px solid rgba(224, 150, 100, 0.55)',
+              pointerEvents: 'none',
+              zIndex: -3,
+            }}
+          />
+          {/* 2 · warm peach multiply wash (bigger, more saturated) */}
           <motion.div
             aria-hidden
             initial={{ opacity: 0, scale: 0.7 }}
-            animate={{ opacity: 1, scale: [0.95, 1.0, 0.95] }}
+            animate={{ opacity: 1, scale: [0.93, 1.06, 0.93] }}
             transition={{
               opacity: { duration: 3.5, ease: 'easeOut' },
-              scale: { duration: 8, repeat: Infinity, ease: 'easeInOut' },
+              scale: { duration: 7, repeat: Infinity, ease: 'easeInOut' },
             }}
             style={{
               position: 'absolute',
-              inset: '-22%',
+              inset: '-28%',
               borderRadius: '50%',
               background:
-                'radial-gradient(circle at 50% 55%, rgba(230, 170, 110, 0.55) 0%, rgba(230, 170, 110, 0.28) 35%, rgba(230, 170, 110, 0.0) 72%)',
+                'radial-gradient(circle at 50% 55%, rgba(224, 150, 100, 0.78) 0%, rgba(224, 150, 100, 0.40) 35%, rgba(224, 150, 100, 0.0) 72%)',
               pointerEvents: 'none',
               zIndex: -2,
               mixBlendMode: 'multiply',
-              filter: 'blur(4px)',
+              filter: 'blur(5px)',
             }}
           />
+          {/* 3 · inner screen bloom — makes the sprite feel lit */}
           <motion.div
             aria-hidden
             initial={{ opacity: 0, scale: 0.75 }}
-            animate={{ opacity: 0.9, scale: [0.92, 1.04, 0.92] }}
+            animate={{ opacity: 1, scale: [0.90, 1.06, 0.90] }}
             transition={{
               opacity: { duration: 3.5, ease: 'easeOut' },
-              scale: { duration: 8, repeat: Infinity, ease: 'easeInOut' },
+              scale: { duration: 7, repeat: Infinity, ease: 'easeInOut' },
             }}
             style={{
               position: 'absolute',
-              inset: '-14%',
+              inset: '-10%',
               borderRadius: '50%',
               background:
-                'radial-gradient(circle at 50% 55%, rgba(255, 225, 175, 0.7) 0%, rgba(255, 225, 175, 0.25) 40%, rgba(255, 225, 175, 0.0) 72%)',
+                'radial-gradient(circle at 50% 55%, rgba(255, 228, 185, 0.92) 0%, rgba(255, 228, 185, 0.40) 38%, rgba(255, 228, 185, 0.0) 72%)',
               pointerEvents: 'none',
               zIndex: -2,
               mixBlendMode: 'screen',
@@ -261,6 +361,35 @@ export function Entity({
             }}
           />
         </>
+      )}
+
+      {/* Morphology glow — soft warm AMBER bloom behind the sprite.
+       *  Used to be tinted by mood (tintHue), which produced a
+       *  rainbow of glows that visually buried the sprite itself.
+       *  Mood colour now lives in the floating bubbles instead, so
+       *  this layer is just the gentle "lit from within" warmth
+       *  — same warm amber for every creature, scaled by its
+       *  morphology.glow strength. */}
+      {glow > 0.05 && (
+        <motion.div
+          aria-hidden
+          initial={{ opacity: 0, scale: 0.7 }}
+          animate={{ opacity: 1, scale: [0.92, 1.05, 0.92] }}
+          transition={{
+            opacity: { duration: 2.5, ease: 'easeOut' },
+            scale: { duration: 6 + agitation * 2, repeat: Infinity, ease: 'easeInOut' },
+          }}
+          style={{
+            position: 'absolute',
+            inset: `-${10 + glow * 18}%`,
+            borderRadius: '50%',
+            background: `radial-gradient(circle at 50% 55%, rgba(232, 188, 138, ${0.20 + glow * 0.40}) 0%, rgba(232, 188, 138, ${0.08 + glow * 0.22}) 38%, rgba(232, 188, 138, 0) 72%)`,
+            pointerEvents: 'none',
+            zIndex: -2,
+            mixBlendMode: 'screen',
+            filter: `blur(${2 + glow * 3}px)`,
+          }}
+        />
       )}
 
       {/* Aura: invisible until the moment we transition into 'hybrid'. */}
@@ -284,17 +413,25 @@ export function Entity({
       >
         <motion.div
           style={{ width: '100%', height: '100%', willChange: 'transform' }}
-          animate={{ rotate: [-1.5, 1.5, -1.5] }}
-          transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut', delay: wobbleDelay }}
+          animate={{ rotate: [-wobbleAmp, wobbleAmp, -wobbleAmp] }}
+          transition={{ duration: wobbleDur, repeat: Infinity, ease: 'easeInOut', delay: wobbleDelay }}
         >
           <motion.div
             style={{ width: '100%', height: '100%', willChange: 'transform' }}
             animate={greetControls}
           >
             <motion.div
-              style={{ width: '100%', height: '100%', position: 'relative', willChange: 'transform' }}
-              animate={{ scale: [1, 1.04, 1] }}
-              transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut', delay: breatheDelay }}
+              style={{
+                width: '100%',
+                height: '100%',
+                position: 'relative',
+                willChange: 'transform',
+                // density ∈ [0..1] → opacity, so wispy/lonely creatures
+                // read as barely-there without actually shrinking.
+                opacity: bodyOpacity,
+              }}
+              animate={{ scale: [bodyScaleBase - breatheAmp, bodyScaleBase + breatheAmp, bodyScaleBase - breatheAmp] }}
+              transition={{ duration: breatheDur, repeat: Infinity, ease: 'easeInOut', delay: breatheDelay }}
             >
               <motion.div
                 style={{ width: '100%', height: '100%', position: 'relative' }}
@@ -414,6 +551,48 @@ export function Entity({
           </motion.div>
         </motion.div>
       </motion.div>
+
+      {/* Name label — sits just below the sprite in Caveat script.
+       *  Outside the float/wobble/breathe chain so it stays steady
+       *  and readable instead of dancing with the mushroom. Fades
+       *  in on a slight delay so it appears after the spawn grow. */}
+      {/* Mood bubbles — small translucent spores in the creature's
+       *  tint hue drift up and out at a slow steady rate. This is
+       *  where the LLM's mood colour now lives (was previously a
+       *  hue wash on the sprite + a hue-tinted glow blob, both of
+       *  which read as "ambient soup" that buried the artwork).
+       *  When morphology.particles is true (releasing / weightless
+       *  readings) the emitter switches to a much faster burst rate. */}
+      <EntityParticles
+        hue={tintHue < 0 ? 36 : tintHue}
+        size={size}
+        burst={emitParticles}
+      />
+
+      {name && (
+        <motion.div
+          aria-hidden
+          initial={{ opacity: 0, y: -3 }}
+          animate={{ opacity: 0.42, y: 0 }}
+          transition={{ delay: 1.6, duration: 1.4, ease: 'easeOut' }}
+          style={{
+            position: 'absolute',
+            left: '50%',
+            top: '100%',
+            transform: 'translate(-50%, -14px)',
+            fontFamily: "'Caveat', 'ZCOOL KuaiLe', cursive",
+            fontSize: '0.85rem',
+            color: '#6B5B47',
+            letterSpacing: '0.02em',
+            whiteSpace: 'nowrap',
+            pointerEvents: 'none',
+            userSelect: 'none',
+            textShadow: '0 1px 0 rgba(255, 248, 232, 0.7)',
+          }}
+        >
+          {name}
+        </motion.div>
+      )}
     </motion.div>
   );
 }

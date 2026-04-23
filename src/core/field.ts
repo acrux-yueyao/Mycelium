@@ -26,6 +26,18 @@ export interface PhysBody {
   /** If 'infecting' or 'transforming', pairwise attraction is skipped
    *  so the entity can wander freely while it morphs. */
   infectionState?: 'normal' | 'infecting' | 'transforming' | 'hybrid';
+  /** Wall-clock ms of last time this body had an active connection.
+   *  Used by stepField to detect long-term isolation and apply a
+   *  gentle drift toward the group's centre. */
+  lastSocialAt?: number;
+  /** Birth timestamp — used as an initial lastSocialAt fallback so
+   *  freshly spawned creatures aren't treated as already isolated. */
+  bornAt?: number;
+  /** Per-creature tendril branching count (1..10). Higher = this
+   *  creature wants more parallel filaments on every bond, not just
+   *  a single tendril. Flattened from morphology.tendrilCount so
+   *  stepConnections can read it without coupling to LiveEntity. */
+  tendrilCount?: number;
 }
 
 // Attraction is weak and short-ranged now: mushrooms out of close
@@ -54,6 +66,13 @@ const SPRING_K = 0.012;
 // bodies toward each other. Tuned so two bodies roughly half-close
 // their separation over the 2.2s retract window.
 const RETRACT_PULL_K = 0.14;
+// How much a stretched tether bleeds off its away-from-partner
+// velocity component. 1.0 = hard projection (velocity forced to
+// zero along that axis, previous behaviour that caused the
+// "wrestle" lock-up with ≥3 stacked tethers); 0 = no resistance at
+// all. 0.35 keeps the "body follows tendril" visual but lets
+// multiple stacked tethers slow motion instead of freezing it.
+const TETHER_SOFT = 0.35;
 
 export function findNearestBody<T extends PhysBody>(
   self: T,
@@ -123,14 +142,19 @@ export function stepField<T extends PhysBody>(
   const retractPulls = new Map<string, number>();          // pairKey → pull scalar 0..1
   // Per-body list of normalized partner directions for active
   // (growing / bonded) connections. Used at the end of the step to
-  // strip any velocity component that would move the body AWAY from
-  // an active tendril — bodies can only glide "toward" or
-  // perpendicular to their tendrils, never backward.
-  const tetherDirs = new Map<string, Array<{ nx: number; ny: number }>>();
-  const addTether = (id: string, nx: number, ny: number) => {
+  // SOFTLY resist any velocity component that would move the body
+  // AWAY from an active tendril — bodies can glide perpendicular or
+  // toward their tendrils freely, and can drift backward with some
+  // resistance (no hard lock). `stretched` flags tethers whose pair
+  // is currently stretched past rest length; only those actually
+  // contribute to the projection, so a stable cluster at rest length
+  // doesn't accumulate lock-up forces.
+  const tetherDirs = new Map<string, Array<{ nx: number; ny: number; stretched: boolean }>>();
+  const addTether = (id: string, nx: number, ny: number, stretched: boolean) => {
     const list = tetherDirs.get(id);
-    if (list) list.push({ nx, ny });
-    else tetherDirs.set(id, [{ nx, ny }]);
+    const entry = { nx, ny, stretched };
+    if (list) list.push(entry);
+    else tetherDirs.set(id, [entry]);
   };
   if (connections) {
     const bodyById = new Map(bodies.map((b) => [b.id, b]));
@@ -159,11 +183,39 @@ export function stepField<T extends PhysBody>(
         const d = Math.hypot(dx, dy) || 1;
         const nx = dx / d;
         const ny = dy / d;
-        addTether(ab.id, nx, ny);
-        addTether(bb.id, -nx, -ny);
+        // Tether only resists motion when the pair is ACTUALLY being
+        // pulled apart. 1.05× grace ensures a stable bond at or just
+        // past rest length doesn't re-activate on tiny jitter.
+        const rest = c.restLength;
+        const stretched = rest != null && d > rest * 1.05;
+        addTether(ab.id, nx, ny, stretched);
+        addTether(bb.id, -nx, -ny, stretched);
       }
     }
   }
+
+  // === Cluster drift for isolated bodies ===
+  // A body that hasn't had an active connection for ISOLATION_MS
+  // gets a gentle pull toward the centroid of the still-social
+  // bodies. This realises the vision line "孤立的微生物会缓慢向
+  // 群落漂移". We compute the centroid once per step using only
+  // social-recent bodies so the isolated ones don't pull each
+  // other into their own lonely cluster.
+  const ISOLATION_MS = 8_000;
+  const ISOLATION_DRIFT = 0.05;
+  let sumX = 0;
+  let sumY = 0;
+  let socialCount = 0;
+  for (const b of bodies) {
+    const lastSoc = b.lastSocialAt ?? b.bornAt ?? now;
+    if (now - lastSoc < ISOLATION_MS) {
+      sumX += b.x;
+      sumY += b.y;
+      socialCount += 1;
+    }
+  }
+  const clusterX = socialCount > 0 ? sumX / socialCount : null;
+  const clusterY = socialCount > 0 ? sumY / socialCount : null;
 
   return bodies.map((a) => {
     let fx = 0;
@@ -254,21 +306,45 @@ export function stepField<T extends PhysBody>(
       fy += (dcy / dc) * push * CENTER_R * 0.1;
     }
 
+    // Isolation → drift toward cluster centroid. Skip while the body
+    // is mid-transformation or itself already social. Strength is
+    // tiny so it reads as a slow yearning rather than a magnet.
+    if (
+      clusterX != null &&
+      clusterY != null &&
+      a.infectionState !== 'infecting' &&
+      a.infectionState !== 'transforming'
+    ) {
+      const aLastSoc = a.lastSocialAt ?? a.bornAt ?? now;
+      if (now - aLastSoc >= ISOLATION_MS) {
+        const ddx = clusterX - a.x;
+        const ddy = clusterY - a.y;
+        const dd = Math.hypot(ddx, ddy) || 1;
+        fx += (ddx / dd) * ISOLATION_DRIFT;
+        fy += (ddy / dd) * ISOLATION_DRIFT;
+      }
+    }
+
     let vx = (a.vx + fx) * DAMPING;
     let vy = (a.vy + fy) * DAMPING;
 
-    // Tether constraint: for every active (growing/bonded) tendril on
-    // this body, project out any velocity component pointing AWAY
-    // from the partner. Bodies can move toward or perpendicular to
-    // their tendrils, but never backward. Implements the user's
-    // "菌子跟着触手的方向走，不要反方向移动" requirement.
+    // Tether constraint (soft). For every STRETCHED active tendril
+    // on this body, attenuate (don't kill) the velocity component
+    // pointing away from the partner. Previously this was a hard
+    // projection (`vx -= tnx * dot`) applied to every active tendril;
+    // in dense clusters the stacked hard projections could reduce a
+    // body's net velocity to zero, producing the "wrestle" lock-up
+    // reported by users. Now: only stretched bonds contribute, and
+    // each one bleeds off TETHER_SOFT × of the away-component so
+    // several tethers can overlap without fully freezing motion.
     const tethers = tetherDirs.get(a.id);
     if (tethers) {
-      for (const { nx: tnx, ny: tny } of tethers) {
+      for (const { nx: tnx, ny: tny, stretched } of tethers) {
+        if (!stretched) continue;
         const dot = vx * tnx + vy * tny;
         if (dot < 0) {
-          vx -= tnx * dot;
-          vy -= tny * dot;
+          vx -= tnx * dot * TETHER_SOFT;
+          vy -= tny * dot * TETHER_SOFT;
         }
       }
     }
