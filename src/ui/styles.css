@@ -285,6 +285,83 @@ body,
   font-weight: 500;
 }
 
+/* Row wrapper so the mic button can sit to the right of the textarea
+ * without breaking the underline rhythm. The textarea flex-grows to
+ * fill, the mic stays a fixed circle on the right. */
+.totem-input-row {
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+}
+
+/* Mic dictation button. Kept quiet by default so it doesn't compete
+ * with the writing surface, and blooms warm when actively listening. */
+.mic-button {
+  flex: 0 0 auto;
+  margin-bottom: 0.4rem;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1.5px dashed rgba(74, 64, 52, 0.22);
+  border-radius: 50%;
+  background: rgba(255, 250, 235, 0.4);
+  color: var(--ink-soft);
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.25s, border-color 0.25s, background 0.25s;
+}
+.mic-button:hover:not(:disabled) {
+  opacity: 0.95;
+  border-color: rgba(230, 155, 110, 0.55);
+  background: rgba(255, 244, 224, 0.8);
+}
+.mic-button:disabled { cursor: wait; opacity: 0.3; }
+.mic-button.listening {
+  opacity: 1;
+  border-color: rgba(230, 155, 110, 0.9);
+  border-style: solid;
+  background: rgba(255, 235, 210, 0.95);
+  animation: micBreath 1.4s ease-in-out infinite;
+}
+@keyframes micBreath {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(230, 155, 110, 0.5); }
+  50%      { box-shadow: 0 0 0 6px rgba(230, 155, 110, 0); }
+}
+
+/* Live transcription caption under the textarea. Handwritten font so
+ * it reads as "the page is listening back", not "UI output". */
+.totem-interim {
+  margin-top: 0.5rem;
+  font-family: var(--font-display);
+  font-size: 1.02rem;
+  color: var(--ink-soft);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  opacity: 0.78;
+  min-height: 1.3rem;
+  text-align: center;
+  justify-content: center;
+}
+.totem-interim-hint { opacity: 0.55; font-style: italic; }
+.totem-interim-error { color: #B26A3A; opacity: 0.7; font-size: 0.85rem; }
+.mic-pulse {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #E69B6E;
+  animation: micPulse 1.1s ease-in-out infinite;
+}
+@keyframes micPulse {
+  0%, 100% { transform: scale(0.7); opacity: 0.45; }
+  50%      { transform: scale(1);   opacity: 1; }
+}
+
 .totem-input {
   width: 100%;
   background: transparent;

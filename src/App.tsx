@@ -103,19 +103,33 @@ const SUPPORT_STRETCH_FACTOR = 2.4;
 // Contact → hold → roll outcome → infecting → transforming → hybrid.
 // No extra entities ever spawned: the original entity IS the hybrid once
 // its state flips to 'hybrid'.
-// Per the design vision, compatible pairs should mostly drift
-// parallel and stay connected via tendrils — fusion is an unusual
-// event, not the main relationship mode. These thresholds make it a
-// rare surprise: only very high compat, only after a long sustained
-// touch, and with a low per-frame roll even once eligible.
-const INFECT_HOLD_MS = 30_000;       // 30s of continuous contact before even rolling
+// Per the design vision, compatible pairs mostly drift parallel
+// and express closeness via tendrils — fusion is a special event,
+// not the main relationship mode. Tuning notes:
+//
+// INFECTION_MIN_COMPAT:
+//   At 0.7 only 4 cross-kind pairs in the compat matrix were
+//   eligible, so the visible hybrid pool collapsed to ~4 PNGs and
+//   users started seeing the same hybrid every time. 0.5 opens up
+//   9 distinct cross-kind pairs and gives real visual variety.
+//
+// MUTUAL_COMPAT_CUTOFF + the mutual-vs-one-sided rolls:
+//   Mutual fusion produces TWO hybrids of the same PNG simultaneously,
+//   which compounds the "they all look the same" problem. Mutual is
+//   now nearly disabled: only true ≥ 0.95 pairs auto-mutual (none in
+//   the current matrix), and the lower branches roll mutual 15%/8%
+//   instead of 50%/20%. Most fusions are one-sided — one creature
+//   transforms, its partner stays itself and may bond with someone
+//   else later. Reads more as "this one was changed by the encounter"
+//   than "they merged into one".
+const INFECT_HOLD_MS = 12_000;       // 12s of sustained contact before rolling
 const INFECTING_MS = 3500;           // color / texture drift phase (tint pulse)
 const TRANSFORM_MS = 2400;           // sprite + face crossfade phase
-const INFECTION_MIN_COMPAT = 0.9;    // only highly compatible pairs are eligible
-const BASE_INFECTION_PROB = 0.04;    // per-frame chance once HOLD is satisfied
+const INFECTION_MIN_COMPAT = 0.5;    // any positively-compatible pair is eligible
+const BASE_INFECTION_PROB = 0.15;    // per-frame chance once HOLD is satisfied
 const ROLL_COOLDOWN_MS = 6000;       // after a "didn't fire" roll, wait this long
-const MUTUAL_COMPAT_CUTOFF = 0.85;   // at or above: both sides always transform
-const ONEWAY_COMPAT_CUTOFF = 0.65;   // at or above: 50/50 mutual vs one-way
+const MUTUAL_COMPAT_CUTOFF = 0.95;   // basically off — no pair in matrix hits 0.95
+const ONEWAY_COMPAT_CUTOFF = 0.65;   // at or above: small chance of mutual
 
 /**
  * Root stage.
@@ -529,16 +543,22 @@ export default function App() {
           let aInfected: boolean;
           let bInfected: boolean;
           if (c.compat >= MUTUAL_COMPAT_CUTOFF) {
+            // Effectively unreachable with current matrix (max compat
+            // 0.9), but kept for tunability. Both sides transform.
             aInfected = bInfected = true;
           } else if (c.compat >= ONEWAY_COMPAT_CUTOFF) {
-            if (Math.random() < 0.5) {
+            // High-compat fusion is mostly one-sided to keep the
+            // hybrid pool diverse — twin hybrids of the same PNG were
+            // collapsing visual variety. 15% mutual, 85% pick a side.
+            if (Math.random() < 0.15) {
               aInfected = bInfected = true;
             } else {
               aInfected = Math.random() < 0.5;
               bInfected = !aInfected;
             }
           } else {
-            if (Math.random() < 0.2) {
+            // Lower-compat fusion: even rarer mutual, mostly one-sided.
+            if (Math.random() < 0.08) {
               aInfected = bInfected = true;
             } else {
               aInfected = Math.random() < 0.5;

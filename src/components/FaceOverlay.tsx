@@ -10,8 +10,7 @@
  *   2. Smile arc  — a small SVG curve below the eyes; slightly widens
  *                   on the 'happy' expression.
  */
-import { useEffect } from 'react';
-import { motion, useMotionValue, animate } from 'framer-motion';
+import { motion, useSpring } from 'framer-motion';
 import type { FaceConfig } from '../data/characters';
 
 export type ExpressionKind =
@@ -41,13 +40,16 @@ export function FaceOverlay({
 }: FaceOverlayProps) {
   const pupilR = face.eyeSize * 0.72;
 
-  const gxMv = useMotionValue(0);
-  const gyMv = useMotionValue(0);
-
-  useEffect(() => {
-    animate(gxMv, gazeX, { type: 'spring', stiffness: 90, damping: 18, mass: 1 });
-    animate(gyMv, gazeY, { type: 'spring', stiffness: 90, damping: 18, mass: 1 });
-  }, [gazeX, gazeY, gxMv, gyMv]);
+  // Track gaze via useSpring so the motion value retargets smoothly
+  // when gazeX/gazeY change. Earlier we used imperative animate()
+  // inside a useEffect that ran on every render — which stacked new
+  // spring animations on top of old ones, and on slower machines or
+  // different browsers (reported by a user's friend) the stacked
+  // springs would fight each other and walk the pupils out of the
+  // eye sockets. useSpring handles retarget atomically per frame
+  // with one animation, fixing the drift.
+  const gxMv = useSpring(gazeX, { stiffness: 90, damping: 18, mass: 1 });
+  const gyMv = useSpring(gazeY, { stiffness: 90, damping: 18, mass: 1 });
 
   const pupilStyle = (cxFrac: number): React.CSSProperties => ({
     position: 'absolute',
