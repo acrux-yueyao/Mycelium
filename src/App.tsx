@@ -122,12 +122,12 @@ const SUPPORT_STRETCH_FACTOR = 2.4;
 //   transforms, its partner stays itself and may bond with someone
 //   else later. Reads more as "this one was changed by the encounter"
 //   than "they merged into one".
-const INFECT_HOLD_MS = 12_000;       // 12s of sustained contact before rolling
+const INFECT_HOLD_MS = 3_000;        // 3s of sustained contact before rolling
 const INFECTING_MS = 3500;           // color / texture drift phase (tint pulse)
 const TRANSFORM_MS = 2400;           // sprite + face crossfade phase
 const INFECTION_MIN_COMPAT = 0.5;    // any positively-compatible pair is eligible
-const BASE_INFECTION_PROB = 0.15;    // per-frame chance once HOLD is satisfied
-const ROLL_COOLDOWN_MS = 6000;       // after a "didn't fire" roll, wait this long
+const BASE_INFECTION_PROB = 0.4;     // per-roll chance once HOLD is satisfied
+const ROLL_COOLDOWN_MS = 2000;       // after a "didn't fire" roll, wait this long
 const MUTUAL_COMPAT_CUTOFF = 0.95;   // basically off — no pair in matrix hits 0.95
 const ONEWAY_COMPAT_CUTOFF = 0.65;   // at or above: small chance of mutual
 
