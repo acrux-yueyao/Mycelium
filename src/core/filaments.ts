@@ -71,7 +71,10 @@ export interface FilamentState {
   lastTargetY: number;
 }
 
-const EDGE_RADIUS = 45;          // origin on the visible sprite silhouette
+const EDGE_RADIUS = 72;          // origin on the sprite silhouette; matches
+                                 // TendrilLayer ANCHOR_RADIUS so ribbon + tip
+                                 // start from the same point (was 45, a 27px
+                                 // visible mismatch)
 const REACH_DISTANCE = 55;       // tip considered "landed" within this of target center
 const INITIAL_SPEED = 0.16;      // px / frame initial velocity (slow exploration)
 const ATTRACT_K_FAR = 0.025;     // weak pull while exploring

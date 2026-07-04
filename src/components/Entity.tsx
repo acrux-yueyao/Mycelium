@@ -1,51 +1,55 @@
 /**
- * Entity — a living mushroom on stage.
+ * Entity — a living pixel-spore on stage.
  *
  * Composed animation layers (nested motion.divs so transforms don't clash):
  *   1. Grow        scale 0 → 1.1 → 1 on mount
  *   2. Float       y [0, -5, 0] infinite
- *   3. Wobble      rotate ±1.5° infinite
+ *   3. Wobble      rotate ±wobbleAmp° infinite
  *   4. Greet       scale bounce on greetingPulse++
  *   5. Breathe     scale [1, 1.04, 1] infinite
+ *   6. Morph       small scale pulse while transforming
  *
- * Infection / transformation state machine lives in App.tsx and is
- * expressed visually here:
- *   - 'normal'        → base PNG only; character face(s)
- *   - 'infecting'     → base PNG + partner-color tint pulse; character face(s)
- *   - 'transforming'  → base PNG fades out, hybrid PNG fades in (sprite
- *                       crossfade + scale pulse + wobble jitter); faces
- *                       crossfade from character → HYBRID_FACE
- *   - 'hybrid'        → hybrid PNG + HYBRID_FACE; one-shot aura ring on
- *                       the frame we entered this state
+ * The body itself is a <PixelSprite> canvas built from a deterministic
+ * MosaicSpec. Infection / transformation is expressed on that same grid:
+ *   - 'normal'        → base palette
+ *   - 'infecting'     → base palette + partner-color soft-light pulse
+ *   - 'transforming'  → per-cell dye wavefront sweeps toward partner palette
+ *   - 'hybrid'        → fully dyed to partner palette, keeps own silhouette;
+ *                       one-shot aura ring on the frame we enter this state
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useAnimationControls } from 'framer-motion';
 import { EntityParticles } from './EntityParticles';
 import type { Morphology } from '../core/emotion';
-import {
-  CHARACTERS,
-  charAsset,
-  hybridAsset,
-  hybridFaces,
-  type CharId,
-} from '../data/characters';
-import { FaceOverlay, type ExpressionKind } from './FaceOverlay';
+import { buildMosaic, type MosaicPaletteSpec } from '../core/mosaic';
+import { Rng, xmur3 } from '../core/seed';
+import { CHARACTERS, type CharId } from '../data/characters';
+import { PixelSprite } from './PixelSprite';
 import type { InfectionState } from '../App';
+
+/** Snapshot of the partner an entity is fusing with (captured at
+ *  infection start, since the partner may despawn before we finish). */
+export interface HybridSource {
+  id: string;
+  charId: CharId;
+  morphology?: Morphology;
+  intensity?: number;
+  secondaryLabel?: string;
+}
 
 export interface EntityProps {
   id: string;
   charId: CharId;
   /** Whimsical label drawn in Caveat script just below the sprite. */
   name?: string;
-  /** Per-creature visual parameters from the LLM emotion reading.
-   *  Drives overall opacity, glow, wobble frequency/amplitude, hue
-   *  overlay, and optional drifting particles. */
+  /** Per-creature visual parameters from the LLM emotion reading. */
   morphology?: Morphology;
-  /** True while the user is actively holding this entity with a
-   *  pointer. Drives a small lift/shadow tweak for feedback. */
+  /** Emotion intensity 0..1 — widens the palette from mono to rainbow. */
+  intensity?: number;
+  /** Secondary emotion label — nudges a second accent hue. */
+  secondaryLabel?: string;
+  /** True while the user is actively holding this entity with a pointer. */
   isDragged?: boolean;
-  /** Pointer-down callback — parent records that this entity is the
-   *  one being dragged and starts following the cursor. */
   onGrab?: (id: string, clientX: number, clientY: number) => void;
   x: number;
   y: number;
@@ -58,34 +62,23 @@ export interface EntityProps {
   saturation?: number;
   /** Current point in the transformation state machine. Default 'normal'. */
   infectionState?: InfectionState;
-  /** Sorted [lo, hi] CharIds for the target hybrid PNG. */
-  infectionPair?: [CharId, CharId];
-  /** Character color of the entity currently infecting this one; drives tint. */
+  /** Wall-clock ms when the current infectionState was entered. */
+  infectionStart?: number;
+  /** Character color of the entity currently infecting this one. */
   partnerColor?: string;
-  /** True once this entity has been on stage long enough to serve as a
-   *  "mother tree" for isolated neighbors. Renders a very soft warm
-   *  halo behind the sprite — no badge, no crown, just presence. */
+  /** Snapshot of the fusion partner — supplies the dye target palette. */
+  hybridSource?: HybridSource;
+  /** True once this entity is old enough to serve as a mother tree. */
   isMotherTree?: boolean;
   onMount?: () => void;
 }
 
-const BLINK_MIN_MS = 2000;
-const BLINK_MAX_MS = 5000;
-const FACE_EXPR_MIN_MS = 9000;
-const FACE_EXPR_MAX_MS = 16000;
+const BLINK_MIN_MS = 2600;
+const BLINK_MAX_MS = 6000;
+const BLINK_DUR_MS = 130;
+const TRANSFORM_MS = 2400; // keep in sync with App.tsx TRANSFORM_MS
+const GAZE_DIV = 150; // px of horizontal offset that maps to full pupil travel
 
-const NON_BLINK_EXPRESSIONS: ExpressionKind[] = [
-  'wink-left',
-  'wink-right',
-  'squint',
-  'happy',
-  'happy',
-];
-
-/** Read a numeric CSS custom property from :root. Falls back if the
- *  var isn't set or isn't a finite number. Kept inline rather than
- *  reactive because these values only change on full reload
- *  (URL query string drives them). */
 function readRootNumber(name: string, fallback: number): number {
   if (typeof document === 'undefined') return fallback;
   const raw = getComputedStyle(document.documentElement).getPropertyValue(name);
@@ -93,17 +86,13 @@ function readRootNumber(name: string, fallback: number): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
-const GAZE_RANGE_PX = 5;
-
-// Sprite crossfade duration (seconds). Should roughly match TRANSFORM_MS
-// in App.tsx so the crossfade finishes as the state flips to 'hybrid'.
-const CROSSFADE_S = 2.4;
-
 export function Entity({
   id,
   charId,
   name,
   morphology,
+  intensity = 0.5,
+  secondaryLabel,
   isDragged = false,
   onGrab,
   x,
@@ -115,85 +104,84 @@ export function Entity({
   greetingPulse = 0,
   saturation = 1,
   infectionState = 'normal',
-  infectionPair,
+  infectionStart,
   partnerColor,
+  hybridSource,
   isMotherTree = false,
   onMount,
 }: EntityProps) {
-  // Derive the visual knobs from morphology once per render. When the
-  // creature was debug-spawned (no LLM reading) we pick visually
-  // neutral middle values so it still looks like a mushroom, just
-  // unremarkable in its morphology-driven dimensions.
   const density = morphology?.density ?? 0.7;
   const agitation = morphology?.agitation ?? 0.3;
   const glow = morphology?.glow ?? 0.15;
-  const tintHue = morphology?.tintHue ?? -1; // -1 = skip tint overlay
+  const tintHue = morphology?.tintHue ?? 36;
   const emitParticles = morphology?.particles === true;
 
-  // Density → overall opacity (0 is wispy, 1 is fully present) and
-  // a subtle scale. Lonely / translucent creatures should read as
-  // barely-there without shrinking into invisibility.
   const bodyOpacity = 0.55 + density * 0.45;
   const bodyScaleBase = 0.92 + density * 0.12;
 
-  // Agitation → wobble frequency (shorter period) and amplitude.
-  // Calm creatures tilt slowly by ±1°; panicked ones oscillate hard.
-  // Final amplitudes are multiplied by the time-of-day vibration
-  // gain (set on :root by Background), so exam-week creatures
-  // tremble more without any per-entity coordination.
   const vibrationGain = readRootNumber('--vibration-gain', 1);
   const wobbleDur = (8 - agitation * 4.5) / Math.max(0.4, vibrationGain);
   const wobbleAmp = (1.2 + agitation * 3.2) * vibrationGain;
   const breatheDur = (3.5 - agitation * 1.2) / Math.max(0.4, vibrationGain);
   const breatheAmp = (0.04 + agitation * 0.05) * vibrationGain;
-  const character = CHARACTERS[charId];
   const breatheDelay = (phaseOffset % 1) * 3.5;
   const floatDelay = (phaseOffset % 1) * 5;
   const wobbleDelay = (phaseOffset % 1) * 8;
 
-  const [exprKey, setExprKey] = useState(0);
-  const [expr, setExpr] = useState<ExpressionKind>('blink');
-  const blinkTimer = useRef<number | null>(null);
-  const funnyTimer = useRef<number | null>(null);
+  // ---- deterministic pixel-spore spec ----
+  const spec = useMemo(
+    () =>
+      buildMosaic({
+        id,
+        charId,
+        morphology: morphology ?? {
+          density, agitation, tendrilCount: 5, glow, tintHue, particles: emitParticles,
+        },
+        intensity,
+        secondaryLabel,
+      }),
+    // morphology object identity is stable per entity; intensity/labels too
+    [id, charId, morphology, intensity, secondaryLabel, density, agitation, glow, tintHue, emitParticles],
+  );
 
+  // dye target palette (partner's palette), snapshotted from hybridSource
+  const targetPalette: MosaicPaletteSpec | null = useMemo(() => {
+    if (!hybridSource) return null;
+    return buildMosaic({
+      id: hybridSource.id,
+      charId: hybridSource.charId,
+      morphology: hybridSource.morphology ?? {
+        density: 0.7, agitation: 0.3, tendrilCount: 5, glow: 0.2,
+        tintHue: CHARACTERS[hybridSource.charId] ? 30 : 30, particles: false,
+      },
+      intensity: hybridSource.intensity ?? 0.5,
+      secondaryLabel: hybridSource.secondaryLabel,
+    }).palette;
+  }, [hybridSource]);
+
+  // resting gaze so idle pupils read as a clean one-white-one-black
+  const restGaze = useMemo(
+    () => (new Rng(xmur3(`${id}:rest`)()).next() < 0.5 ? -1 : 1) * 0.85,
+    [id],
+  );
+
+  // ---- blink scheduler ----
+  const [blink, setBlink] = useState(false);
+  const blinkTimer = useRef<number | null>(null);
   useEffect(() => {
-    const scheduleBlink = () => {
+    const schedule = () => {
       const delay = BLINK_MIN_MS + Math.random() * (BLINK_MAX_MS - BLINK_MIN_MS);
       blinkTimer.current = window.setTimeout(() => {
-        setExpr('blink');
-        setExprKey((k) => k + 1);
-        scheduleBlink();
+        setBlink(true);
+        window.setTimeout(() => setBlink(false), BLINK_DUR_MS);
+        schedule();
       }, delay);
     };
-    const scheduleFunny = () => {
-      const delay = FACE_EXPR_MIN_MS + Math.random() * (FACE_EXPR_MAX_MS - FACE_EXPR_MIN_MS);
-      funnyTimer.current = window.setTimeout(() => {
-        const kind = NON_BLINK_EXPRESSIONS[
-          Math.floor(Math.random() * NON_BLINK_EXPRESSIONS.length)
-        ];
-        setExpr(kind);
-        setExprKey((k) => k + 1);
-        scheduleFunny();
-      }, delay);
-    };
-    scheduleBlink();
-    scheduleFunny();
-    return () => {
-      if (blinkTimer.current) window.clearTimeout(blinkTimer.current);
-      if (funnyTimer.current) window.clearTimeout(funnyTimer.current);
-    };
+    schedule();
+    return () => { if (blinkTimer.current) window.clearTimeout(blinkTimer.current); };
   }, []);
 
-  let gazeX = 0;
-  let gazeY = 0;
-  if (gazeTargetX != null && gazeTargetY != null) {
-    const dx = gazeTargetX - x;
-    const dy = gazeTargetY - y;
-    const d = Math.hypot(dx, dy) || 1;
-    gazeX = (dx / d) * GAZE_RANGE_PX;
-    gazeY = (dy / d) * GAZE_RANGE_PX;
-  }
-
+  // ---- greet + aura controls ----
   const greetControls = useAnimationControls();
   const greetSeen = useRef(0);
   useEffect(() => {
@@ -206,7 +194,6 @@ export function Entity({
     }
   }, [greetingPulse, greetControls]);
 
-  // One-shot aura the first time this entity enters the 'hybrid' state.
   const auraControls = useAnimationControls();
   const auraFiredRef = useRef(false);
   useEffect(() => {
@@ -220,42 +207,34 @@ export function Entity({
     }
   }, [infectionState, auraControls]);
 
-  const isInfecting = infectionState === 'infecting';
   const isMidTransform = infectionState === 'transforming';
-  const isHybridNow = infectionState === 'hybrid';
-
-  const baseSrc = charAsset(charId);
-  const hybridSrc = infectionPair
-    ? hybridAsset(infectionPair[0], infectionPair[1])
-    : null;
-
-  // Crossfade: base is fully visible up through 'infecting'; hybrid takes
-  // over during 'transforming' and stays at 1 in 'hybrid'.
-  const baseOpacity = isMidTransform || isHybridNow ? 0 : 1;
-  const hybridOpacity = isMidTransform || isHybridNow ? 1 : 0;
-
-  // Extra wobble during transformation so the morph doesn't feel flat.
   const morphScale = isMidTransform ? [1, 1.07, 1] : 1;
 
-  const imgBaseStyle: React.CSSProperties = {
-    position: 'absolute',
-    inset: 0,
-    width: '100%',
-    height: '100%',
-    objectFit: 'contain',
-    display: 'block',
-    userSelect: 'none',
-  };
+  // ---- gaze scalar (-1..1) toward the look target, else resting ----
+  let gaze = restGaze;
+  if (gazeTargetX != null && gazeTargetY != null) {
+    gaze = Math.max(-1, Math.min(1, (gazeTargetX - x) / GAZE_DIV));
+  }
+
+  // ---- infection visuals: dye wavefront + infecting tint pulse ----
+  const now = typeof performance !== 'undefined' ? performance.now() : 0;
+  let dye = null as null | { progress: number; targetPalette: MosaicPaletteSpec };
+  let tintPulse = null as null | { color: string; alpha: number };
+  if (infectionState === 'hybrid' && targetPalette) {
+    dye = { progress: 1, targetPalette };
+  } else if (infectionState === 'transforming' && targetPalette) {
+    const p = infectionStart != null ? (now - infectionStart) / TRANSFORM_MS : 0;
+    dye = { progress: Math.max(0, Math.min(1, p)), targetPalette };
+  } else if (infectionState === 'infecting' && partnerColor) {
+    const phase = infectionStart != null ? (now - infectionStart) / 260 : now / 260;
+    tintPulse = { color: partnerColor, alpha: 0.30 + 0.22 * (0.5 + 0.5 * Math.sin(phase)) };
+  }
 
   return (
     <motion.div
       className={`entity${isDragged ? ' entity-dragged' : ''}`}
       data-id={id}
       onPointerDown={(e) => {
-        // Ignore clicks coming out of the initial scale=0 frame —
-        // spawn animation runs 0 → 1.1 → 1 over 1.8s and the hit-box
-        // is mis-sized mid-grow. After that, any pointer down on the
-        // sprite box picks the creature up.
         if (!onGrab) return;
         e.stopPropagation();
         onGrab(id, e.clientX, e.clientY);
@@ -266,20 +245,17 @@ export function Entity({
         top: y - size / 2,
         width: size,
         height: size,
-        // Pointer events are enabled so the sprite can be dragged.
-        // Transparent PNG padding also counts as hit-area — acceptable
-        // for now given the round sprite shapes, can refine with a
-        // circular clip-path later if it becomes a problem.
         pointerEvents: onGrab ? 'auto' : 'none',
         cursor: isDragged ? 'grabbing' : onGrab ? 'grab' : 'default',
         touchAction: 'none',
         willChange: 'transform',
+        // sparse pixel spores get a narrower, fainter ground shadow
+        // via these vars (consumed by .entity::after in styles.css)
+        ['--shadow-w' as string]: `${Math.round(spec.bottomWidthFrac * 52)}%`,
+        ['--shadow-alpha' as string]: (0.4 + density * 0.6).toFixed(2),
       }}
       initial={{ scale: 0, opacity: 0 }}
-      animate={{
-        scale: isDragged ? 1.08 : [0, 1.1, 1],
-        opacity: 1,
-      }}
+      animate={{ scale: isDragged ? 1.08 : [0, 1.1, 1], opacity: 1 }}
       transition={{
         scale: isDragged
           ? { duration: 0.25, ease: 'easeOut' }
@@ -288,88 +264,53 @@ export function Entity({
       }}
       onAnimationComplete={() => onMount?.()}
     >
-      {/* Mother-tree halo: three stacked layers that together make a
-       *  mother tree unmistakable without turning it into a badge.
-       *    1. A slow-breathing outer ring that expands and fades — a
-       *       visible pulse of warmth radiating outward.
-       *    2. A bigger peach multiply wash that tints the paper under
-       *       the sprite (survives the light-cream bg).
-       *    3. An inner screen-blended bloom so the sprite looks lit
-       *       from within. */}
+      {/* Mother-tree halo — three stacked warm layers behind the sprite. */}
       {isMotherTree && (
         <>
-          {/* 1 · expanding breath ring */}
           <motion.div
             aria-hidden
             initial={{ opacity: 0, scale: 0.55 }}
-            animate={{ opacity: [0, 0.55, 0], scale: [0.75, 1.4, 1.65] }}
-            transition={{
-              duration: 4.8,
-              repeat: Infinity,
-              ease: 'easeOut',
-              delay: 0.3,
-            }}
+            animate={{ opacity: [0, 0.5, 0], scale: [0.75, 1.4, 1.65] }}
+            transition={{ duration: 4.8, repeat: Infinity, ease: 'easeOut', delay: 0.3 }}
             style={{
-              position: 'absolute',
-              inset: '-32%',
-              borderRadius: '50%',
-              border: '2.5px solid rgba(224, 150, 100, 0.55)',
-              pointerEvents: 'none',
-              zIndex: -3,
+              position: 'absolute', inset: '-32%', borderRadius: '50%',
+              border: '2.5px solid rgba(224, 150, 100, 0.5)', pointerEvents: 'none', zIndex: -3,
             }}
           />
-          {/* 2 · warm peach multiply wash (bigger, more saturated) */}
           <motion.div
             aria-hidden
             initial={{ opacity: 0, scale: 0.7 }}
-            animate={{ opacity: 1, scale: [0.93, 1.06, 0.93] }}
+            animate={{ opacity: 0.9, scale: [0.93, 1.06, 0.93] }}
             transition={{
               opacity: { duration: 3.5, ease: 'easeOut' },
               scale: { duration: 7, repeat: Infinity, ease: 'easeInOut' },
             }}
             style={{
-              position: 'absolute',
-              inset: '-28%',
-              borderRadius: '50%',
+              position: 'absolute', inset: '-28%', borderRadius: '50%',
               background:
-                'radial-gradient(circle at 50% 55%, rgba(224, 150, 100, 0.78) 0%, rgba(224, 150, 100, 0.40) 35%, rgba(224, 150, 100, 0.0) 72%)',
-              pointerEvents: 'none',
-              zIndex: -2,
-              mixBlendMode: 'multiply',
-              filter: 'blur(5px)',
+                'radial-gradient(circle at 50% 55%, rgba(224, 150, 100, 0.72) 0%, rgba(224, 150, 100, 0.36) 35%, rgba(224, 150, 100, 0.0) 72%)',
+              pointerEvents: 'none', zIndex: -2, mixBlendMode: 'multiply', filter: 'blur(5px)',
             }}
           />
-          {/* 3 · inner screen bloom — makes the sprite feel lit */}
           <motion.div
             aria-hidden
             initial={{ opacity: 0, scale: 0.75 }}
-            animate={{ opacity: 1, scale: [0.90, 1.06, 0.90] }}
+            animate={{ opacity: 0.9, scale: [0.9, 1.06, 0.9] }}
             transition={{
               opacity: { duration: 3.5, ease: 'easeOut' },
               scale: { duration: 7, repeat: Infinity, ease: 'easeInOut' },
             }}
             style={{
-              position: 'absolute',
-              inset: '-10%',
-              borderRadius: '50%',
+              position: 'absolute', inset: '-10%', borderRadius: '50%',
               background:
-                'radial-gradient(circle at 50% 55%, rgba(255, 228, 185, 0.92) 0%, rgba(255, 228, 185, 0.40) 38%, rgba(255, 228, 185, 0.0) 72%)',
-              pointerEvents: 'none',
-              zIndex: -2,
-              mixBlendMode: 'screen',
-              filter: 'blur(3px)',
+                'radial-gradient(circle at 50% 55%, rgba(255, 228, 185, 0.88) 0%, rgba(255, 228, 185, 0.38) 38%, rgba(255, 228, 185, 0.0) 72%)',
+              pointerEvents: 'none', zIndex: -2, mixBlendMode: 'screen', filter: 'blur(3px)',
             }}
           />
         </>
       )}
 
-      {/* Morphology glow — soft warm AMBER bloom behind the sprite.
-       *  Used to be tinted by mood (tintHue), which produced a
-       *  rainbow of glows that visually buried the sprite itself.
-       *  Mood colour now lives in the floating bubbles instead, so
-       *  this layer is just the gentle "lit from within" warmth
-       *  — same warm amber for every creature, scaled by its
-       *  morphology.glow strength. */}
+      {/* Morphology glow — soft warm amber bloom behind the sprite. */}
       {glow > 0.05 && (
         <motion.div
           aria-hidden
@@ -380,29 +321,20 @@ export function Entity({
             scale: { duration: 6 + agitation * 2, repeat: Infinity, ease: 'easeInOut' },
           }}
           style={{
-            position: 'absolute',
-            inset: `-${10 + glow * 18}%`,
-            borderRadius: '50%',
+            position: 'absolute', inset: `-${10 + glow * 18}%`, borderRadius: '50%',
             background: `radial-gradient(circle at 50% 55%, rgba(232, 188, 138, ${0.20 + glow * 0.40}) 0%, rgba(232, 188, 138, ${0.08 + glow * 0.22}) 38%, rgba(232, 188, 138, 0) 72%)`,
-            pointerEvents: 'none',
-            zIndex: -2,
-            mixBlendMode: 'screen',
-            filter: `blur(${2 + glow * 3}px)`,
+            pointerEvents: 'none', zIndex: -2, mixBlendMode: 'screen', filter: `blur(${2 + glow * 3}px)`,
           }}
         />
       )}
 
-      {/* Aura: invisible until the moment we transition into 'hybrid'. */}
+      {/* Aura ring — one-shot the moment we enter 'hybrid'. */}
       <motion.div
         initial={{ scale: 0.5, opacity: 0 }}
         animate={auraControls}
         style={{
-          position: 'absolute',
-          inset: '10%',
-          borderRadius: '50%',
-          border: '3px solid rgba(255, 230, 180, 0.75)',
-          pointerEvents: 'none',
-          zIndex: -1,
+          position: 'absolute', inset: '10%', borderRadius: '50%',
+          border: '3px solid rgba(255, 230, 180, 0.75)', pointerEvents: 'none', zIndex: -1,
         }}
       />
 
@@ -416,158 +348,25 @@ export function Entity({
           animate={{ rotate: [-wobbleAmp, wobbleAmp, -wobbleAmp] }}
           transition={{ duration: wobbleDur, repeat: Infinity, ease: 'easeInOut', delay: wobbleDelay }}
         >
-          <motion.div
-            style={{ width: '100%', height: '100%', willChange: 'transform' }}
-            animate={greetControls}
-          >
+          <motion.div style={{ width: '100%', height: '100%', willChange: 'transform' }} animate={greetControls}>
             <motion.div
-              style={{
-                width: '100%',
-                height: '100%',
-                position: 'relative',
-                willChange: 'transform',
-                // density ∈ [0..1] → opacity, so wispy/lonely creatures
-                // read as barely-there without actually shrinking.
-                opacity: bodyOpacity,
-              }}
+              style={{ width: '100%', height: '100%', position: 'relative', willChange: 'transform', opacity: bodyOpacity, filter: `saturate(${saturation})` }}
               animate={{ scale: [bodyScaleBase - breatheAmp, bodyScaleBase + breatheAmp, bodyScaleBase - breatheAmp] }}
               transition={{ duration: breatheDur, repeat: Infinity, ease: 'easeInOut', delay: breatheDelay }}
             >
               <motion.div
                 style={{ width: '100%', height: '100%', position: 'relative' }}
                 animate={{ scale: morphScale }}
-                transition={{ duration: CROSSFADE_S, ease: 'easeInOut' }}
+                transition={{ duration: TRANSFORM_MS / 1000, ease: 'easeInOut' }}
               >
-                {/* Base sprite: fades out during transform. */}
-                <motion.img
-                  src={baseSrc}
-                  alt=""
-                  draggable={false}
-                  style={imgBaseStyle}
-                  animate={{
-                    opacity: baseOpacity,
-                    filter: `saturate(${saturation})`,
-                  }}
-                  transition={{
-                    opacity: { duration: CROSSFADE_S, ease: 'easeInOut' },
-                    filter: { duration: 1.2, ease: 'easeOut' },
-                  }}
-                />
-
-                {/* Hybrid sprite: fades in during transform, stays at 1 in hybrid. */}
-                {hybridSrc && (
-                  <motion.img
-                    src={hybridSrc}
-                    alt=""
-                    draggable={false}
-                    style={imgBaseStyle}
-                    initial={{ opacity: 0 }}
-                    animate={{
-                      opacity: hybridOpacity,
-                      filter: `saturate(${saturation})`,
-                    }}
-                    transition={{
-                      opacity: { duration: CROSSFADE_S, ease: 'easeInOut' },
-                      filter: { duration: 1.2, ease: 'easeOut' },
-                    }}
-                  />
-                )}
-
-                {/* Infecting tint: partner's color pulses ON the mushroom
-                    silhouette only. We use the base PNG's alpha channel
-                    as a CSS mask, so the colored layer is clipped to the
-                    sprite shape and never bleeds into the background. */}
-                {isInfecting && partnerColor && (
-                  <motion.div
-                    aria-hidden
-                    style={{
-                      position: 'absolute',
-                      inset: 0,
-                      background: partnerColor,
-                      pointerEvents: 'none',
-                      WebkitMaskImage: `url(${baseSrc})`,
-                      WebkitMaskSize: 'contain',
-                      WebkitMaskRepeat: 'no-repeat',
-                      WebkitMaskPosition: 'center',
-                      maskImage: `url(${baseSrc})`,
-                      maskSize: 'contain',
-                      maskRepeat: 'no-repeat',
-                      maskPosition: 'center',
-                      mixBlendMode: 'soft-light',
-                    }}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: [0, 0.55, 0.25, 0.55] }}
-                    transition={{ duration: 2.2, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' }}
-                  />
-                )}
-
-                {/* Base face(s): visible during normal + infecting; fades out with the base sprite. */}
-                <motion.div
-                  style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-                  animate={{ opacity: baseOpacity }}
-                  transition={{ duration: CROSSFADE_S, ease: 'easeInOut' }}
-                >
-                  <FaceOverlay
-                    face={character.face}
-                    triggerKey={exprKey}
-                    kind={expr}
-                    gazeX={gazeX}
-                    gazeY={gazeY}
-                  />
-                  {character.secondaryFace && (
-                    <FaceOverlay
-                      face={character.secondaryFace}
-                      triggerKey={exprKey}
-                      kind={expr}
-                      gazeX={gazeX}
-                      gazeY={gazeY}
-                    />
-                  )}
-                </motion.div>
-
-                {/* Hybrid faces: one per body in the hybrid art (twin-cup
-                    hybrids get two). Fades in with the hybrid sprite. */}
-                {hybridSrc && infectionPair && (
-                  <motion.div
-                    style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: hybridOpacity }}
-                    transition={{ duration: CROSSFADE_S, ease: 'easeInOut' }}
-                  >
-                    {hybridFaces(infectionPair[0], infectionPair[1]).map((hf, idx) => (
-                      <FaceOverlay
-                        key={idx}
-                        face={hf}
-                        triggerKey={exprKey}
-                        kind={expr}
-                        gazeX={gazeX}
-                        gazeY={gazeY}
-                      />
-                    ))}
-                  </motion.div>
-                )}
+                <PixelSprite spec={spec} gaze={gaze} blink={blink} dye={dye} tintPulse={tintPulse} />
               </motion.div>
             </motion.div>
           </motion.div>
         </motion.div>
       </motion.div>
 
-      {/* Name label — sits just below the sprite in Caveat script.
-       *  Outside the float/wobble/breathe chain so it stays steady
-       *  and readable instead of dancing with the mushroom. Fades
-       *  in on a slight delay so it appears after the spawn grow. */}
-      {/* Mood bubbles — small translucent spores in the creature's
-       *  tint hue drift up and out at a slow steady rate. This is
-       *  where the LLM's mood colour now lives (was previously a
-       *  hue wash on the sprite + a hue-tinted glow blob, both of
-       *  which read as "ambient soup" that buried the artwork).
-       *  When morphology.particles is true (releasing / weightless
-       *  readings) the emitter switches to a much faster burst rate. */}
-      <EntityParticles
-        hue={tintHue < 0 ? 36 : tintHue}
-        size={size}
-        burst={emitParticles}
-      />
+      <EntityParticles hue={tintHue < 0 ? 36 : tintHue} size={size} burst={emitParticles} />
 
       {name && (
         <motion.div
@@ -576,17 +375,11 @@ export function Entity({
           animate={{ opacity: 0.42, y: 0 }}
           transition={{ delay: 1.6, duration: 1.4, ease: 'easeOut' }}
           style={{
-            position: 'absolute',
-            left: '50%',
-            top: '100%',
+            position: 'absolute', left: '50%', top: '100%',
             transform: 'translate(-50%, -14px)',
-            fontFamily: "'Caveat', 'ZCOOL KuaiLe', cursive",
-            fontSize: '0.85rem',
-            color: '#6B5B47',
-            letterSpacing: '0.02em',
-            whiteSpace: 'nowrap',
-            pointerEvents: 'none',
-            userSelect: 'none',
+            fontFamily: "'Caveat', 'ZCOOL KuaiLe', cursive", fontSize: '0.85rem',
+            color: '#6B5B47', letterSpacing: '0.02em', whiteSpace: 'nowrap',
+            pointerEvents: 'none', userSelect: 'none',
             textShadow: '0 1px 0 rgba(255, 248, 232, 0.7)',
           }}
         >

@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Background } from './components/Background';
 import { Butterflies } from './components/Butterflies';
 import { DebugSpawnBar } from './components/DebugSpawnBar';
-import { Entity } from './components/Entity';
+import { Entity, type HybridSource } from './components/Entity';
 import { Gallery } from './components/Gallery';
 import { HandLayer } from './components/HandLayer';
 import { HeatmapLayer } from './components/HeatmapLayer';
@@ -42,6 +42,11 @@ interface LiveEntity {
    *  Undefined for debug-spawned entities; Entity falls back to
    *  visually neutral defaults when absent. */
   morphology?: Morphology;
+  /** Emotion intensity 0..1 — widens the pixel palette from mono to
+   *  rainbow. Defaults to 0.5 in Entity when absent. */
+  intensity?: number;
+  /** Secondary emotion label — nudges a second accent hue in the palette. */
+  secondaryLabel?: string;
   /** Flattened copy of morphology.tendrilCount so stepConnections
    *  (which consumes PhysBody, not LiveEntity) can read it without
    *  knowing about morphology. Undefined → defaults to 1 tendril. */
@@ -58,8 +63,12 @@ interface LiveEntity {
   infectionState: InfectionState;
   /** Wall-clock ms when the current infectionState was entered. */
   infectionStart?: number;
-  /** Sorted [lo, hi] CharIds of the hybrid PNG this entity will morph into. */
+  /** Sorted [lo, hi] CharIds of the pair — kept for physics/roll logic. */
   infectionPair?: [CharId, CharId];
+  /** Snapshot of the fusion partner (id/charId/morphology/intensity/
+   *  secondary), captured at infection start so PixelSprite can dye
+   *  toward the partner's palette even if the partner later despawns. */
+  hybridSource?: HybridSource;
   /** Entity id of the neighbor currently influencing this one. */
   partnerId?: string;
   rationale?: string;
@@ -601,7 +610,20 @@ export default function App() {
             next = { ...next, lastSocialAt: now };
           }
 
-          // Start infection for freshly rolled sides.
+          // Start infection for freshly rolled sides. Snapshot the
+          // partner's palette inputs now — it may despawn or itself
+          // transform before this side finishes dyeing.
+          const snapPartner = (pid: string): HybridSource | undefined => {
+            const p = entityById.get(pid);
+            if (!p) return undefined;
+            return {
+              id: p.id,
+              charId: p.charId,
+              morphology: p.morphology,
+              intensity: p.intensity,
+              secondaryLabel: p.secondaryLabel,
+            };
+          };
           for (const r of rolls) {
             if (r.aId === next.id && r.aInfected) {
               next = {
@@ -610,6 +632,7 @@ export default function App() {
                 infectionStart: now,
                 infectionPair: r.pair,
                 partnerId: r.bId,
+                hybridSource: snapPartner(r.bId),
               };
               break;
             }
@@ -620,6 +643,7 @@ export default function App() {
                 infectionStart: now,
                 infectionPair: r.pair,
                 partnerId: r.aId,
+                hybridSource: snapPartner(r.aId),
               };
               break;
             }
@@ -741,6 +765,8 @@ export default function App() {
     charId: CharId,
     rationale?: string,
     morphology?: Morphology,
+    intensity?: number,
+    secondaryLabel?: string,
   ): LiveEntity => {
     const { x, y } = spawnAt();
     const a = Math.random() * Math.PI * 2;
@@ -750,6 +776,8 @@ export default function App() {
       charId,
       name: randomName(),
       morphology,
+      intensity,
+      secondaryLabel,
       tendrilCount: morphology?.tendrilCount,
       x,
       y,
@@ -786,6 +814,8 @@ export default function App() {
         result.charId,
         result.reading.rationale,
         result.reading.morphology,
+        result.reading.intensity,
+        result.reading.secondary?.label,
       ),
     );
   };
@@ -837,6 +867,8 @@ export default function App() {
             charId={e.charId}
             name={e.name}
             morphology={e.morphology}
+            intensity={e.intensity}
+            secondaryLabel={e.secondaryLabel}
             x={e.x}
             y={e.y}
             size={e.size}
@@ -846,8 +878,9 @@ export default function App() {
             greetingPulse={e.greetingPulse}
             saturation={sat}
             infectionState={e.infectionState}
-            infectionPair={e.infectionPair}
+            infectionStart={e.infectionStart}
             partnerColor={partnerColor}
+            hybridSource={e.hybridSource}
             isMotherTree={isMotherTree}
             isDragged={grabbedId === e.id}
             onGrab={handleGrab}
