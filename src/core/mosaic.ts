@@ -264,7 +264,9 @@ export function buildMosaic(input: MosaicInputs): MosaicSpec {
     mask,
     palette,
     eyes: { row: er, L0, R0 },
-    blur: (1 - density) * 2.4,
+    // Crisp by default: only genuinely wispy (low-density) spores get a
+    // soft blur; anything at or above ~half density stays sharp pixel art.
+    blur: Math.max(0, 0.5 - density) * 2.6,
     bottomWidthFrac: (bottomWidth * 2) / cols,
     center,
   };
