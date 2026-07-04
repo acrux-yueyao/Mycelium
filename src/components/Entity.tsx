@@ -77,7 +77,8 @@ const BLINK_MIN_MS = 2600;
 const BLINK_MAX_MS = 6000;
 const BLINK_DUR_MS = 130;
 const TRANSFORM_MS = 2400; // keep in sync with App.tsx TRANSFORM_MS
-const GAZE_DIV = 150; // px of horizontal offset that maps to full pupil travel
+const GAZE_DEADZONE = 14; // px of horizontal offset before the pupil commits
+                          // to the other cell (hysteresis, avoids jitter)
 
 function readRootNumber(name: string, fallback: number): number {
   if (typeof document === 'undefined') return fallback;
@@ -159,11 +160,33 @@ export function Entity({
     }).palette;
   }, [hybridSource]);
 
-  // resting gaze so idle pupils read as a clean one-white-one-black
-  const restGaze = useMemo(
-    () => (new Rng(xmur3(`${id}:rest`)()).next() < 0.5 ? -1 : 1) * 0.85,
+  // resting side (-1 left cell / +1 right cell) so idle pupils read as
+  // a clean one-white-one-black rather than straddling the middle.
+  const restSide = useMemo(
+    () => (new Rng(xmur3(`${id}:rest`)()).next() < 0.5 ? -1 : 1),
     [id],
   );
+  // when no neighbor to look at, glance to a random side now and then
+  // so a lone spore still feels alive (mostly holds, occasionally flicks).
+  const [idleSide, setIdleSide] = useState(restSide);
+  const idleTimer = useRef<number | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const tick = () => {
+      if (!alive) return;
+      const delay = 2800 + Math.random() * 3600;
+      idleTimer.current = window.setTimeout(() => {
+        if (Math.random() < 0.5) setIdleSide((s) => -s);
+        tick();
+      }, delay);
+    };
+    tick();
+    return () => { alive = false; if (idleTimer.current) window.clearTimeout(idleTimer.current); };
+  }, []);
+  // hysteresis: remember which cell the pupil is committed to, only flip
+  // when a look target is clearly on the other side (deadzone) so it
+  // doesn't jitter when a neighbor sits nearly straight above/below.
+  const sideRef = useRef(restSide);
 
   // ---- blink scheduler ----
   const [blink, setBlink] = useState(false);
@@ -210,11 +233,19 @@ export function Entity({
   const isMidTransform = infectionState === 'transforming';
   const morphScale = isMidTransform ? [1, 1.07, 1] : 1;
 
-  // ---- gaze scalar (-1..1) toward the look target, else resting ----
-  let gaze = restGaze;
+  // ---- discrete gaze side: which cell the pupil commits to ----
+  // Driven by the nearest other spore (interaction); holds with
+  // hysteresis, falls back to a wandering idle side when alone.
+  let side = sideRef.current;
   if (gazeTargetX != null && gazeTargetY != null) {
-    gaze = Math.max(-1, Math.min(1, (gazeTargetX - x) / GAZE_DIV));
+    const dx = gazeTargetX - x;
+    if (dx > GAZE_DEADZONE) side = 1;
+    else if (dx < -GAZE_DEADZONE) side = -1;
+  } else {
+    side = idleSide;
   }
+  sideRef.current = side;
+  const gaze = side;
 
   // ---- infection visuals: dye wavefront + infecting tint pulse ----
   const now = typeof performance !== 'undefined' ? performance.now() : 0;

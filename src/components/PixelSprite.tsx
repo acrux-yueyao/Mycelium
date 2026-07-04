@@ -7,48 +7,52 @@
  * grow / morph) lives on the parent motion.divs in Entity.tsx as CSS
  * transforms — the canvas rides along for free without repainting.
  *
- * The canvas only repaints when:
+ * The pupil is a self-contained animation: `gaze` is a DISCRETE target
+ * (-1 = left cell, +1 = right cell); the black pupil dwells fully inside
+ * one cell and, when the target flips, slides across quickly (a short
+ * eased tween on an internal rAF, so it animates even in views that
+ * don't re-render every frame, like the Gallery).
+ *
+ * The canvas otherwise repaints only when:
  *   - the spec changes (new creature)
  *   - a dye is in progress (infection → hybrid, per-cell recolor)
  *   - an infecting tint pulse is active
- *   - the gaze target moves (pupil slides)
- *
- * Rendering is nearest-neighbour (imageRendering: pixelated) so cells
- * stay crisp; low-density creatures get a css blur from spec.blur.
+ *   - a blink toggles
  */
 import { useEffect, useRef } from 'react';
 import {
   CELL_PX,
-  colorFromBand,
   dyedCellColor,
   type MosaicSpec,
   type MosaicPaletteSpec,
 } from '../core/mosaic';
 
 export interface DyeState {
-  /** 0..1 progress of the dye wavefront. */
   progress: number;
-  /** palette the creature is being dyed toward. */
   targetPalette: MosaicPaletteSpec;
-  /** unit direction the dye sweeps from (toward partner); optional. */
   dirX?: number;
   dirY?: number;
 }
 
 export interface TintPulse {
   color: string;
-  /** 0..1 overlay strength. */
   alpha: number;
 }
 
 export interface PixelSpriteProps {
   spec: MosaicSpec;
-  /** -1..1 pupil offset; slides the black pupil cell across its 2-cell eye. */
+  /** DISCRETE pupil target: -1 = left cell, +1 = right cell. */
   gaze?: number;
   /** true → eyes shut for a blink frame. */
   blink?: boolean;
   dye?: DyeState | null;
   tintPulse?: TintPulse | null;
+}
+
+const PUPIL_SLIDE_MS = 150; // quick flick between the two eye cells
+
+function easeOutCubic(t: number): number {
+  return 1 - Math.pow(1 - t, 3);
 }
 
 function parseHsl(s: string): [number, number, number] {
@@ -68,10 +72,12 @@ function mixHsl(a: string, b: string, t: number): string {
   return `hsl(${((h % 360) + 360) % 360 | 0},${Math.round(s)}%,${Math.round(l)}%)`;
 }
 
-/** Per-cell dye threshold: base jitter, optionally biased by sweep dir. */
-function dyeThreshold(spec: MosaicSpec, cell: { col: number; row: number; dyeBase: number }, dye: DyeState): number {
+function dyeThreshold(
+  spec: MosaicSpec,
+  cell: { col: number; row: number; dyeBase: number },
+  dye: DyeState,
+): number {
   if (dye.dirX == null || dye.dirY == null) return cell.dyeBase;
-  // project the cell position (centered) onto the sweep direction, 0..1
   const nx = (cell.col - spec.center) / (spec.cols || 1);
   const ny = (cell.row - spec.rows / 2) / (spec.rows || 1);
   const proj = 0.5 + (nx * dye.dirX + ny * dye.dirY);
@@ -81,12 +87,21 @@ function dyeThreshold(spec: MosaicSpec, cell: { col: number; row: number; dyeBas
 
 export function PixelSprite({ spec, gaze = 0, blink = false, dye = null, tintPulse = null }: PixelSpriteProps) {
   const ref = useRef<HTMLCanvasElement | null>(null);
+  // latest visual props, read inside the pupil-animation rAF
+  const propsRef = useRef({ spec, blink, dye, tintPulse });
+  propsRef.current = { spec, blink, dye, tintPulse };
+  // displayed pupil position (-1..1) + slide-animation bookkeeping
+  const pupilRef = useRef(gaze);
+  const targetRef = useRef(gaze);
+  const animRef = useRef<{ raf: number; t0: number; from: number }>({ raf: 0, t0: 0, from: gaze });
 
-  useEffect(() => {
+  // paint the whole sprite at a given pupil position
+  const paint = (pupil: number) => {
     const canvas = ref.current;
     if (!canvas) return;
-    const w = spec.cols * CELL_PX;
-    const h = spec.rows * CELL_PX;
+    const { spec: s, blink: bl, dye: dy, tintPulse: tp } = propsRef.current;
+    const w = s.cols * CELL_PX;
+    const h = s.rows * CELL_PX;
     if (canvas.width !== w) canvas.width = w;
     if (canvas.height !== h) canvas.height = h;
     const g = canvas.getContext('2d');
@@ -95,15 +110,15 @@ export function PixelSprite({ spec, gaze = 0, blink = false, dye = null, tintPul
     g.clearRect(0, 0, w, h);
 
     // body cells (optionally dyed toward target palette)
-    for (let i = 0; i < spec.cells.length; i++) {
-      const cell = spec.cells[i];
+    for (let i = 0; i < s.cells.length; i++) {
+      const cell = s.cells[i];
       let color = cell.color;
-      if (dye && dye.progress > 0) {
-        const thr = dyeThreshold(spec, cell, dye);
-        if (dye.progress >= thr) {
-          color = dyedCellColor(spec, cell, dye.targetPalette);
-        } else if (dye.progress >= thr - 0.14) {
-          color = mixHsl(cell.color, dyedCellColor(spec, cell, dye.targetPalette), (dye.progress - (thr - 0.14)) / 0.14);
+      if (dy && dy.progress > 0) {
+        const thr = dyeThreshold(s, cell, dy);
+        if (dy.progress >= thr) {
+          color = dyedCellColor(s, cell, dy.targetPalette);
+        } else if (dy.progress >= thr - 0.14) {
+          color = mixHsl(cell.color, dyedCellColor(s, cell, dy.targetPalette), (dy.progress - (thr - 0.14)) / 0.14);
         }
       }
       g.globalAlpha = cell.alpha;
@@ -113,38 +128,67 @@ export function PixelSprite({ spec, gaze = 0, blink = false, dye = null, tintPul
     g.globalAlpha = 1;
 
     // infecting tint pulse — soft-light partner color clipped to the body cells
-    if (tintPulse && tintPulse.alpha > 0.01) {
+    if (tp && tp.alpha > 0.01) {
       g.save();
       g.globalCompositeOperation = 'soft-light';
-      g.globalAlpha = tintPulse.alpha;
-      g.fillStyle = tintPulse.color;
-      for (let i = 0; i < spec.cells.length; i++) {
-        const cell = spec.cells[i];
+      g.globalAlpha = tp.alpha;
+      g.fillStyle = tp.color;
+      for (let i = 0; i < s.cells.length; i++) {
+        const cell = s.cells[i];
         g.fillRect(cell.col * CELL_PX, cell.row * CELL_PX, CELL_PX, CELL_PX);
       }
       g.restore();
     }
 
-    // eyes: two 2-cell eyes, white pair + sliding black pupil cell
-    const gz = Math.max(-1, Math.min(1, gaze));
-    const y = spec.eyes.row * CELL_PX;
+    // eyes: two 2-cell eyes; the black pupil dwells in one cell and
+    // slides across on a flick. `pupil` ∈ [-1,1] maps to sub-cell x.
+    const y = s.eyes.row * CELL_PX;
+    const gz = Math.max(-1, Math.min(1, pupil));
     const drawEye = (col0: number) => {
       const x = col0 * CELL_PX;
       g.fillStyle = '#fbfbf7';
       g.fillRect(x, y, CELL_PX * 2, CELL_PX);
-      if (blink) {
+      if (bl) {
         // closed: a dark lid line across both white cells
         g.fillStyle = '#211d1a';
-        g.fillRect(x, y + CELL_PX * 0.42, CELL_PX * 2, CELL_PX * 0.22);
+        g.fillRect(x, y + CELL_PX * 0.40, CELL_PX * 2, CELL_PX * 0.28);
       } else {
         const px = x + (gz * 0.5 + 0.5) * CELL_PX;
         g.fillStyle = '#211d1a';
         g.fillRect(px, y, CELL_PX, CELL_PX);
       }
     };
-    drawEye(spec.eyes.L0);
-    drawEye(spec.eyes.R0);
-  }, [spec, gaze, blink, dye, dye?.progress, tintPulse, tintPulse?.alpha]);
+    drawEye(s.eyes.L0);
+    drawEye(s.eyes.R0);
+  };
+
+  // pupil slide animation: when the discrete target flips, ease the
+  // displayed pupil across quickly, then rest fully inside the cell.
+  useEffect(() => {
+    if (gaze === targetRef.current) return;
+    targetRef.current = gaze;
+    animRef.current.from = pupilRef.current;
+    animRef.current.t0 = 0;
+    cancelAnimationFrame(animRef.current.raf);
+    const step = (ts: number) => {
+      const a = animRef.current;
+      if (a.t0 === 0) a.t0 = ts;
+      const k = Math.min(1, (ts - a.t0) / PUPIL_SLIDE_MS);
+      pupilRef.current = a.from + (targetRef.current - a.from) * easeOutCubic(k);
+      paint(pupilRef.current);
+      if (k < 1) a.raf = requestAnimationFrame(step);
+    };
+    animRef.current.raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(animRef.current.raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gaze]);
+
+  // repaint on visual changes (spec / dye / tint / blink), keeping the
+  // current pupil position.
+  useEffect(() => {
+    paint(pupilRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spec, blink, dye, dye?.progress, tintPulse, tintPulse?.alpha]);
 
   return (
     <canvas
@@ -163,6 +207,3 @@ export function PixelSprite({ spec, gaze = 0, blink = false, dye = null, tintPul
     />
   );
 }
-
-// re-export so Entity can build dye colors without importing mosaic twice
-export { colorFromBand };
