@@ -49,13 +49,13 @@ Return ONLY this JSON object (no prose, no markdown fences):
 
 Field rules:
 
-- \`label\` MUST be exactly one of these 18 tags (grouped by the character they point to):
-    warm peach ball        → tender | nostalgic | soft
-    soft bubble            → calm | clear | empty
-    orange mushroom        → curious | playful | clumsy
-    iridescent glitter     → dreamy | excited | romantic
-    teal twin-cups         → companion | social | attached
-    charcoal shrub         → lonely | restrained | quiet
+- \`label\` MUST be exactly one of these 18 tags (grouped by the pixel-spore palette family they point to):
+    warm-peach family      → tender | nostalgic | soft
+    cool-blue family       → calm | clear | empty
+    orange family          → curious | playful | clumsy
+    lavender/sparkle family→ dreamy | excited | romantic
+    mint family            → companion | social | attached
+    cool-grey family       → lonely | restrained | quiet
 - \`primary.weight\` and \`secondary.weight\` must each be in [0,1] and sum near 1.0.
 - \`intensity\`: 0.2 for faint/muted, 0.5 moderate, 0.8+ acute/overwhelming.
 - \`rationale\`: max 18 Chinese characters OR 10 English words. One poetic line, no quote marks, no period.
@@ -65,22 +65,28 @@ Field rules:
     self         → self-doubt, body, identity, memory, loneliness-as-self
     joy          → small delights — food, weather, a good nap, a tiny win
     other        → anything that doesn't fit (existential, world events…)
-- \`morphology\`: how the creature should LOOK. Map these dimensions directly — be willing to pick extreme values when the sentence warrants.
-    density       1.0 = round & full-bodied (heavy, weary, dense emotion)
-                  0.2 = translucent & wispy (lonely, quiet, fading)
+- \`morphology\`: how the pixel-spore should LOOK. Each creature is a small mushroom-
+  shaped grid of colored pixels. Map these dimensions directly — pick extreme values
+  when the sentence warrants.
+    density       1.0 = dense, crisp, full-bodied pixel grid (heavy, weary, dense emotion)
+                  0.2 = sparse, blurry, translucent & wispy (lonely, quiet, fading)
     agitation     0.9 = trembling, high-frequency wobble (anxious, panicked)
                   0.1 = still, barely moving (calm, numb, dissociated)
     tendrilCount  3   = spare, sharp (short sentence, few punctuation marks)
                   10  = dense branching (long compound sentence, many commas)
     glow          0.9 = radiant core (warm, grateful, loved)
                   0.1 = dark, no glow (withdrawn, heavy, angry)
-    tintHue       academic stress → 230-280 (cool blue/purple)
+    tintHue       A SECOND accent hue mixed INTO the family palette (the family
+                  already sets the base color; this nudges each spore unique):
+                  academic stress → 230-280 (cool blue/purple)
                   relationship    → 25-55   (amber/warm yellow)
                   self-doubt      → 0/gray  (pick 0 and low saturation via density)
                   joy             → 80-140  (soft green/yellow-green)
                   other           → pick whatever fits the affect
     particles     true when the sentence feels RELEASING or WEIGHTLESS — letting
                   go, floating, laughing-crying. Otherwise false.
+  Note: \`intensity\` also drives the palette — low intensity → near-monochrome spore,
+  high intensity → the palette widens toward a full rainbow. Pick it honestly.
 
 Interpret the AFFECTIVE CORE of the sentence, not the literal subject.
 "我做了茶" is about tea only if the surrounding tone makes it so — otherwise it may be 'quiet' or 'nostalgic'.

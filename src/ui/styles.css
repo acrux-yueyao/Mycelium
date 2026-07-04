@@ -219,9 +219,13 @@ body,
   position: absolute;
   left: 50%;
   bottom: 8%;
-  width: 52%;
+  /* width + opacity adapt to the pixel-spore's base width and density
+   * (set as CSS vars on .entity) so sparse / narrow spores get a
+   * fainter, tighter ground shadow instead of a floating oval. */
+  width: var(--shadow-w, 52%);
   height: 8%;
   transform: translate(-50%, 50%);
+  opacity: var(--shadow-alpha, 1);
   background: radial-gradient(
     ellipse at center,
     rgba(90, 70, 45, 0.16) 0%,
@@ -232,7 +236,7 @@ body,
   z-index: -1;
   pointer-events: none;
   transition: width 0.25s ease, height 0.25s ease, filter 0.25s ease,
-              background 0.25s ease;
+              opacity 0.25s ease, background 0.25s ease;
 }
 
 /* While dragged: sprite lifted via framer-motion scale, shadow

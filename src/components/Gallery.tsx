@@ -1,75 +1,78 @@
 /**
- * Gallery — debug/audit view showing every base character and every
- * hybrid in one screen. Access by appending `?gallery` to the URL.
+ * Gallery — debug/audit view for the procedural pixel-spore generator.
+ * Access by appending `?gallery` to the URL.
  *
- * IMPORTANT: hybrid labels only show the filename letter-pair (A_B,
- * B_E, …). We deliberately do NOT render a "char0 × char1" style
- * label next to each hybrid, because the hand-drawn hybrid PNGs
- * don't consistently match that mapping — the goal of this view is
- * to let you spot those mismatches. The top strip shows what each
- * letter is SUPPOSED to be per current code.
+ * Shows the 6 emotion palette families; each row is several distinct
+ * specimens (different seeds) at rising intensity, so you can eyeball
+ * that (a) each family reads as its own palette, (b) same-family spores
+ * are all different, and (c) intensity widens mono → rainbow. Hybrids
+ * are no longer fixed art (they're a per-pair dye at runtime), so there
+ * is no hybrid grid here.
  */
 import { useEffect, useState } from 'react';
 import { Entity } from './Entity';
 import { CHARACTERS, type CharId } from '../data/characters';
+import type { Morphology } from '../core/emotion';
 
-const TILE = 200;
-const GAP = 12;
-const LABEL_H = 28;
-const KEY_TILE = 110;
+const TILE = 150;
+const GAP = 14;
+const LABEL_H = 26;
+const PER_ROW = 7;
+
+const FAMILY_HUE: Record<CharId, number> = { 0: 24, 1: 205, 2: 32, 3: 268, 4: 158, 5: 222 };
 
 interface TileSpec {
   key: string;
   charId: CharId;
+  intensity: number;
+  morphology: Morphology;
   label: string;
-  infectionState?: 'normal' | 'hybrid';
-  infectionPair?: [CharId, CharId];
 }
 
-const LETTER: Record<CharId, string> = { 0: 'A', 1: 'B', 2: 'C', 3: 'D', 4: 'E', 5: 'F' };
-
-function hybridTiles(): TileSpec[] {
+function familyTiles(charId: CharId): TileSpec[] {
   const out: TileSpec[] = [];
-  for (let a = 0 as CharId; a < 6; a = (a + 1) as CharId) {
-    for (let b = (a + 1) as CharId; b < 6; b = (b + 1) as CharId) {
-      out.push({
-        key: `h-${a}-${b}`,
-        charId: a,
-        label: `${LETTER[a]}_${LETTER[b]}`,
-        infectionState: 'hybrid',
-        infectionPair: [a, b],
-      });
-    }
+  for (let k = 0; k < PER_ROW; k++) {
+    const intensity = 0.12 + (k / (PER_ROW - 1)) * 0.83;
+    const density = 0.35 + ((k * 3) % PER_ROW) / PER_ROW * 0.6;
+    out.push({
+      key: `fam-${charId}-${k}`,
+      charId,
+      intensity,
+      morphology: {
+        density,
+        agitation: 0.3,
+        tendrilCount: 5,
+        glow: 0.15,
+        // gently vary the accent hue around the family base so tiles
+        // stay recognizably in-family (real spores get tintHue from
+        // the LLM to fit the sentence).
+        tintHue: (FAMILY_HUE[charId] + (k - 3) * 14 + 360) % 360,
+        particles: false,
+      },
+      label: `i·${intensity.toFixed(2)}`,
+    });
   }
   return out;
 }
 
-function baseTiles(): TileSpec[] {
-  return ([0, 1, 2, 3, 4, 5] as CharId[]).map((id) => ({
-    key: `b-${id}`,
-    charId: id,
-    label: `${LETTER[id]}  char${id}  ${CHARACTERS[id].name}`,
-  }));
-}
-
 export function Gallery() {
-  const bases = baseTiles();
-  const hybrids = hybridTiles();
   const [gazeTick, setGazeTick] = useState(0);
   useEffect(() => {
-    const id = window.setInterval(() => setGazeTick((t) => t + 1), 2500);
+    const id = window.setInterval(() => setGazeTick((t) => t + 1), 2200);
     return () => window.clearInterval(id);
   }, []);
-  const gazeOffset = 40;
   const gazeAngle = (gazeTick * Math.PI) / 4;
+  const gazeOffset = 40;
 
-  const renderTile = (t: TileSpec, col: number, row: number, tileSize = TILE) => {
-    const left = col * (tileSize + GAP);
-    const top = row * (tileSize + LABEL_H + GAP);
-    const ex = left + tileSize / 2;
-    const ey = top + tileSize / 2;
-    const gx = ex + Math.cos(gazeAngle) * gazeOffset;
-    const gy = ey + Math.sin(gazeAngle) * gazeOffset;
+  const renderTile = (t: TileSpec, col: number, row: number) => {
+    const left = col * (TILE + GAP);
+    const top = row * (TILE + LABEL_H + GAP);
+    // Entity centers itself at (x,y) relative to THIS tile div (its
+    // positioned parent), so use tile-local center, not row-global.
+    const cx = TILE / 2;
+    const cy = TILE / 2;
+    const gx = cx + Math.cos(gazeAngle) * gazeOffset;
+    const gy = cy + Math.sin(gazeAngle) * gazeOffset;
     return (
       <div
         key={t.key}
@@ -77,81 +80,46 @@ export function Gallery() {
           position: 'absolute',
           left,
           top,
-          width: tileSize,
-          height: tileSize + LABEL_H,
+          width: TILE,
+          height: TILE + LABEL_H,
           textAlign: 'center',
-          fontFamily: 'system-ui, sans-serif',
-          fontSize: 12,
-          color: '#4a4540',
+          fontFamily: 'ui-monospace, monospace',
+          fontSize: 11,
+          color: '#8a7f76',
         }}
       >
-        <div
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            width: tileSize,
-            height: tileSize,
-            background: 'rgba(255, 255, 255, 0.35)',
-            border: '1px dashed rgba(180, 160, 140, 0.4)',
-            borderRadius: 8,
-            overflow: 'hidden',
-          }}
-        />
         <Entity
           id={t.key}
           charId={t.charId}
-          x={ex}
-          y={ey}
-          size={tileSize - 24}
+          morphology={t.morphology}
+          intensity={t.intensity}
+          x={cx}
+          y={cy}
+          size={TILE - 24}
           gazeTargetX={gx}
           gazeTargetY={gy}
-          infectionState={t.infectionState}
-          infectionPair={t.infectionPair}
         />
-        <div
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: tileSize + 4,
-            width: tileSize,
-            fontVariantNumeric: 'tabular-nums',
-            letterSpacing: '0.04em',
-          }}
-        >
+        <div style={{ position: 'absolute', left: 0, top: TILE + 2, width: TILE, letterSpacing: '0.04em' }}>
           {t.label}
         </div>
       </div>
     );
   };
 
-  const BASE_COLS = 6;
-  const HYB_COLS = 5;
-  const KEY_COLS = 6;
-  const baseRows = Math.ceil(bases.length / BASE_COLS);
-  const hybridRows = Math.ceil(hybrids.length / HYB_COLS);
-
   const headingStyle: React.CSSProperties = {
     fontFamily: 'system-ui, sans-serif',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: 600,
     color: '#6b5f56',
-    margin: '24px 16px 8px',
+    margin: '22px 16px 8px',
     letterSpacing: '0.04em',
-    textTransform: 'uppercase',
-  };
-  const warnStyle: React.CSSProperties = {
-    fontFamily: 'system-ui, sans-serif',
-    fontSize: 12,
-    color: '#a85b3f',
-    margin: '4px 16px 16px',
-    maxWidth: 760,
-    lineHeight: 1.6,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
   };
 
-  const baseHeight = baseRows * (TILE + LABEL_H + GAP);
-  const hybridHeight = hybridRows * (TILE + LABEL_H + GAP);
-  const keyHeight = KEY_TILE + LABEL_H + GAP;
+  const families = ([0, 1, 2, 3, 4, 5] as CharId[]);
+  const rowH = TILE + LABEL_H + GAP;
 
   return (
     <div
@@ -165,68 +133,35 @@ export function Gallery() {
         boxSizing: 'border-box',
       }}
     >
-      <div style={headingStyle}>Letter key (current charId → letter mapping)</div>
-      <div
-        style={{
-          position: 'relative',
-          width: KEY_COLS * (KEY_TILE + GAP),
-          height: keyHeight,
-          margin: '0 auto',
-        }}
-      >
-        {bases.map((t, i) =>
-          renderTile(
-            { ...t, label: `${LETTER[t.charId]} = char${t.charId} ${CHARACTERS[t.charId].name}` },
-            i % KEY_COLS,
-            Math.floor(i / KEY_COLS),
-            KEY_TILE,
-          ),
-        )}
+      <div style={{ ...headingStyle, fontSize: 15, textTransform: 'none' }}>
+        Mycelium · pixel-spore generator · 6 emotion palette families
       </div>
-      <div style={warnStyle}>
-        Heads up: the 15 hybrid tiles below are labelled with the
-        filename letter-pair only (A_B / B_E / …).
-        The hand-drawn hybrid PNGs don't always depict the character
-        pair the filename implies — this view is for catching those.
-      </div>
-
-      <div style={headingStyle}>Base mushrooms (6)</div>
-      <div
-        style={{
-          position: 'relative',
-          width: BASE_COLS * (TILE + GAP),
-          height: baseHeight,
-          margin: '0 auto',
-        }}
-      >
-        {bases.map((t, i) =>
-          renderTile(t, i % BASE_COLS, Math.floor(i / BASE_COLS)),
-        )}
-      </div>
-
-      <div style={headingStyle}>Hybrids (15 · final state · label = filename)</div>
-      <div
-        style={{
-          position: 'relative',
-          width: HYB_COLS * (TILE + GAP),
-          height: hybridHeight,
-          margin: '0 auto',
-        }}
-      >
-        {hybrids.map((t, i) =>
-          renderTile(t, i % HYB_COLS, Math.floor(i / HYB_COLS)),
-        )}
-      </div>
+      {families.map((charId) => {
+        const tiles = familyTiles(charId);
+        return (
+          <div key={charId}>
+            <div style={headingStyle}>
+              <span
+                style={{
+                  width: 12, height: 12, borderRadius: 3,
+                  background: `hsl(${FAMILY_HUE[charId]},55%,55%)`,
+                  boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.15)',
+                }}
+              />
+              {CHARACTERS[charId].name} · {CHARACTERS[charId].emotions.join(' · ')}
+            </div>
+            <div style={{ position: 'relative', width: PER_ROW * (TILE + GAP), height: rowH, margin: '0 auto 4px' }}>
+              {tiles.map((t, i) => renderTile(t, i, 0))}
+            </div>
+          </div>
+        );
+      })}
 
       <div style={{ height: 60 }} />
       <div
         style={{
-          position: 'absolute',
-          top: 12,
-          right: 16,
-          fontFamily: 'system-ui, sans-serif',
-          fontSize: 12,
-          color: '#8a7f76',
+          position: 'absolute', top: 12, right: 16,
+          fontFamily: 'system-ui, sans-serif', fontSize: 12, color: '#8a7f76',
         }}
       >
         back to the stage: drop <code>?gallery</code> from the URL
