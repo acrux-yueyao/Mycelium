@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Background } from './components/Background';
+import { DitherField } from './components/DitherField';
+import { LandingPoster } from './components/LandingPoster';
+import { demoColony } from './core/demoColony';
 import { DebugSpawnBar } from './components/DebugSpawnBar';
 import { Entity, type HybridSource } from './components/Entity';
 import { Gallery } from './components/Gallery';
@@ -164,6 +166,12 @@ export default function App() {
   const [entities, setEntities] = useState<LiveEntity[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
   const [probes, setProbes] = useState<ExplorationProbe[]>([]);
+  // Scene: the landing poster gates entry into the live field. Debug
+  // mode skips straight into the field.
+  const [scene, setScene] = useState<'landing' | 'field'>(showDebug ? 'field' : 'landing');
+  // The accumulated colony painted behind everything (placeholder until
+  // the Upstash cross-user history is wired in).
+  const colony = useMemo(() => demoColony(48), []);
   const [muted, setMutedState] = useState(false);
   const { loading, error, read, clearError } = useEmotion();
 
@@ -832,13 +840,26 @@ export default function App() {
 
   return (
     <div className="stage">
+      {/* The accumulated colony ecology — the page's visual material,
+       *  painted on one canvas behind everything. */}
+      <DitherField creatures={colony} />
+
+      <AnimatePresence>
+        {scene === 'landing' && (
+          <LandingPoster
+            key="landing"
+            population={6856 + colony.length}
+            onEnter={() => setScene('field')}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Everything inside .stage-breath slowly inhales and exhales
        *  together on a 7-second loop, ±1.2% scale. Gives the network
        *  a single shared heartbeat distinct from per-entity breathing.
        *  UI (input, buttons, toasts) is intentionally OUTSIDE this
        *  wrapper so type rendering and hit-testing stay stable. */}
       <div className="stage-breath">
-        <Background />
         <HeatmapLayer connections={connections} />
         <TendrilLayer
           connections={connections}
@@ -890,34 +911,40 @@ export default function App() {
         <SparkleLayer />
       </div>
 
-      <HandLayer
-        videoRef={handVideoRef}
-        state={hand.state}
-        snapshotRef={hand.snapshotRef}
-        onEnable={hand.enable}
-        onDisable={hand.disable}
-      />
+      {scene === 'field' && (
+        <>
+          <HandLayer
+            videoRef={handVideoRef}
+            state={hand.state}
+            snapshotRef={hand.snapshotRef}
+            onEnable={hand.enable}
+            onDisable={hand.disable}
+          />
 
-      {showDebug && <DebugSpawnBar onSpawn={handleDebugSpawn} />}
+          {showDebug && <DebugSpawnBar onSpawn={handleDebugSpawn} />}
 
-      {/* Mute toggle — tiny corner button, wakes the audio context on
-       *  first tap so users who click it get ambient audio too. */}
-      <button
-        type="button"
-        className="mute-toggle"
-        aria-label={muted ? 'unmute audio' : 'mute audio'}
-        onClick={() => {
-          ensureAudioContext();
-          ambientStart();
-          const next = !isMuted();
-          setMuted(next);
-          setMutedState(next);
-        }}
-      >
-        {muted ? '♪̸' : '♪'}
-      </button>
+          {/* Mute toggle — tiny corner button, wakes the audio context on
+           *  first tap so users who click it get ambient audio too. */}
+          <button
+            type="button"
+            className="mute-toggle"
+            aria-label={muted ? 'unmute audio' : 'mute audio'}
+            onClick={() => {
+              ensureAudioContext();
+              ambientStart();
+              const next = !isMuted();
+              setMuted(next);
+              setMutedState(next);
+            }}
+          >
+            {muted ? '♪̸' : '♪'}
+          </button>
+        </>
+      )}
 
-      <TreeHoleInput onSubmit={handleSubmit} disabled={loading} loading={loading} />
+      {scene === 'field' && (
+        <TreeHoleInput onSubmit={handleSubmit} disabled={loading} loading={loading} />
+      )}
 
       <AnimatePresence>
         {error && (

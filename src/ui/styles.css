@@ -1,24 +1,23 @@
 :root {
-  /* Very light, warm cream palette. Every tint is lifted a step from
-   * the previous paper-only palette — the background should read as
-   * "barely-tinted paper", not "beige cardboard". */
-  --cream:       #FCF7EA;
-  --cream-deep:  #F6EFDC;
-  --cream-edge:  #ECDFC1;
-  --ink:         #4A4034;
-  --ink-dim:     #A6987F;
-  --ink-soft:    #80715E;
-  --accent:      #E69B6E;
-  --dot-warm:    #EBD5A6;
-  --dot-peach:   #F0C9A2;
+  /* "Beautiful Worlds" — off-white gallery ground, black editorial ink,
+   * the colour lives entirely in the dithered creature ecology. */
+  --cream:       #F1F0EB;   /* kept var name; now the off-white ground */
+  --cream-deep:  #EBEAE4;
+  --cream-edge:  #E3E2DB;
+  --ink:         #101010;
+  --ink-dim:     #6b6a63;
+  --ink-soft:    #9d9c93;
+  --accent:      #5b4fd0;
+  --dot-warm:    #d6a6e8;
+  --dot-peach:   #46a65a;
 
-  /* Two font stacks. Display is a hand-drawn crayon script; body is
-   * a rounded geometric sans. CJK gets KuaiLe (playful rounded) as
-   * fallback so Chinese input still reads cute. */
-  --font-display: 'Caveat', 'ZCOOL KuaiLe', 'PingFang SC', 'Hiragino Sans GB',
-                  cursive;
-  --font-body:    'Quicksand', 'ZCOOL KuaiLe', 'PingFang SC', 'Hiragino Sans GB',
-                  'Microsoft YaHei', sans-serif;
+  /* Editorial system: a mono/pixel display + technical mono captions.
+   * CJK falls back to a clean sans so Chinese input stays legible. */
+  --font-display: 'Space Mono', ui-monospace, 'SF Mono', 'PingFang SC',
+                  'Microsoft YaHei', monospace;
+  --font-body:    ui-sans-serif, system-ui, 'Helvetica Neue', Helvetica,
+                  'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono:    'Space Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 }
 
 * { box-sizing: border-box; }
@@ -580,4 +579,53 @@ body,
   opacity: 0.95;
   border-color: rgba(74, 64, 52, 0.36);
   background: rgba(255, 248, 232, 0.8);
+}
+
+/* ===== Beautiful Worlds · landing poster ===== */
+.landing {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  color: var(--ink);
+  font-family: var(--font-mono);
+}
+.landing > * { pointer-events: auto; }
+.landing-brand {
+  position: absolute; top: 30px; left: 40px;
+  font-size: 12px; letter-spacing: 0.12em; line-height: 1.5;
+}
+.landing-sw { display: flex; gap: 5px; margin-top: 8px; }
+.landing-sw i { width: 13px; height: 13px; display: block; }
+.landing-nav {
+  position: absolute; top: 32px; right: 40px;
+  display: flex; gap: 34px; font-size: 12px; letter-spacing: 0.14em;
+}
+.landing-hero { position: absolute; top: 90px; left: 38px; max-width: 90vw; }
+.landing-hero h1 {
+  margin: 0; font-weight: 700;
+  font-size: clamp(44px, 8vw, 104px); line-height: 0.9; letter-spacing: 0.02em;
+}
+.landing-sub { font-size: clamp(15px, 1.9vw, 21px); margin-top: 16px; color: var(--accent); }
+.landing-desc { font-size: 12px; color: var(--ink-dim); margin-top: 22px; line-height: 1.7; letter-spacing: 0.06em; }
+.landing-meta { position: absolute; left: 40px; bottom: 118px; font-size: 12px; line-height: 1.7; letter-spacing: 0.06em; }
+.landing-date { margin-top: 14px; color: var(--ink-dim); }
+.landing-enter {
+  position: absolute; left: 40px; bottom: 44px;
+  display: flex; align-items: center; gap: 16px;
+  background: none; border: 0; cursor: pointer; color: var(--accent);
+  font-family: var(--font-mono); font-size: 15px; letter-spacing: 0.18em; padding: 0;
+}
+.landing-arrow { width: 130px; border-top: 1.5px dashed var(--accent); position: relative; }
+.landing-arrow::after { content: "→"; position: absolute; right: -3px; top: -11px; font-size: 14px; }
+.landing-enter:hover .landing-arrow { width: 160px; transition: width 0.3s ease; }
+.landing-pop {
+  position: absolute; right: 40px; bottom: 44px;
+  font-size: 12px; letter-spacing: 0.08em; text-align: right; line-height: 1.7;
+}
+.landing-pop .n { font-size: 15px; font-weight: 700; }
+
+@media (max-width: 640px) {
+  .landing-nav { display: none; }
+  .landing-meta { bottom: 150px; }
 }
