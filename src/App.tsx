@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { DitherField } from './components/DitherField';
 import { LandingPoster } from './components/LandingPoster';
-import { demoColony } from './core/demoColony';
+import { useCreatures } from './hooks/useCreatures';
 import { DebugSpawnBar } from './components/DebugSpawnBar';
 import { Entity, type HybridSource } from './components/Entity';
 import { Gallery } from './components/Gallery';
@@ -169,9 +169,9 @@ export default function App() {
   // Scene: the landing poster gates entry into the live field. Debug
   // mode skips straight into the field.
   const [scene, setScene] = useState<'landing' | 'field'>(showDebug ? 'field' : 'landing');
-  // The accumulated colony painted behind everything (placeholder until
-  // the Upstash cross-user history is wired in).
-  const colony = useMemo(() => demoColony(48), []);
+  // The accumulated cross-user colony painted behind everything (loaded
+  // from the shared store; demo colony until Upstash is configured).
+  const { colony, population, add: addCreature } = useCreatures();
   const [muted, setMutedState] = useState(false);
   const { loading, error, read, clearError } = useEmotion();
 
@@ -816,15 +816,28 @@ export default function App() {
   const handleSubmit = async (text: string) => {
     const result = await read(text);
     if (!result) return;
-    pushEntity(
-      makeEntity(
-        result.charId,
-        result.reading.rationale,
-        result.reading.morphology,
-        result.reading.intensity,
-        result.reading.secondary?.label,
-      ),
+    const entity = makeEntity(
+      result.charId,
+      result.reading.rationale,
+      result.reading.morphology,
+      result.reading.intensity,
+      result.reading.secondary?.label,
     );
+    pushEntity(entity);
+    // Commit the creature to the accumulating cross-user colony so it
+    // persists and becomes part of the ecology future visitors open onto.
+    const w = vpRef.current.w || window.innerWidth;
+    const h = vpRef.current.h || window.innerHeight;
+    addCreature({
+      id: entity.id,
+      charId: entity.charId,
+      morphology: entity.morphology ?? result.reading.morphology,
+      intensity: entity.intensity ?? result.reading.intensity,
+      secondaryLabel: entity.secondaryLabel,
+      x: Math.max(0.03, Math.min(0.97, entity.x / w)),
+      y: Math.max(0.05, Math.min(0.95, entity.y / h)),
+      cell: 5,
+    });
   };
 
   // Debug bar handler: spawn one entity per CharId from a typed letter sequence.
@@ -848,7 +861,7 @@ export default function App() {
         {scene === 'landing' && (
           <LandingPoster
             key="landing"
-            population={6856 + colony.length}
+            population={population}
             onEnter={() => setScene('field')}
           />
         )}
