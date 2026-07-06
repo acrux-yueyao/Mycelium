@@ -18,6 +18,7 @@ import { useEffect, useRef } from 'react';
 import { drawDitherField, drawMoshCreature, creatureSpec, type CreatureSeed } from '../core/fieldRender';
 import type { MosaicSpec, MosaicPaletteSpec } from '../core/mosaic';
 import { compatibility, type CharId } from '../data/characters';
+import { nameFor } from '../core/names';
 
 export interface FieldCreature extends CreatureSeed {
   x: number; y: number; cell: number;
@@ -42,7 +43,7 @@ const MOTHER_AGE = 40_000, ISOLATION_MS = 16_000, MOTHER_REACH = 380, SUPPORT_LI
 
 interface Body {
   id: string; charId: CharId; x: number; y: number; vx: number; vy: number;
-  bornAt: number; lastBondAt: number; cell: number; spec: MosaicSpec;
+  bornAt: number; lastBondAt: number; cell: number; spec: MosaicSpec; name: string;
   // tile-swap dye toward a partner's palette during an encounter
   dyePal?: MosaicPaletteSpec | null; dyeStart?: number; dyeRelease?: number | null;
   dyeDirX?: number; dyeDirY?: number;
@@ -104,6 +105,7 @@ export function DitherField({ creatures }: Props) {
           id: c.id, charId: c.charId,
           x: c.x * W, y: c.y * H, vx: Math.cos(a) * 0.3, vy: Math.sin(a) * 0.3,
           bornAt: c.bornAt ?? now, lastBondAt: now, cell: c.cell, spec: specOf(c),
+          name: c.name ?? nameFor(c.id),
         };
         bodies.push(b); bodyById.set(b.id, b);
       }
@@ -250,7 +252,23 @@ export function DitherField({ creatures }: Props) {
 
         const ww = a.spec.cols * a.cell, hh = a.spec.rows * a.cell;
         drawMoshCreature(ctx, a.spec, a.x - ww / 2, a.y - hh / 2, a.cell, a.id, gz, dye);
+
+        // resident name tag — small mono label beneath each creature, so
+        // the whole colony reads as a catalogue of named library residents.
+        const label = a.name.toLowerCase();
+        ctx.font = '600 10px "JetBrains Mono", ui-monospace, monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        try { ctx.letterSpacing = '0.06em'; } catch { /* older browsers */ }
+        const ly = a.y + hh / 2 + 5;
+        ctx.fillStyle = 'rgba(16,16,16,0.34)';
+        ctx.fillText(label, a.x + 0.6, ly + 0.6);   // faint drop for legibility
+        ctx.fillStyle = 'rgba(16,16,16,0.7)';
+        ctx.fillText(label, a.x, ly);
+        try { ctx.letterSpacing = '0px'; } catch { /* noop */ }
       }
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
       raf = requestAnimationFrame(frame);
     };
 

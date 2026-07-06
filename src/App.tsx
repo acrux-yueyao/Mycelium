@@ -976,8 +976,27 @@ export default function App() {
         </>
       )}
 
-      {scene === 'field' && (
+      {/* The tree-hole input is only offered until this visitor has grown
+       *  their creature. Once they whisper, it dissolves and they stay to
+       *  watch their creature interact with the colony. */}
+      {scene === 'field' && !latestCreature && (
         <TreeHoleInput onSubmit={handleSubmit} disabled={loading} loading={loading} immediate />
+      )}
+
+      {/* After whispering, a small corner control lets them re-open their
+       *  specimen card at any time. */}
+      {scene === 'field' && latestCreature && (
+        <motion.button
+          type="button"
+          className="specimen-recall"
+          onClick={() => setScene('feedback')}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
+          <span className="specimen-recall-dot" aria-hidden />
+          your specimen <span aria-hidden>▸</span>
+        </motion.button>
       )}
 
       <AnimatePresence>
