@@ -8,11 +8,13 @@
  * creatures — same FieldCreature shape.
  */
 import { Rng, xmur3 } from './seed';
-import type { CharId } from '../data/characters';
+import { CHARACTERS, type CharId } from '../data/characters';
+import { nameFor } from './names';
 import type { FieldCreature } from '../components/DitherField';
 
-export function demoColony(count = 48): FieldCreature[] {
+export function demoColony(count = 48, now = 0): FieldCreature[] {
   const rng = new Rng(xmur3('demo-colony-v1')());
+  const base = now || 1_720_000_000_000; // stable fallback so SSR/rebuild match
   const out: FieldCreature[] = [];
   // loose clusters so the colony reads as a datamosh mass, not a grid
   const zones = [
@@ -26,8 +28,10 @@ export function demoColony(count = 48): FieldCreature[] {
     const z = zones[i % zones.length];
     const cid = rng.int(0, 6) as CharId;
     const density = rng.range(0.45, 0.95);
+    const id = `demo-${i}`;
+    const emos = CHARACTERS[cid].emotions;
     out.push({
-      id: `demo-${i}`,
+      id,
       charId: cid,
       morphology: {
         density,
@@ -41,6 +45,12 @@ export function demoColony(count = 48): FieldCreature[] {
       x: Math.max(0.04, Math.min(0.96, z.x + rng.range(-z.s, z.s))),
       y: Math.max(0.06, Math.min(0.94, z.y + rng.range(-z.s, z.s))),
       cell: rng.int(3, 8),
+      // treat these as existing residents of the archive: each has a
+      // stable name, an emotion, and a birth time spread across the
+      // past days (also lets some be old enough to become mother trees).
+      name: nameFor(id),
+      primaryLabel: emos[rng.int(0, emos.length)],
+      bornAt: base - rng.range(0, 6 * 24 * 3600 * 1000),
     });
   }
   return out;
