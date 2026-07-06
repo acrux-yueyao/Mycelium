@@ -837,9 +837,9 @@ export default function App() {
       result.reading.intensity,
       result.reading.secondary?.label,
     );
-    pushEntity(entity);
-    // Commit the creature to the accumulating cross-user colony so it
-    // persists and becomes part of the ecology future visitors open onto.
+    cueSpawn();
+    // The creature lives in the colony (same scale as the residents),
+    // not as a separate oversized stage sprite.
     const w = vpRef.current.w || window.innerWidth;
     const h = vpRef.current.h || window.innerHeight;
     const creature: FieldCreature = {
@@ -917,60 +917,31 @@ export default function App() {
         </div>
       )}
 
-      {/* Everything inside .stage-breath slowly inhales and exhales
-       *  together on a 7-second loop, ±1.2% scale. Gives the network
-       *  a single shared heartbeat distinct from per-entity breathing.
-       *  UI (input, buttons, toasts) is intentionally OUTSIDE this
-       *  wrapper so type rendering and hit-testing stay stable. */}
+      {/* Legacy stage layer — retained but empty: whispered creatures now
+       *  live in the DitherField colony (same scale as residents), so
+       *  `entities` stays empty in normal use and nothing renders here. */}
       <div className="stage-breath">
         <HeatmapLayer connections={connections} />
-        <TendrilLayer
-          connections={connections}
-          probes={probes}
-          entityById={entityByIdMap}
-        />
-
-      {entities.map((e, i) => {
-        const t = gazeMap.get(e.id);
-        const sat = Math.max(LONELY_SAT_FLOOR, 1 - e.lonelyExposure * 0.35);
-        const partner = e.partnerId ? entities.find((x) => x.id === e.partnerId) : null;
-        const partnerColor = partner ? CHARACTERS[partner.charId].color : undefined;
-        // Mother-tree status: an entity becomes a mother tree once it
-        // has been on stage for MOTHER_AGE_MS. No explicit spawn of
-        // mother trees — they emerge from ordinary mushrooms that stick
-        // around long enough.
-        const renderNow = performance.now();
-        const isMotherTree =
-          e.infectionState === 'normal' &&
-          renderNow - e.bornAt > MOTHER_AGE_MS;
-        return (
-          <Entity
-            key={e.id}
-            id={e.id}
-            charId={e.charId}
-            name={e.name}
-            morphology={e.morphology}
-            intensity={e.intensity}
-            secondaryLabel={e.secondaryLabel}
-            x={e.x}
-            y={e.y}
-            size={e.size}
-            phaseOffset={(i * 0.17) % 1}
-            gazeTargetX={t ? t.x : null}
-            gazeTargetY={t ? t.y : null}
-            greetingPulse={e.greetingPulse}
-            saturation={sat}
-            infectionState={e.infectionState}
-            infectionStart={e.infectionStart}
-            partnerColor={partnerColor}
-            hybridSource={e.hybridSource}
-            isMotherTree={isMotherTree}
-            isDragged={grabbedId === e.id}
-            onGrab={handleGrab}
-          />
-        );
-      })}
-
+        <TendrilLayer connections={connections} probes={probes} entityById={entityByIdMap} />
+        {entities.map((e, i) => {
+          const t = gazeMap.get(e.id);
+          const sat = Math.max(LONELY_SAT_FLOOR, 1 - e.lonelyExposure * 0.35);
+          const partner = e.partnerId ? entities.find((x) => x.id === e.partnerId) : null;
+          const partnerColor = partner ? CHARACTERS[partner.charId].color : undefined;
+          const isMotherTree = e.infectionState === 'normal' && performance.now() - e.bornAt > MOTHER_AGE_MS;
+          return (
+            <Entity
+              key={e.id} id={e.id} charId={e.charId} name={e.name}
+              morphology={e.morphology} intensity={e.intensity} secondaryLabel={e.secondaryLabel}
+              x={e.x} y={e.y} size={e.size} phaseOffset={(i * 0.17) % 1}
+              gazeTargetX={t ? t.x : null} gazeTargetY={t ? t.y : null}
+              greetingPulse={e.greetingPulse} saturation={sat}
+              infectionState={e.infectionState} infectionStart={e.infectionStart}
+              partnerColor={partnerColor} hybridSource={e.hybridSource}
+              isMotherTree={isMotherTree} isDragged={grabbedId === e.id} onGrab={handleGrab}
+            />
+          );
+        })}
         <SparkleLayer />
       </div>
 

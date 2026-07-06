@@ -11,13 +11,14 @@
   --dot-warm:    #d6a6e8;
   --dot-peach:   #46a65a;
 
-  /* Editorial system: a mono/pixel display + technical mono captions.
-   * CJK falls back to a clean sans so Chinese input stays legible. */
-  --font-display: 'Space Mono', ui-monospace, 'SF Mono', 'PingFang SC',
+  /* Clean technical system — JetBrains Mono throughout for the crisp,
+   * gridded lab feel. CJK falls back to a clean sans so Chinese stays
+   * legible. */
+  --font-display: 'JetBrains Mono', ui-monospace, 'SF Mono', 'PingFang SC',
                   'Microsoft YaHei', monospace;
-  --font-body:    ui-sans-serif, system-ui, 'Helvetica Neue', Helvetica,
-                  'PingFang SC', 'Microsoft YaHei', sans-serif;
-  --font-mono:    'Space Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-body:    'JetBrains Mono', ui-sans-serif, system-ui, 'PingFang SC',
+                  'Microsoft YaHei', sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 }
 
 * { box-sizing: border-box; }
@@ -253,38 +254,63 @@ body,
   );
 }
 
-/* ---- TreeHoleInput (totem portal) ---- */
+/* ---- TreeHoleInput (technical console) ----
+ * Centered via a full-bleed flex wrapper (NOT a CSS transform) so
+ * framer-motion's y/opacity animation on this element doesn't clobber
+ * the centering. */
 .totem {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: min(640px, 80vw);
+  position: fixed;
+  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   z-index: 10;
-  pointer-events: auto;
-  transition: opacity 0.5s ease;
+  pointer-events: none;
 }
+.totem > * { pointer-events: auto; }
+.totem-inner,
+.totem-reading { width: min(560px, 88vw); }
 
 .totem.dimmed { opacity: 0.6; }
 
+/* Clean technical console: a crisp bordered panel with a mono label and
+ * corner registration ticks — the "input feel" from the reference. */
 .totem-inner {
-  width: 100%;
+  position: relative;
+  width: min(560px, 88vw);
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  border: 1px solid var(--ink);
+  border-radius: 2px;
+  padding: 16px 18px 14px;
+  box-shadow: 0 20px 44px -26px rgba(30, 30, 40, 0.5);
 }
+/* corner registration ticks */
+.totem-inner::before,
+.totem-inner::after {
+  content: '';
+  position: absolute;
+  width: 9px; height: 9px;
+  border: 1px solid var(--ink-soft);
+  pointer-events: none;
+}
+.totem-inner::before { top: -4px; left: -4px; border-right: 0; border-bottom: 0; }
+.totem-inner::after { bottom: -4px; right: -4px; border-left: 0; border-top: 0; }
 
 .totem-eyebrow {
-  font-family: var(--font-display);
-  font-size: 1.35rem;
-  color: var(--ink-soft);
-  letter-spacing: 0.05em;
-  text-transform: none;
-  margin-bottom: 1.6rem;
-  opacity: 0.75;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-dim);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-align: left;
+  margin-bottom: 10px;
+  opacity: 1;
   font-weight: 500;
 }
 
@@ -369,61 +395,53 @@ body,
   width: 100%;
   background: transparent;
   border: none;
-  /* Rounded, slightly-wavy underline drawn via repeating-linear
-   * gradient so it reads like a crayon-scribbled line, not a CSS rule. */
-  border-bottom: 2px dotted rgba(74, 64, 52, 0.18);
-  box-shadow: 0 3px 0 -1px rgba(230, 155, 110, 0.14);
   outline: none;
   color: var(--ink);
-  font-family: var(--font-body);
+  font-family: var(--font-mono);
   font-weight: 500;
-  font-size: clamp(1.2rem, 2.1vw, 1.6rem);
-  line-height: 1.7;
-  text-align: center;
+  font-size: clamp(1rem, 1.7vw, 1.25rem);
+  line-height: 1.55;
+  text-align: left;
   resize: none;
   caret-color: var(--accent);
-  padding: 0.8rem 0 0.9rem;
+  padding: 2px 0;
   max-height: 200px;
   overflow-y: auto;
-  transition: border-color 0.8s ease, box-shadow 0.8s ease;
 }
 
 .totem-input::placeholder {
-  font-family: var(--font-display);
-  color: var(--ink-dim);
+  font-family: var(--font-mono);
+  color: var(--ink-soft);
   font-style: normal;
-  opacity: 0.6;
-  letter-spacing: 0.02em;
-  font-size: 1.15em;
-}
-
-.totem-input:focus {
-  border-bottom-color: rgba(74, 64, 52, 0.36);
-  box-shadow: 0 4px 0 -1px rgba(230, 155, 110, 0.28);
+  opacity: 0.8;
+  letter-spacing: 0.01em;
+  font-size: 1em;
 }
 
 .totem-input:disabled { cursor: wait; }
 
 .totem-hint {
-  margin-top: 1.6rem;
-  font-family: var(--font-display);
-  font-size: 1rem;
+  margin-top: 12px;
+  font-family: var(--font-mono);
+  font-size: 10px;
   color: var(--ink-dim);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: left;
   opacity: 0;
   transition: opacity 0.4s ease;
 }
-.totem-hint.visible { opacity: 0.7; }
+.totem-hint.visible { opacity: 0.75; }
 
 .totem-hint kbd {
-  font-family: var(--font-body);
+  font-family: var(--font-mono);
   font-weight: 600;
-  font-size: 0.72rem;
-  background: rgba(255, 248, 232, 0.5);
-  border: 1px solid rgba(74, 64, 52, 0.22);
-  border-radius: 6px;
-  padding: 0.1em 0.5em;
-  margin: 0 0.25em;
+  font-size: 9px;
+  background: transparent;
+  border: 1px solid var(--ink-soft);
+  border-radius: 3px;
+  padding: 0.15em 0.5em;
+  margin: 0 0.2em;
   color: var(--ink-soft);
 }
 
