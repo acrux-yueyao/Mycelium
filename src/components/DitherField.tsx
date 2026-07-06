@@ -22,6 +22,8 @@ import { compatibility, type CharId } from '../data/characters';
 export interface FieldCreature extends CreatureSeed {
   x: number; y: number; cell: number;
   name?: string; primaryLabel?: string; rationale?: string; bornAt?: number;
+  /** the sentence the visitor whispered to grow this creature. */
+  text?: string;
 }
 
 interface Props { creatures: FieldCreature[] }

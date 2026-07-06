@@ -1,8 +1,9 @@
 /**
- * FeedbackScene — the specimen card for the creature you just grew.
- * Shows the reading the field made of your sentence: the creature large,
- * its survey record, the emotion labels + intensity, and the one-line
- * rationale. If you haven't grown one yet, it points you to the field.
+ * FeedbackScene — the specimen introduction card shown right after a
+ * creature is grown. A big render of the new creature, the sentence the
+ * visitor whispered on the left, and the creature's name + survey data on
+ * the right — then it's released into the field. Frosted-glass editorial
+ * layout.
  */
 import { motion } from 'framer-motion';
 import { CreatureThumb } from './CreatureThumb';
@@ -20,7 +21,7 @@ interface Props {
 export function FeedbackScene({ latest, onNavigate }: Props) {
   return (
     <motion.div
-      className="scene feedback"
+      className="scene specimen"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -33,34 +34,68 @@ export function FeedbackScene({ latest, onNavigate }: Props) {
           <button className="feedback-cta" onClick={() => onNavigate('field')}>◂ GO TO THE FIELD</button>
         </div>
       ) : (
-        <div className="feedback-card">
-          <div className="feedback-thumb">
-            <div className="feedback-frame">
-              <CreatureThumb creature={latest} cell={11} height={280} />
+        (() => {
+          const rec = scanRecord(latest.id, latest.bornAt ?? Date.now(), 1);
+          const name = latest.name || nameFor(latest.id);
+          const family = CHARACTERS[latest.charId]?.name ?? '—';
+          return (
+            <div className="spec-stage">
+              <div className="spec-topbar">
+                <span>SPECIMEN · NEW</span>
+                <span>MYCELIUM FIELD</span>
+                <span>id:{rec.serial}</span>
+              </div>
+
+              <div className="spec-body">
+                <motion.div
+                  className="spec-render"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.7, ease: 'easeOut' }}
+                >
+                  <CreatureThumb creature={latest} cell={14} height={360} />
+                </motion.div>
+
+                {/* left — the whispered sentence */}
+                <motion.div
+                  className="spec-card spec-card-left"
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.15 }}
+                >
+                  <div className="spec-eyebrow">you whispered</div>
+                  <div className="spec-sentence">{latest.text || '—'}</div>
+                  {latest.rationale ? <div className="spec-rationale">「{latest.rationale}」</div> : null}
+                </motion.div>
+
+                {/* right — name + survey data */}
+                <motion.div
+                  className="spec-card spec-card-right"
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.28 }}
+                >
+                  <div className="spec-name">{name}</div>
+                  <div className="spec-eyebrow">specimen</div>
+                  <dl className="spec-data">
+                    <div><dt>emotion</dt><dd>{latest.primaryLabel || family}</dd></div>
+                    {latest.secondaryLabel ? <div><dt>secondary</dt><dd>{latest.secondaryLabel}</dd></div> : null}
+                    {typeof latest.intensity === 'number' ? <div><dt>intensity</dt><dd>{latest.intensity.toFixed(2)}</dd></div> : null}
+                    <div><dt>coordinates</dt><dd>{rec.lat}<br />{rec.lon}</dd></div>
+                    <div><dt>logged</dt><dd>{rec.date} · {rec.time}</dd></div>
+                  </dl>
+                </motion.div>
+              </div>
+
+              <div className="spec-actions">
+                <button className="spec-release" onClick={() => onNavigate('field')}>
+                  release into the field <span aria-hidden>▸</span>
+                </button>
+                <button className="spec-archive-link" onClick={() => onNavigate('archive')}>view archive</button>
+              </div>
             </div>
-          </div>
-          <div className="feedback-record">
-            {(() => {
-              const rec = scanRecord(latest.id, latest.bornAt ?? Date.now(), 1);
-              const name = latest.name || nameFor(latest.id);
-              const family = CHARACTERS[latest.charId]?.name ?? '—';
-              return (
-                <>
-                  <div className="feedback-name">id:{rec.serial} · {name}</div>
-                  <div className="feedback-line dim">{rec.date} · {rec.time}</div>
-                  <div className="feedback-line dim">{rec.lat} · {rec.lon}</div>
-                  <div className="feedback-sep" />
-                  <div className="feedback-line accent">primary · {latest.primaryLabel || family}</div>
-                  {latest.secondaryLabel ? <div className="feedback-line">secondary · {latest.secondaryLabel}</div> : null}
-                  {typeof latest.intensity === 'number' ? <div className="feedback-line">intensity · {latest.intensity.toFixed(2)}</div> : null}
-                  {latest.rationale ? <div className="feedback-rationale">「{latest.rationale}」</div> : null}
-                  <div className="feedback-sep" />
-                  <button className="feedback-cta" onClick={() => onNavigate('field')}>◂ BACK TO THE FIELD</button>
-                </>
-              );
-            })()}
-          </div>
-        </div>
+          );
+        })()
       )}
     </motion.div>
   );

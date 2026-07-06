@@ -178,6 +178,14 @@ export default function App() {
   // The accumulated cross-user colony painted behind everything (loaded
   // from the shared store; demo colony until Upstash is configured).
   const { colony, population, testMode, add: addCreature } = useCreatures();
+
+  // ?debug: seed a sample specimen so the intro card can be previewed
+  // without going through the emotion API.
+  useEffect(() => {
+    if (showDebug && !latestCreature && colony.length) {
+      setLatestCreature({ ...colony[0], text: '今天心里像被风轻轻揉过的纸' });
+    }
+  }, [showDebug, colony, latestCreature]);
   const [muted, setMutedState] = useState(false);
   const { loading, error, read, clearError } = useEmotion();
 
@@ -847,9 +855,12 @@ export default function App() {
       primaryLabel: result.reading.primary?.label,
       rationale: result.reading.rationale,
       bornAt: entity.bornAt,
+      text,
     };
     addCreature(creature);
     setLatestCreature(creature);
+    // introduce the new creature on its specimen card before it joins the field
+    setScene('feedback');
   };
 
   // Debug bar handler: spawn one entity per CharId from a typed letter sequence.
