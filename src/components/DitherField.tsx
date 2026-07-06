@@ -16,8 +16,8 @@
  */
 import { useEffect, useRef } from 'react';
 import { drawDitherField, drawMoshCreature, creatureSpec, type CreatureSeed } from '../core/fieldRender';
-import type { MosaicSpec } from '../core/mosaic';
-import { CHARACTERS, compatibility, type CharId } from '../data/characters';
+import type { MosaicSpec, MosaicPaletteSpec } from '../core/mosaic';
+import { compatibility, type CharId } from '../data/characters';
 
 export interface FieldCreature extends CreatureSeed {
   x: number; y: number; cell: number;
@@ -41,8 +41,13 @@ const MOTHER_AGE = 40_000, ISOLATION_MS = 16_000, MOTHER_REACH = 380, SUPPORT_LI
 interface Body {
   id: string; charId: CharId; x: number; y: number; vx: number; vy: number;
   bornAt: number; lastBondAt: number; cell: number; spec: MosaicSpec;
+  // tile-swap dye toward a partner's palette during an encounter
+  dyePal?: MosaicPaletteSpec | null; dyeStart?: number; dyeRelease?: number | null;
+  dyeDirX?: number; dyeDirY?: number;
 }
 interface Bond { a: string; b: string; born: number; life: number; support: boolean }
+
+const DYE_RAMP = 2200, DYE_MAX = 0.8, DYE_RELEASE = 1700;
 
 function seed01(id: string): number {
   let h = 2166136261;
@@ -50,12 +55,6 @@ function seed01(id: string): number {
   return ((h >>> 0) % 10000) / 10000;
 }
 function pairKey(a: string, b: string) { return a < b ? `${a}|${b}` : `${b}|${a}`; }
-function hexMix(c1: string, c2: string, t: number) {
-  const h = (s: string) => [parseInt(s.slice(1, 3), 16), parseInt(s.slice(3, 5), 16), parseInt(s.slice(5, 7), 16)];
-  const [r1, g1, b1] = h(c1), [r2, g2, b2] = h(c2);
-  const m = (a: number, b: number) => Math.round(a + (b - a) * t);
-  return `rgb(${m(r1, r2)},${m(g1, g2)},${m(b1, b2)})`;
-}
 
 export function DitherField({ creatures }: Props) {
   const ref = useRef<HTMLCanvasElement | null>(null);
@@ -108,6 +107,13 @@ export function DitherField({ creatures }: Props) {
       }
     };
 
+    const setDye = (target: Body, partner: Body, now: number) => {
+      const dx = partner.x - target.x, dy = partner.y - target.y, d = Math.hypot(dx, dy) || 1;
+      target.dyePal = partner.spec.palette;
+      target.dyeStart = now; target.dyeRelease = null;
+      target.dyeDirX = dx / d; target.dyeDirY = dy / d;
+    };
+
     const step = (now: number) => {
       // active-bond count per body
       const bcount = new Map<string, number>();
@@ -140,6 +146,7 @@ export function DitherField({ creatures }: Props) {
           bcount.set(A.id, (bcount.get(A.id) ?? 0) + 1);
           bcount.set(B.id, (bcount.get(B.id) ?? 0) + 1);
           A.lastBondAt = now; B.lastBondAt = now;
+          setDye(A, B, now); setDye(B, A, now); // exchange colour blocks
         }
       }
       // mother-tree support for the lonely (one reach per frame)
@@ -159,9 +166,18 @@ export function DitherField({ creatures }: Props) {
           if (bonds.has(k)) continue;
           bonds.set(k, { a: m.id, b: lonely.id, born: now, life: SUPPORT_LIFE, support: true });
           lonely.lastBondAt = now;
+          setDye(lonely, m, now); // the lonely one takes on the mother's palette
           break;
         }
       }
+      // creatures that have parted (no active bond) start releasing their
+      // borrowed colour back toward themselves.
+      const active = new Set<string>();
+      for (const bd of bonds.values()) { active.add(bd.a); active.add(bd.b); }
+      for (const b of bodies) {
+        if (b.dyePal && b.dyeRelease == null && !active.has(b.id)) b.dyeRelease = now;
+      }
+
       // forces
       const cx = W / 2, cy = H * 0.5;
       for (const a of bodies) {
@@ -206,23 +222,8 @@ export function DitherField({ creatures }: Props) {
       ctx.clearRect(0, 0, W, H);
       if (backdrop) ctx.drawImage(backdrop, 0, 0, W, H);
 
-      // interaction "call" lines — the coloured signal of a bond
-      for (const bd of bonds.values()) {
-        const A = bodyById.get(bd.a), B = bodyById.get(bd.b);
-        if (!A || !B) continue;
-        const col = bd.support
-          ? '#E0A46A'
-          : hexMix(CHARACTERS[A.charId].color, CHARACTERS[B.charId].color, 0.5);
-        const age = (now - bd.born) / bd.life; // fade in then out
-        const alpha = Math.min(1, Math.sin(Math.min(1, age) * Math.PI) * 1.4) * (bd.support ? 0.7 : 0.55);
-        ctx.strokeStyle = col; ctx.globalAlpha = alpha * 0.4; ctx.lineWidth = bd.support ? 3 : 2.4;
-        ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
-        ctx.globalAlpha = alpha; ctx.lineWidth = bd.support ? 1.4 : 1;
-        ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
-      }
-      ctx.globalAlpha = 1;
-
-      // creatures — gaze toward their current bond partner if any, else nearest
+      // creatures — gaze toward their current bond partner if any; the
+      // interaction shows as a tile-swap dye toward the partner's palette.
       const partnerOf = new Map<string, string>();
       for (const bd of bonds.values()) { partnerOf.set(bd.a, bd.b); partnerOf.set(bd.b, bd.a); }
       for (const a of bodies) {
@@ -230,8 +231,23 @@ export function DitherField({ creatures }: Props) {
         const pid = partnerOf.get(a.id);
         const t = pid ? bodyById.get(pid) : null;
         if (t) gz = t.x > a.x ? 0.85 : -0.85;
+
+        // dye progress: ramp up while bonded, fade back after parting
+        let dye = null as null | { palette: MosaicPaletteSpec; progress: number; dirX: number; dirY: number };
+        if (a.dyePal && a.dyeStart != null) {
+          let p: number;
+          if (a.dyeRelease == null) {
+            p = Math.min(DYE_MAX, (now - a.dyeStart) / DYE_RAMP);
+          } else {
+            const atRelease = Math.min(DYE_MAX, (a.dyeRelease - a.dyeStart) / DYE_RAMP);
+            p = atRelease * Math.max(0, 1 - (now - a.dyeRelease) / DYE_RELEASE);
+            if (p <= 0.001) { a.dyePal = null; a.dyeRelease = null; }
+          }
+          if (a.dyePal && p > 0) dye = { palette: a.dyePal, progress: p, dirX: a.dyeDirX ?? 0, dirY: a.dyeDirY ?? 0 };
+        }
+
         const ww = a.spec.cols * a.cell, hh = a.spec.rows * a.cell;
-        drawMoshCreature(ctx, a.spec, a.x - ww / 2, a.y - hh / 2, a.cell, a.id, gz);
+        drawMoshCreature(ctx, a.spec, a.x - ww / 2, a.y - hh / 2, a.cell, a.id, gz, dye);
       }
       raf = requestAnimationFrame(frame);
     };
