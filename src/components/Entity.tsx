@@ -341,24 +341,6 @@ export function Entity({
         </>
       )}
 
-      {/* Morphology glow — soft warm amber bloom behind the sprite. */}
-      {glow > 0.05 && (
-        <motion.div
-          aria-hidden
-          initial={{ opacity: 0, scale: 0.7 }}
-          animate={{ opacity: 1, scale: [0.92, 1.05, 0.92] }}
-          transition={{
-            opacity: { duration: 2.5, ease: 'easeOut' },
-            scale: { duration: 6 + agitation * 2, repeat: Infinity, ease: 'easeInOut' },
-          }}
-          style={{
-            position: 'absolute', inset: `-${10 + glow * 18}%`, borderRadius: '50%',
-            background: `radial-gradient(circle at 50% 55%, rgba(232, 188, 138, ${0.20 + glow * 0.40}) 0%, rgba(232, 188, 138, ${0.08 + glow * 0.22}) 38%, rgba(232, 188, 138, 0) 72%)`,
-            pointerEvents: 'none', zIndex: -2, mixBlendMode: 'screen', filter: `blur(${2 + glow * 3}px)`,
-          }}
-        />
-      )}
-
       {/* Aura ring — one-shot the moment we enter 'hybrid'. */}
       <motion.div
         initial={{ scale: 0.5, opacity: 0 }}

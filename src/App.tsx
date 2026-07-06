@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Background } from './components/Background';
-import { Butterflies } from './components/Butterflies';
+import { DitherField } from './components/DitherField';
+import { LandingPoster } from './components/LandingPoster';
+import { useCreatures } from './hooks/useCreatures';
 import { DebugSpawnBar } from './components/DebugSpawnBar';
 import { Entity, type HybridSource } from './components/Entity';
 import { Gallery } from './components/Gallery';
@@ -165,6 +166,12 @@ export default function App() {
   const [entities, setEntities] = useState<LiveEntity[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
   const [probes, setProbes] = useState<ExplorationProbe[]>([]);
+  // Scene: the landing poster gates entry into the live field. Debug
+  // mode skips straight into the field.
+  const [scene, setScene] = useState<'landing' | 'field'>(showDebug ? 'field' : 'landing');
+  // The accumulated cross-user colony painted behind everything (loaded
+  // from the shared store; demo colony until Upstash is configured).
+  const { colony, population, add: addCreature } = useCreatures();
   const [muted, setMutedState] = useState(false);
   const { loading, error, read, clearError } = useEmotion();
 
@@ -809,15 +816,28 @@ export default function App() {
   const handleSubmit = async (text: string) => {
     const result = await read(text);
     if (!result) return;
-    pushEntity(
-      makeEntity(
-        result.charId,
-        result.reading.rationale,
-        result.reading.morphology,
-        result.reading.intensity,
-        result.reading.secondary?.label,
-      ),
+    const entity = makeEntity(
+      result.charId,
+      result.reading.rationale,
+      result.reading.morphology,
+      result.reading.intensity,
+      result.reading.secondary?.label,
     );
+    pushEntity(entity);
+    // Commit the creature to the accumulating cross-user colony so it
+    // persists and becomes part of the ecology future visitors open onto.
+    const w = vpRef.current.w || window.innerWidth;
+    const h = vpRef.current.h || window.innerHeight;
+    addCreature({
+      id: entity.id,
+      charId: entity.charId,
+      morphology: entity.morphology ?? result.reading.morphology,
+      intensity: entity.intensity ?? result.reading.intensity,
+      secondaryLabel: entity.secondaryLabel,
+      x: Math.max(0.03, Math.min(0.97, entity.x / w)),
+      y: Math.max(0.05, Math.min(0.95, entity.y / h)),
+      cell: 5,
+    });
   };
 
   // Debug bar handler: spawn one entity per CharId from a typed letter sequence.
@@ -833,13 +853,26 @@ export default function App() {
 
   return (
     <div className="stage">
+      {/* The accumulated colony ecology — the page's visual material,
+       *  painted on one canvas behind everything. */}
+      <DitherField creatures={colony} />
+
+      <AnimatePresence>
+        {scene === 'landing' && (
+          <LandingPoster
+            key="landing"
+            population={population}
+            onEnter={() => setScene('field')}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Everything inside .stage-breath slowly inhales and exhales
        *  together on a 7-second loop, ±1.2% scale. Gives the network
        *  a single shared heartbeat distinct from per-entity breathing.
        *  UI (input, buttons, toasts) is intentionally OUTSIDE this
        *  wrapper so type rendering and hit-testing stay stable. */}
       <div className="stage-breath">
-        <Background />
         <HeatmapLayer connections={connections} />
         <TendrilLayer
           connections={connections}
@@ -889,37 +922,42 @@ export default function App() {
       })}
 
         <SparkleLayer />
-        <Butterflies />
       </div>
 
-      <HandLayer
-        videoRef={handVideoRef}
-        state={hand.state}
-        snapshotRef={hand.snapshotRef}
-        onEnable={hand.enable}
-        onDisable={hand.disable}
-      />
+      {scene === 'field' && (
+        <>
+          <HandLayer
+            videoRef={handVideoRef}
+            state={hand.state}
+            snapshotRef={hand.snapshotRef}
+            onEnable={hand.enable}
+            onDisable={hand.disable}
+          />
 
-      {showDebug && <DebugSpawnBar onSpawn={handleDebugSpawn} />}
+          {showDebug && <DebugSpawnBar onSpawn={handleDebugSpawn} />}
 
-      {/* Mute toggle — tiny corner button, wakes the audio context on
-       *  first tap so users who click it get ambient audio too. */}
-      <button
-        type="button"
-        className="mute-toggle"
-        aria-label={muted ? 'unmute audio' : 'mute audio'}
-        onClick={() => {
-          ensureAudioContext();
-          ambientStart();
-          const next = !isMuted();
-          setMuted(next);
-          setMutedState(next);
-        }}
-      >
-        {muted ? '♪̸' : '♪'}
-      </button>
+          {/* Mute toggle — tiny corner button, wakes the audio context on
+           *  first tap so users who click it get ambient audio too. */}
+          <button
+            type="button"
+            className="mute-toggle"
+            aria-label={muted ? 'unmute audio' : 'mute audio'}
+            onClick={() => {
+              ensureAudioContext();
+              ambientStart();
+              const next = !isMuted();
+              setMuted(next);
+              setMutedState(next);
+            }}
+          >
+            {muted ? '♪̸' : '♪'}
+          </button>
+        </>
+      )}
 
-      <TreeHoleInput onSubmit={handleSubmit} disabled={loading} loading={loading} />
+      {scene === 'field' && (
+        <TreeHoleInput onSubmit={handleSubmit} disabled={loading} loading={loading} />
+      )}
 
       <AnimatePresence>
         {error && (
