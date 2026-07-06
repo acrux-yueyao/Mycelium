@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { DitherField } from './components/DitherField';
+import { DitherField, type FieldCreature } from './components/DitherField';
 import { LandingPoster } from './components/LandingPoster';
+import { SceneNav, type Scene } from './components/SceneNav';
+import { ArchiveScene } from './components/ArchiveScene';
+import { FeedbackScene } from './components/FeedbackScene';
 import { useCreatures } from './hooks/useCreatures';
 import { DebugSpawnBar } from './components/DebugSpawnBar';
 import { Entity, type HybridSource } from './components/Entity';
@@ -168,7 +171,10 @@ export default function App() {
   const [probes, setProbes] = useState<ExplorationProbe[]>([]);
   // Scene: the landing poster gates entry into the live field. Debug
   // mode skips straight into the field.
-  const [scene, setScene] = useState<'landing' | 'field'>(showDebug ? 'field' : 'landing');
+  const [scene, setScene] = useState<Scene>(showDebug ? 'field' : 'landing');
+  // The creature this visitor most recently grew — shown on the feedback
+  // card. Null until they whisper their first sentence.
+  const [latestCreature, setLatestCreature] = useState<FieldCreature | null>(null);
   // The accumulated cross-user colony painted behind everything (loaded
   // from the shared store; demo colony until Upstash is configured).
   const { colony, population, testMode, add: addCreature } = useCreatures();
@@ -828,7 +834,7 @@ export default function App() {
     // persists and becomes part of the ecology future visitors open onto.
     const w = vpRef.current.w || window.innerWidth;
     const h = vpRef.current.h || window.innerHeight;
-    addCreature({
+    const creature: FieldCreature = {
       id: entity.id,
       charId: entity.charId,
       morphology: entity.morphology ?? result.reading.morphology,
@@ -837,7 +843,13 @@ export default function App() {
       x: Math.max(0.03, Math.min(0.97, entity.x / w)),
       y: Math.max(0.05, Math.min(0.95, entity.y / h)),
       cell: 5,
-    });
+      name: entity.name,
+      primaryLabel: result.reading.primary?.label,
+      rationale: result.reading.rationale,
+      bornAt: entity.bornAt,
+    };
+    addCreature(creature);
+    setLatestCreature(creature);
   };
 
   // Debug bar handler: spawn one entity per CharId from a typed letter sequence.
@@ -860,14 +872,18 @@ export default function App() {
       {testMode && (
         <div
           style={{
-            position: 'fixed', top: 12, left: '50%', transform: 'translateX(-50%)',
-            zIndex: 60, fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.14em',
+            position: 'fixed', bottom: 14, left: 14,
+            zIndex: 60, fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.14em',
             color: '#ee352c', border: '1px solid #ee352c', borderRadius: 6,
             padding: '4px 10px', background: 'rgba(241,240,235,0.9)', pointerEvents: 'none',
           }}
         >
           TEST MODE · NOT SAVED
         </div>
+      )}
+
+      {scene !== 'landing' && (
+        <SceneNav scene={scene} population={population} onNavigate={setScene} />
       )}
 
       <AnimatePresence>
@@ -878,7 +894,17 @@ export default function App() {
             onEnter={() => setScene('field')}
           />
         )}
+        {scene === 'archive' && <ArchiveScene key="archive" creatures={colony} />}
+        {scene === 'feedback' && (
+          <FeedbackScene key="feedback" latest={latestCreature} onNavigate={setScene} />
+        )}
       </AnimatePresence>
+
+      {scene === 'field' && !latestCreature && (
+        <div className="field-prompt">
+          whisper a sentence below ↓<br />a creature will grow from it
+        </div>
+      )}
 
       {/* Everything inside .stage-breath slowly inhales and exhales
        *  together on a 7-second loop, ±1.2% scale. Gives the network
@@ -969,7 +995,7 @@ export default function App() {
       )}
 
       {scene === 'field' && (
-        <TreeHoleInput onSubmit={handleSubmit} disabled={loading} loading={loading} />
+        <TreeHoleInput onSubmit={handleSubmit} disabled={loading} loading={loading} immediate />
       )}
 
       <AnimatePresence>

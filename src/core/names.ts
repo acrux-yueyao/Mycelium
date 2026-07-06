@@ -27,3 +27,14 @@ function pick<T>(arr: readonly T[]): T {
 export function randomName(): string {
   return `${pick(ADJECTIVES)} ${pick(NOUNS)}`;
 }
+
+/** Deterministic name from an id — same id always yields the same name.
+ *  Used for archive/feedback labels of creatures that weren't stored
+ *  with a name (demo colony, legacy records). */
+export function nameFor(id: string): string {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); }
+  const a = (h >>> 0) % ADJECTIVES.length;
+  const n = (Math.imul(h ^ 0x9e3779b9, 2654435761) >>> 0) % NOUNS.length;
+  return `${ADJECTIVES[a]} ${NOUNS[n]}`;
+}
