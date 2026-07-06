@@ -1,13 +1,17 @@
 /**
  * DitherField — the full-bleed "Beautiful Worlds" ecology canvas.
  *
- * Paints the ambient dithered backdrop plus every accumulated creature
- * (the piled-up colony from all past whispers) as datamosh pixel-spores
- * on a single canvas. This is the page's visual material: it sits behind
- * everything on both the landing poster and the live field.
+ * The ambient dithered backdrop (colour masses + spires + spray) is
+ * expensive to draw, so it's rendered ONCE to an offscreen canvas and
+ * blitted each frame. The accumulated colony creatures live on top and
+ * are ALIVE: they run the original field physics (`stepField` — wander
+ * drift, compatibility attraction / repulsion, soft walls, isolation
+ * drift, damping) every frame, and their pupils gaze toward the nearest
+ * neighbour. Datamosh is redrawn per frame at the new positions
+ * (deterministic per creature, so streaks don't flicker).
  *
- * Redraws only when the creature list or the viewport size changes —
- * the colony is otherwise static, so there's no per-frame cost.
+ * To keep hundreds of creatures smooth, only the most recent ANIMATE_CAP
+ * drift; any overflow is baked into the static backdrop.
  */
 import { useEffect, useRef } from 'react';
 import {
@@ -17,6 +21,7 @@ import {
   type CreatureSeed,
 } from '../core/fieldRender';
 import type { MosaicSpec } from '../core/mosaic';
+import { stepField, findNearestBody, type PhysBody } from '../core/field';
 import { Rng, xmur3 } from '../core/seed';
 
 export interface FieldCreature extends CreatureSeed {
@@ -25,8 +30,6 @@ export interface FieldCreature extends CreatureSeed {
   y: number;
   /** pixel size per cell. */
   cell: number;
-  /** archive metadata (whispered creatures carry these; demo/legacy
-   *  fall back to deterministic values). */
   name?: string;
   primaryLabel?: string;
   rationale?: string;
@@ -35,42 +38,96 @@ export interface FieldCreature extends CreatureSeed {
 
 interface Props {
   creatures: FieldCreature[];
-  /** dim the whole field (e.g. behind the landing poster copy). */
-  opacity?: number;
 }
 
-export function DitherField({ creatures, opacity = 1 }: Props) {
+const ANIMATE_CAP = 140; // how many creatures run live physics
+
+interface Body extends PhysBody {
+  cell: number;
+  spec: MosaicSpec;
+}
+
+export function DitherField({ creatures }: Props) {
   const ref = useRef<HTMLCanvasElement | null>(null);
-  const specCache = useRef<Map<string, MosaicSpec>>(new Map());
+  const creaturesRef = useRef(creatures);
+  creaturesRef.current = creatures;
 
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
-    const draw = () => {
-      const w = window.innerWidth, h = window.innerHeight, dpr = Math.min(2, window.devicePixelRatio || 1);
-      canvas.width = w * dpr; canvas.height = h * dpr;
-      canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
-      const g = canvas.getContext('2d');
-      if (!g) return;
-      g.scale(dpr, dpr);
-      g.clearRect(0, 0, w, h);
+    let W = 0, H = 0, dpr = 1;
+    let backdrop: HTMLCanvasElement | null = null;
+    let bodies: Body[] = [];
+    let raf = 0;
+    const specCache = new Map<string, MosaicSpec>();
 
-      drawDitherField(g, w, h);
-
-      for (const c of creatures) {
-        let spec = specCache.current.get(c.id);
-        if (!spec) { spec = creatureSpec(c); specCache.current.set(c.id, spec); }
-        const ww = spec.cols * c.cell, hh = spec.rows * c.cell;
-        // resting gaze from id so idle pupils read clean
-        const gz = (new Rng(xmur3(c.id + ':rest')()).next() < 0.5 ? -1 : 1) * 0.85;
-        drawMoshCreature(g, spec, c.x * w - ww / 2, c.y * h - hh / 2, c.cell, c.id, gz);
-      }
+    const specOf = (c: FieldCreature) => {
+      let s = specCache.get(c.id);
+      if (!s) { s = creatureSpec(c); specCache.set(c.id, s); }
+      return s;
     };
 
-    draw();
-    window.addEventListener('resize', draw);
-    return () => window.removeEventListener('resize', draw);
+    const rebuild = () => {
+      W = window.innerWidth; H = window.innerHeight;
+      dpr = Math.min(2, window.devicePixelRatio || 1);
+      canvas.width = W * dpr; canvas.height = H * dpr;
+      canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+
+      const list = creaturesRef.current;
+      const animated = list.slice(0, ANIMATE_CAP);
+      const overflow = list.slice(ANIMATE_CAP);
+
+      // static backdrop: dithered ecology + overflow creatures, drawn once
+      backdrop = document.createElement('canvas');
+      backdrop.width = W * dpr; backdrop.height = H * dpr;
+      const bg = backdrop.getContext('2d')!;
+      bg.scale(dpr, dpr);
+      drawDitherField(bg, W, H);
+      for (const c of overflow) {
+        const spec = specOf(c);
+        const gz = (new Rng(xmur3(c.id + ':rest')()).next() < 0.5 ? -1 : 1) * 0.85;
+        drawMoshCreature(bg, spec, c.x * W - (spec.cols * c.cell) / 2, c.y * H - (spec.rows * c.cell) / 2, c.cell, c.id, gz);
+      }
+
+      // animated bodies with px positions + a gentle initial velocity
+      bodies = animated.map((c) => {
+        const r = new Rng(xmur3(c.id + ':vel')());
+        const a = r.next() * Math.PI * 2;
+        return {
+          id: c.id, charId: c.charId,
+          x: c.x * W, y: c.y * H,
+          vx: Math.cos(a) * 0.3, vy: Math.sin(a) * 0.3,
+          bornAt: c.bornAt ?? 0,
+          cell: c.cell, spec: specOf(c),
+        };
+      });
+    };
+
+    const frame = () => {
+      const now = performance.now();
+      bodies = stepField(bodies, W, H, undefined, undefined, now) as Body[];
+
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, W, H);
+      if (backdrop) ctx.drawImage(backdrop, 0, 0, W, H);
+
+      for (const b of bodies) {
+        const t = findNearestBody(b, bodies, 420);
+        const gz = t ? Math.max(-1, Math.min(1, (t.x - b.x) / 14 > 0 ? 0.85 : -0.85)) : 0.85;
+        const ww = b.spec.cols * b.cell, hh = b.spec.rows * b.cell;
+        drawMoshCreature(ctx, b.spec, b.x - ww / 2, b.y - hh / 2, b.cell, b.id, gz);
+      }
+      raf = requestAnimationFrame(frame);
+    };
+
+    rebuild();
+    frame();
+    const onResize = () => { cancelAnimationFrame(raf); rebuild(); frame(); };
+    window.addEventListener('resize', onResize);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', onResize); };
   }, [creatures]);
 
   return (
@@ -80,8 +137,6 @@ export function DitherField({ creatures, opacity = 1 }: Props) {
       style={{
         position: 'fixed', inset: 0, width: '100%', height: '100%',
         imageRendering: 'pixelated', pointerEvents: 'none', zIndex: 0,
-        opacity,
-        transition: 'opacity 0.8s ease',
       }}
     />
   );
