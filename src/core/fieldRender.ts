@@ -14,9 +14,30 @@
  * renders identically on every machine and every frame.
  */
 import { xmur3, Rng } from './seed';
-import { buildMosaic, type MosaicSpec } from './mosaic';
+import { buildMosaic, dyedCellColor, type MosaicSpec, type MosaicPaletteSpec } from './mosaic';
 import type { CharId } from '../data/characters';
 import type { Morphology } from './emotion';
+
+/** Dye state for the tile-swap interaction: as two creatures meet, one's
+ *  cells progressively take on the other's palette from the contact side. */
+export interface DyeState {
+  palette: MosaicPaletteSpec;
+  /** 0..1 wavefront progress. */
+  progress: number;
+  /** unit direction toward the partner (sweep origin). */
+  dirX: number;
+  dirY: number;
+}
+
+function parseHsl(s: string): [number, number, number] {
+  const m = s.match(/hsl\(([-\d.]+),([\d.]+)%,([\d.]+)%\)/);
+  return m ? [parseFloat(m[1]), parseFloat(m[2]), parseFloat(m[3])] : [0, 0, 50];
+}
+function mixHsl(a: string, b: string, t: number): string {
+  const A = parseHsl(a), B = parseHsl(b);
+  const dh = ((B[0] - A[0] + 540) % 360) - 180;
+  return `hsl(${((A[0] + dh * t) % 360 + 360) % 360 | 0},${Math.round(A[1] + (B[1] - A[1]) * t)}%,${Math.round(A[2] + (B[2] - A[2]) * t)}%)`;
+}
 
 const DOT = 4;
 const BAYER = [
@@ -125,8 +146,20 @@ export function creatureSpec(c: CreatureSeed): MosaicSpec {
  * downward pixel-sort streaks behind, a horizontal glitch row, and a
  * few displaced flecks. Eyes stay crisp so it still reads as a creature.
  */
-export function drawMoshCreature(g: G, spec: MosaicSpec, ox: number, oy: number, cell: number, seed: string, gaze: number) {
+export function drawMoshCreature(g: G, spec: MosaicSpec, ox: number, oy: number, cell: number, seed: string, gaze: number, dye?: DyeState | null) {
   g.imageSmoothingEnabled = false;
+  // tile-swap: per-cell colour, dyed toward the partner palette by a
+  // wavefront sweeping in from the contact side.
+  const cellColor = (c: { col: number; row: number; color: string }): string => {
+    if (!dye || dye.progress <= 0) return c.color;
+    const nx = (c.col - spec.center) / (spec.cols || 1);
+    const ny = (c.row - spec.rows / 2) / (spec.rows || 1);
+    const proj = 0.5 + (nx * dye.dirX + ny * dye.dirY);
+    const thr = Math.max(0, Math.min(1, proj));
+    if (dye.progress >= thr + 0.14) return dyedCellColor(spec, c, dye.palette);
+    if (dye.progress >= thr) return mixHsl(c.color, dyedCellColor(spec, c, dye.palette), (dye.progress - thr) / 0.14);
+    return c.color;
+  };
   const rng = new Rng(xmur3(seed + ':mosh')());
 
   // bottom-most cell per column → streak source
@@ -141,7 +174,7 @@ export function drawMoshCreature(g: G, spec: MosaicSpec, ox: number, oy: number,
     const len = 2 + Math.floor(rng.next() * 8);
     for (let s = 1; s <= len; s++) {
       g.globalAlpha = Math.max(0, 0.42 - (s / len) * 0.42);
-      g.fillStyle = c.color;
+      g.fillStyle = cellColor(c);
       const jit = rng.next() < 0.12 ? cell * (rng.next() < 0.5 ? -1 : 1) : 0;
       g.fillRect(ox + c.col * cell + jit, oy + (c.row + s) * cell, cell, cell);
     }
@@ -152,7 +185,7 @@ export function drawMoshCreature(g: G, spec: MosaicSpec, ox: number, oy: number,
   const shiftAmt = rng.next() < 0.55 ? (1 + Math.floor(rng.next() * 3)) * cell : 0;
   for (const c of spec.cells) {
     g.globalAlpha = c.alpha;
-    g.fillStyle = c.color;
+    g.fillStyle = cellColor(c);
     const sx = c.row === shiftRow ? shiftAmt : 0;
     g.fillRect(ox + c.col * cell + sx, oy + c.row * cell, cell, cell);
   }
@@ -163,7 +196,7 @@ export function drawMoshCreature(g: G, spec: MosaicSpec, ox: number, oy: number,
     const src = spec.cells[Math.floor(rng.next() * spec.cells.length)];
     if (!src) continue;
     g.globalAlpha = 0.6;
-    g.fillStyle = src.color;
+    g.fillStyle = cellColor(src);
     g.fillRect(ox + src.col * cell + (1 + Math.floor(rng.next() * 5)) * cell, oy + src.row * cell, cell, cell);
   }
   g.globalAlpha = 1;

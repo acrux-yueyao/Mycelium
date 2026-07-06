@@ -140,7 +140,7 @@ export function colorFromBand(
 }
 
 /** Recolor a given cell using a *different* palette (used for dyeing). */
-export function dyedCellColor(spec: MosaicSpec, cell: MosaicCell, pal: MosaicPaletteSpec): string {
+export function dyedCellColor(spec: MosaicSpec, cell: { col: number; row: number }, pal: MosaicPaletteSpec): string {
   const v = spec.rows > 1 ? cell.row / (spec.rows - 1) : 0.5;
   const band = Math.floor(v * pal.stops.length);
   const darken = 0.06 * (Math.abs(cell.col - spec.center) / spec.cols);
