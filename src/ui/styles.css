@@ -764,6 +764,29 @@ body,
 .spec-release:hover span { transform: translateX(4px); }
 .spec-archive-link { background: none; border: 0; cursor: pointer; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em; color: var(--ink-dim); text-decoration: underline; }
 
+/* Corner control that re-opens the specimen card after the visitor has
+ * whispered and returned to the field. Small, quiet, bottom-right. */
+.specimen-recall {
+  position: fixed; right: 16px; bottom: 16px; z-index: 40;
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--ink);
+  background: rgba(241,240,235,0.82);
+  border: 1px solid var(--ink); border-radius: 999px;
+  padding: 8px 14px; cursor: pointer;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+.specimen-recall:hover { background: var(--cream); transform: translateY(-1px); }
+.specimen-recall span { transition: transform 0.2s ease; }
+.specimen-recall:hover span { transform: translateX(3px); }
+.specimen-recall-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent); box-shadow: 0 0 0 3px rgba(91,79,208,0.18);
+  animation: recall-pulse 2.4s ease-in-out infinite;
+}
+@keyframes recall-pulse { 0%,100% { opacity: 0.55; } 50% { opacity: 1; } }
+
 @media (max-width: 680px) {
   .spec-body { height: auto; flex-direction: column; gap: 14px; }
   .spec-card { position: static; width: 100%; }

@@ -22,6 +22,10 @@ export function FeedbackScene({ latest, onNavigate }: Props) {
   return (
     <motion.div
       className="scene specimen"
+      // A click anywhere on the card releases the creature into the field,
+      // where it joins the colony and starts interacting.
+      onClick={latest ? () => onNavigate('field') : undefined}
+      style={latest ? { cursor: 'pointer' } : undefined}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -91,7 +95,7 @@ export function FeedbackScene({ latest, onNavigate }: Props) {
                 <button className="spec-release" onClick={() => onNavigate('field')}>
                   release into the field <span aria-hidden>▸</span>
                 </button>
-                <button className="spec-archive-link" onClick={() => onNavigate('archive')}>view archive</button>
+                <button className="spec-archive-link" onClick={(e) => { e.stopPropagation(); onNavigate('archive'); }}>view archive</button>
               </div>
             </div>
           );
