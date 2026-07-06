@@ -21,7 +21,8 @@ import {
   type CreatureSeed,
 } from '../core/fieldRender';
 import type { MosaicSpec } from '../core/mosaic';
-import { stepField, findNearestBody, type PhysBody } from '../core/field';
+import { findNearestBody, type PhysBody } from '../core/field';
+import { compatibility } from '../data/characters';
 import { Rng, xmur3 } from '../core/seed';
 
 export interface FieldCreature extends CreatureSeed {
@@ -45,6 +46,76 @@ const ANIMATE_CAP = 140; // how many creatures run live physics
 interface Body extends PhysBody {
   cell: number;
   spec: MosaicSpec;
+}
+
+// ---- colony flocking: gather into emotional communities ----
+// Tuned so compatible creatures actively clump and drift together (a
+// community), with only a small personal-space bubble; incompatible
+// pairs keep a gentle distance. Distinct from the stage's stepField,
+// which is repulsion-dominant and tuned for a few creatures.
+const COH_R = 340;    // radius to look for community members
+const COH_K = 0.048;  // pull toward the compatible-neighbour centroid
+const ALIGN_K = 0.05; // move with the group
+const SEP_R = 82;     // personal space — keeps individuals distinct in a group
+const SEP_K = 1.15;
+const NEG_R = 230;    // incompatible creatures keep this much distance
+const NEG_K = 0.05;
+const WANDER_K = 0.012;
+const DAMP = 0.9;
+const MAX_V = 1.15;
+const WALL = 70, WALL_K = 0.045;
+
+function seed01(id: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return ((h >>> 0) % 10000) / 10000;
+}
+
+function stepColony(bodies: Body[], W: number, H: number, now: number) {
+  for (const a of bodies) {
+    let sumX = 0, sumY = 0, cohW = 0, alignX = 0, alignY = 0, sepX = 0, sepY = 0;
+    for (const b of bodies) {
+      if (b === a) continue;
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const d = Math.hypot(dx, dy) || 1;
+      if (d < SEP_R) {
+        const f = SEP_K * (1 - d / SEP_R);
+        sepX -= (dx / d) * f; sepY -= (dy / d) * f;
+      }
+      if (d < COH_R) {
+        const compat = compatibility(a.charId, b.charId);
+        if (compat > 0) {
+          sumX += b.x * compat; sumY += b.y * compat; cohW += compat;
+          alignX += b.vx; alignY += b.vy;
+        } else if (d < NEG_R) {
+          const f = NEG_K * (1 - d / NEG_R) * -compat;
+          sepX -= (dx / d) * f; sepY -= (dy / d) * f;
+        }
+      }
+    }
+    let fx = sepX, fy = sepY;
+    if (cohW > 0) {
+      const cx = sumX / cohW, cy = sumY / cohW;
+      const ddx = cx - a.x, ddy = cy - a.y, dd = Math.hypot(ddx, ddy) || 1;
+      fx += (ddx / dd) * COH_K * Math.min(1, dd / 160);
+      fy += (ddy / dd) * COH_K * Math.min(1, dd / 160);
+      fx += (alignX / cohW) * ALIGN_K * 0.02;
+      fy += (alignY / cohW) * ALIGN_K * 0.02;
+    }
+    // gentle wander so groups keep milling
+    const s = seed01(a.id);
+    const ang = Math.sin(now * 0.00028 + s * 8) * 2.4 + Math.sin(now * 0.00015 + s * 13) * 3;
+    fx += Math.cos(ang) * WANDER_K; fy += Math.sin(ang) * WANDER_K;
+    // soft walls
+    if (a.x < WALL) fx += (WALL - a.x) * WALL_K; else if (a.x > W - WALL) fx -= (a.x - (W - WALL)) * WALL_K;
+    if (a.y < WALL) fy += (WALL - a.y) * WALL_K; else if (a.y > H - WALL) fy -= (a.y - (H - WALL)) * WALL_K;
+
+    a.vx = (a.vx + fx) * DAMP; a.vy = (a.vy + fy) * DAMP;
+    const sp = Math.hypot(a.vx, a.vy);
+    if (sp > MAX_V) { a.vx = (a.vx / sp) * MAX_V; a.vy = (a.vy / sp) * MAX_V; }
+    a.x = Math.max(16, Math.min(W - 16, a.x + a.vx));
+    a.y = Math.max(16, Math.min(H - 16, a.y + a.vy));
+  }
 }
 
 export function DitherField({ creatures }: Props) {
@@ -108,7 +179,7 @@ export function DitherField({ creatures }: Props) {
 
     const frame = () => {
       const now = performance.now();
-      bodies = stepField(bodies, W, H, undefined, undefined, now) as Body[];
+      stepColony(bodies, W, H, now);
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, W, H);
