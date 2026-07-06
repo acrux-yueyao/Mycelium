@@ -14,12 +14,21 @@ import type { FieldCreature } from '../components/DitherField';
 
 const MAX_LOCAL = 500;
 
+// `?test` — a fully local sandbox: creatures accumulate only in this
+// browser tab, never read from or written to the shared store, so it
+// costs zero backend memory / API quota. Great for spam-testing the
+// whisper → grow → accumulate loop without polluting the real colony.
+const TEST_MODE =
+  typeof window !== 'undefined' &&
+  new URLSearchParams(window.location.search).has('test');
+
 export function useCreatures() {
   const [colony, setColony] = useState<FieldCreature[]>(() => demoColony(48));
   const [population, setPopulation] = useState(6856);
   const [configured, setConfigured] = useState(false);
 
   useEffect(() => {
+    if (TEST_MODE) return; // sandbox: don't touch the backend
     let alive = true;
     fetch('/api/creatures')
       .then((r) => r.json())
@@ -40,6 +49,7 @@ export function useCreatures() {
   const add = useCallback((c: FieldCreature) => {
     setColony((prev) => [c, ...prev].slice(0, MAX_LOCAL));
     setPopulation((p) => p + 1);
+    if (TEST_MODE) return; // sandbox: keep it local, never persist
     fetch('/api/creatures', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -50,5 +60,5 @@ export function useCreatures() {
       .catch(() => {});
   }, []);
 
-  return { colony, population, configured, add };
+  return { colony, population, configured, testMode: TEST_MODE, add };
 }

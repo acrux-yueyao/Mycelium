@@ -171,7 +171,7 @@ export default function App() {
   const [scene, setScene] = useState<'landing' | 'field'>(showDebug ? 'field' : 'landing');
   // The accumulated cross-user colony painted behind everything (loaded
   // from the shared store; demo colony until Upstash is configured).
-  const { colony, population, add: addCreature } = useCreatures();
+  const { colony, population, testMode, add: addCreature } = useCreatures();
   const [muted, setMutedState] = useState(false);
   const { loading, error, read, clearError } = useEmotion();
 
@@ -856,6 +856,19 @@ export default function App() {
       {/* The accumulated colony ecology — the page's visual material,
        *  painted on one canvas behind everything. */}
       <DitherField creatures={colony} />
+
+      {testMode && (
+        <div
+          style={{
+            position: 'fixed', top: 12, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 60, fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.14em',
+            color: '#ee352c', border: '1px solid #ee352c', borderRadius: 6,
+            padding: '4px 10px', background: 'rgba(241,240,235,0.9)', pointerEvents: 'none',
+          }}
+        >
+          TEST MODE · NOT SAVED
+        </div>
+      )}
 
       <AnimatePresence>
         {scene === 'landing' && (
