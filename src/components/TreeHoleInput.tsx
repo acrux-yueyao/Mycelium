@@ -19,6 +19,8 @@ export interface TreeHoleInputProps {
   onSubmit: (text: string) => void;
   disabled?: boolean;
   loading?: boolean;
+  /** skip the opening fade-in delay (used when entering the field). */
+  immediate?: boolean;
 }
 
 const MOUNT_DELAY_MS = 2000;
@@ -43,10 +45,10 @@ function MicIcon({ listening }: { listening: boolean }) {
   );
 }
 
-export function TreeHoleInput({ onSubmit, disabled, loading }: TreeHoleInputProps) {
+export function TreeHoleInput({ onSubmit, disabled, loading, immediate }: TreeHoleInputProps) {
   const [text, setText] = useState('');
   const [focused, setFocused] = useState(false);
-  const [visible, setVisible] = useState(false);
+  const [visible, setVisible] = useState(!!immediate);
   const [loadingSecs, setLoadingSecs] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -76,11 +78,12 @@ export function TreeHoleInput({ onSubmit, disabled, loading }: TreeHoleInputProp
     return 'mycelium is very slow today, hang on';
   }, [loadingSecs]);
 
-  // Hold back for 2s on mount, then fade in.
+  // Hold back for 2s on mount, then fade in (unless immediate).
   useEffect(() => {
+    if (immediate) { setVisible(true); return; }
     const id = window.setTimeout(() => setVisible(true), MOUNT_DELAY_MS);
     return () => window.clearTimeout(id);
-  }, []);
+  }, [immediate]);
 
   useEffect(() => {
     if (!visible) return;

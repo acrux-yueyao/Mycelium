@@ -25,6 +25,12 @@ export interface FieldCreature extends CreatureSeed {
   y: number;
   /** pixel size per cell. */
   cell: number;
+  /** archive metadata (whispered creatures carry these; demo/legacy
+   *  fall back to deterministic values). */
+  name?: string;
+  primaryLabel?: string;
+  rationale?: string;
+  bornAt?: number;
 }
 
 interface Props {
