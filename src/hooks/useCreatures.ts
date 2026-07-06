@@ -23,7 +23,7 @@ const TEST_MODE =
   new URLSearchParams(window.location.search).has('test');
 
 export function useCreatures() {
-  const [colony, setColony] = useState<FieldCreature[]>(() => demoColony(48, Date.now()));
+  const [colony, setColony] = useState<FieldCreature[]>(() => demoColony(9, Date.now()));
   const [population, setPopulation] = useState(6856);
   const [configured, setConfigured] = useState(false);
 
