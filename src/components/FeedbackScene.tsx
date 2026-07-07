@@ -15,10 +15,13 @@ import type { Scene } from './SceneNav';
 
 interface Props {
   latest: FieldCreature | null;
+  /** whether the name can still be edited (only before it's released). */
+  editable?: boolean;
+  onRename?: (name: string) => void;
   onNavigate: (s: Scene) => void;
 }
 
-export function FeedbackScene({ latest, onNavigate }: Props) {
+export function FeedbackScene({ latest, editable, onRename, onNavigate }: Props) {
   return (
     <motion.div
       className="scene specimen"
@@ -79,7 +82,21 @@ export function FeedbackScene({ latest, onNavigate }: Props) {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 0.28 }}
                 >
-                  <div className="spec-name">{name}</div>
+                  {editable ? (
+                    <div className="spec-name-edit" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        className="spec-name-input"
+                        value={latest.name ?? ''}
+                        maxLength={28}
+                        aria-label="creature name"
+                        spellCheck={false}
+                        onChange={(e) => onRename?.(e.target.value)}
+                      />
+                      <span className="spec-name-hint">✎ tap to rename</span>
+                    </div>
+                  ) : (
+                    <div className="spec-name">{name}</div>
+                  )}
                   <div className="spec-eyebrow">specimen</div>
                   <dl className="spec-data">
                     <div><dt>emotion</dt><dd>{latest.primaryLabel || family}</dd></div>

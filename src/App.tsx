@@ -857,11 +857,30 @@ export default function App() {
       bornAt: entity.bornAt,
       text,
     };
-    addCreature(creature);
+    // Don't commit to the colony/backend yet — the visitor meets the
+    // creature on its specimen card first and can rename it there. It's
+    // added (and persisted) once released into the field, so the final
+    // name is the one that's stored.
     setLatestCreature(creature);
-    // introduce the new creature on its specimen card before it joins the field
     setScene('feedback');
   };
+
+  // Rename the not-yet-released creature from the specimen card.
+  const renameLatest = (name: string) =>
+    setLatestCreature((c) => (c ? { ...c, name } : c));
+
+  // Navigation that doubles as the "release into the field" commit: the
+  // first time we head to the field with an unreleased creature, add it to
+  // the colony and persist it (exactly once).
+  const releasedRef = useRef<Set<string>>(new Set());
+  const navigate = (s: Scene) => {
+    if (s === 'field' && latestCreature && !releasedRef.current.has(latestCreature.id)) {
+      releasedRef.current.add(latestCreature.id);
+      addCreature(latestCreature);
+    }
+    setScene(s);
+  };
+  const latestReleased = !!latestCreature && releasedRef.current.has(latestCreature.id);
 
   // Debug bar handler: spawn one entity per CharId from a typed letter sequence.
   const handleDebugSpawn = (ids: CharId[]) => {
@@ -896,7 +915,7 @@ export default function App() {
       )}
 
       {scene !== 'landing' && (
-        <SceneNav scene={scene} population={population} onNavigate={setScene} />
+        <SceneNav scene={scene} population={population} onNavigate={navigate} />
       )}
 
       <AnimatePresence>
@@ -909,7 +928,13 @@ export default function App() {
         )}
         {scene === 'archive' && <ArchiveScene key="archive" creatures={colony} />}
         {scene === 'feedback' && (
-          <FeedbackScene key="feedback" latest={latestCreature} onNavigate={setScene} />
+          <FeedbackScene
+            key="feedback"
+            latest={latestCreature}
+            editable={!latestReleased}
+            onRename={renameLatest}
+            onNavigate={navigate}
+          />
         )}
       </AnimatePresence>
 
