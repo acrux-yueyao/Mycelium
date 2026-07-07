@@ -310,7 +310,13 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, W, H);
-      if (backdrop) ctx.drawImage(backdrop, 0, 0, W, H);
+      // the ambient backdrop shows at full strength on the cover (landing),
+      // and at half strength everywhere else so it reads as a faint ground.
+      if (backdrop) {
+        ctx.globalAlpha = clusteredRef.current ? 1 : 0.5;
+        ctx.drawImage(backdrop, 0, 0, W, H);
+        ctx.globalAlpha = 1;
+      }
 
       // creatures — gaze toward their current bond partner if any; the
       // interaction shows as a tile-swap dye toward the partner's palette.
