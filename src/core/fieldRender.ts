@@ -146,7 +146,7 @@ export function creatureSpec(c: CreatureSeed): MosaicSpec {
  * downward pixel-sort streaks behind, a horizontal glitch row, and a
  * few displaced flecks. Eyes stay crisp so it still reads as a creature.
  */
-export function drawMoshCreature(g: G, spec: MosaicSpec, ox: number, oy: number, cell: number, seed: string, gaze: number, dye?: DyeState | null) {
+export function drawMoshCreature(g: G, spec: MosaicSpec, ox: number, oy: number, cell: number, seed: string, gaze: number, dye?: DyeState | null, blink = false) {
   g.imageSmoothingEnabled = false;
   // tile-swap: per-cell colour, dyed toward the partner palette by a
   // wavefront sweeping in from the contact side.
@@ -207,6 +207,12 @@ export function drawMoshCreature(g: G, spec: MosaicSpec, ox: number, oy: number,
   const y = oy + spec.eyes.row * cell;
   const eye = (c0: number) => {
     const x = ox + c0 * cell;
+    if (blink) {
+      // closed eye — a short dark bar across the two eye cells
+      g.fillStyle = '#111';
+      g.fillRect(x, y + cell * 0.42, cell * 2, Math.max(1, cell * 0.34));
+      return;
+    }
     g.fillStyle = '#f4f2ec'; g.fillRect(x, y, cell * 2, cell);
     g.fillStyle = '#111'; g.fillRect(x + (gz * 0.5 + 0.5) * cell, y, cell, cell);
   };
