@@ -7,14 +7,22 @@
  * Fades out on enter.
  */
 import { motion } from 'framer-motion';
-import { landingContainer, riseItem, heroItem } from '../ui/motion';
+import { landingContainer, riseItem, heroItem, EASE } from '../ui/motion';
+import { CountUp } from './CountUp';
+import { useMagnetic } from '../ui/useMagnetic';
 
 interface Props {
   population: number;
   onEnter: () => void;
 }
 
+const fadeItem = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 0.6, ease: EASE } },
+};
+
 export function LandingPoster({ population, onEnter }: Props) {
+  const magnet = useMagnetic();
   return (
     <motion.div
       className="landing"
@@ -47,7 +55,13 @@ export function LandingPoster({ population, onEnter }: Props) {
         <div className="landing-date">whisper a sentence<br />→ grow a specimen</div>
       </motion.div>
 
-      <motion.button className="landing-enter" variants={riseItem} onClick={onEnter}>
+      <motion.button
+        ref={magnet.ref}
+        className="landing-enter"
+        variants={fadeItem}
+        style={magnet.style}
+        onClick={onEnter}
+      >
         <span>ENTER THE WORLD</span>
         <span className="landing-arrow" />
       </motion.button>
@@ -55,7 +69,7 @@ export function LandingPoster({ population, onEnter }: Props) {
       <motion.div className="landing-pop" variants={riseItem}>
         CURRENT POPULATION:<br />
         <span className="n" style={{ fontVariantNumeric: 'tabular-nums' }}>
-          {population.toLocaleString()} CREATURES
+          <CountUp value={population} /> CREATURES
         </span>
       </motion.div>
     </motion.div>
