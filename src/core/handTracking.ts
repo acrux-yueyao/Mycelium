@@ -13,11 +13,10 @@
  * physics ("finger at screen x = 200px") matches what the user sees.
  */
 
-import {
-  FilesetResolver,
-  HandLandmarker,
-  type NormalizedLandmark,
-} from '@mediapipe/tasks-vision';
+// Type-only import — erased at build. The heavy runtime module is loaded
+// on demand inside init() so it stays out of the initial bundle and is only
+// fetched when a visitor actually enables hand tracking.
+import type { HandLandmarker, NormalizedLandmark } from '@mediapipe/tasks-vision';
 
 const WASM_BASE =
   'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.34/wasm';
@@ -60,8 +59,9 @@ export class HandTracker {
 
   async init(): Promise<void> {
     if (this.landmarker) return;
-    const vision = await FilesetResolver.forVisionTasks(WASM_BASE);
-    this.landmarker = await HandLandmarker.createFromOptions(vision, {
+    const mp = await import('@mediapipe/tasks-vision');
+    const vision = await mp.FilesetResolver.forVisionTasks(WASM_BASE);
+    this.landmarker = await mp.HandLandmarker.createFromOptions(vision, {
       baseOptions: { modelAssetPath: MODEL_URL, delegate: 'GPU' },
       runningMode: 'VIDEO',
       numHands: 2,
