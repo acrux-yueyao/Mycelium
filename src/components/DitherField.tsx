@@ -42,7 +42,10 @@ const WANDER_K = 0.03, DAMP = 0.93, MAX_V = 1.3;
 const SEP_R = 68, SEP_K = 0.95;
 const WALL = 70, WALL_K = 0.045;
 const CENTER_R = 220, CENTER_K = 0.05; // clear a hole for the input
-const COHESION_K = 0.0016;             // landing: pull everyone into a huddle
+// landing: a soft central well — creatures wander freely inside HUDDLE_R and
+// only get a gentle nudge back once they stray past it, so the colony loosely
+// gathers in the middle instead of clumping into one suspicious knot.
+const HUDDLE_R_FRAC = 0.26, HUDDLE_K = 0.006;
 // bonds — choose to meet, then leave
 const CONNECT_R = 135, DISCONNECT_R = 205, BOND_REST = 96, BOND_K = 0.014;
 const MAX_BONDS = 2;
@@ -205,6 +208,7 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
       // forces
       const cx = W / 2, cy = H * 0.5;
       const huddle = clusteredRef.current;
+      const HUDDLE_R = Math.min(W, H) * HUDDLE_R_FRAC;
       for (const a of bodies) {
         let fx = 0, fy = 0;
         for (const b of bodies) {
@@ -225,9 +229,13 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
         fx += Math.cos(ang) * WANDER_K; fy += Math.sin(ang) * WANDER_K;
         const ddx = a.x - cx, ddy = a.y - cy, dc = Math.hypot(ddx, ddy) || 1;
         if (huddle) {
-          // landing: draw everyone into a loose huddle in the middle
-          fx -= (ddx / dc) * dc * COHESION_K;
-          fy -= (ddy / dc) * dc * COHESION_K;
+          // landing: free wander inside the well, gentle pull back only when
+          // a creature drifts past HUDDLE_R — a loose gathering, not a knot.
+          if (dc > HUDDLE_R) {
+            const f = (dc - HUDDLE_R) * HUDDLE_K;
+            fx -= (ddx / dc) * f;
+            fy -= (ddy / dc) * f;
+          }
         } else if (dc < CENTER_R) {
           // field: the input box shoves a clear hole through the centre,
           // so anyone caught in the middle gets pushed outward.
