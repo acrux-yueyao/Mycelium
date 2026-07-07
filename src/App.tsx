@@ -5,6 +5,7 @@ import { LandingPoster } from './components/LandingPoster';
 import { SceneNav, type Scene } from './components/SceneNav';
 import { ArchiveScene } from './components/ArchiveScene';
 import { FeedbackScene } from './components/FeedbackScene';
+import { SurveyScene } from './components/SurveyScene';
 import { useCreatures } from './hooks/useCreatures';
 import { DebugSpawnBar } from './components/DebugSpawnBar';
 import { Entity, type HybridSource } from './components/Entity';
@@ -941,6 +942,7 @@ export default function App() {
           />
         )}
         {scene === 'archive' && <ArchiveScene key="archive" creatures={colony} />}
+        {scene === 'survey' && <SurveyScene key="survey" onNavigate={navigate} />}
         {scene === 'feedback' && (
           <FeedbackScene
             key="feedback"

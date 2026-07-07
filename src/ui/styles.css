@@ -802,6 +802,84 @@ body,
 .spec-share-btn:hover { text-decoration: underline; }
 .spec-share-sep { color: var(--ink-soft); }
 
+/* ===== Feedback survey ===== */
+.scene.survey { display: flex; align-items: flex-start; justify-content: center; }
+.survey-form, .survey-thanks { width: min(620px, 92vw); }
+.survey-head { margin-bottom: 26px; }
+.survey-head h2 {
+  margin: 0 0 6px; font-family: var(--font-mono); font-size: 15px; font-weight: 700; letter-spacing: 0.2em;
+  display: flex; align-items: baseline; gap: 12px;
+}
+.survey-head h2 span, .survey-q-t span, .survey-thanks h2 span {
+  font-weight: 500; font-size: 12px; letter-spacing: 0.06em; color: var(--ink-soft);
+}
+.survey-head p { margin: 0; font-family: var(--font-mono); font-size: 12px; line-height: 1.7; color: var(--ink-dim); }
+
+.survey-q { margin-bottom: 22px; }
+.survey-q-t {
+  font-family: var(--font-mono); font-size: 13px; color: var(--ink); margin-bottom: 10px; line-height: 1.5;
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px;
+}
+.survey-q-t em { color: var(--ink-soft); font-style: normal; font-size: 11px; }
+
+/* 1–5 scale */
+.survey-scale { display: flex; gap: 8px; flex-wrap: wrap; }
+.survey-dot {
+  position: relative; min-width: 46px; height: 46px; border: 1px solid var(--cream-edge);
+  background: rgba(255,255,255,0.4); border-radius: 4px; cursor: pointer;
+  font-family: var(--font-mono); font-size: 15px; font-weight: 700; color: var(--ink-dim);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease, transform 0.15s ease;
+}
+.survey-dot-zh { font-size: 8.5px; font-weight: 500; letter-spacing: 0.02em; }
+.survey-dot:hover { transform: translateY(-2px); }
+.survey-dot.on { border-color: var(--accent); color: var(--accent); background: rgba(91,79,208,0.08); }
+
+/* choice chips */
+.survey-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.survey-chip {
+  border: 1px solid var(--cream-edge); background: rgba(255,255,255,0.4); border-radius: 999px;
+  padding: 8px 14px; cursor: pointer; font-family: var(--font-mono); font-size: 12px; color: var(--ink);
+  display: inline-flex; align-items: baseline; gap: 7px;
+  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease, transform 0.15s ease;
+}
+.survey-chip i { font-style: normal; font-size: 10px; color: var(--ink-soft); }
+.survey-chip:hover { transform: translateY(-1px); }
+.survey-chip.on { border-color: var(--accent); color: var(--accent); background: rgba(91,79,208,0.08); }
+.survey-chip.on i { color: var(--accent); }
+
+/* text + email fields */
+.survey-text, .survey-input {
+  width: 100%; font-family: var(--font-mono); font-size: 13px; color: var(--ink);
+  background: rgba(255,255,255,0.55); border: 1px solid var(--cream-edge); border-radius: 4px;
+  padding: 12px 14px; resize: vertical; outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.survey-text:focus, .survey-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(91,79,208,0.1); }
+
+.survey-actions { display: flex; align-items: center; gap: 18px; margin-top: 8px; }
+.survey-submit {
+  font-family: var(--font-mono); font-size: 13px; letter-spacing: 0.12em;
+  background: var(--ink); color: var(--cream); border: 0; border-radius: 999px;
+  padding: 12px 24px; cursor: pointer; transition: opacity 0.2s ease, transform 0.15s ease;
+}
+.survey-submit:hover:not(:disabled) { transform: translateY(-1px); }
+.survey-submit:disabled { opacity: 0.4; cursor: not-allowed; }
+.survey-skip { background: none; border: 0; cursor: pointer; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em; color: var(--ink-dim); text-decoration: underline; }
+.survey-err { font-family: var(--font-mono); font-size: 11px; color: #c0342e; }
+
+/* thank-you */
+.survey-thanks { text-align: center; padding-top: 6vh; }
+.survey-thanks-glyph { font-size: 40px; color: var(--accent); margin-bottom: 18px; }
+.survey-thanks h2 { margin: 0 0 12px; font-family: var(--font-mono); font-size: 16px; letter-spacing: 0.2em; display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.survey-thanks p { margin: 0 0 26px; font-family: var(--font-mono); font-size: 13px; line-height: 1.8; color: var(--ink-dim); }
+.survey-cta {
+  font-family: var(--font-mono); font-size: 13px; letter-spacing: 0.12em;
+  background: var(--ink); color: var(--cream); border: 0; border-radius: 999px; padding: 12px 24px; cursor: pointer;
+  display: inline-flex; flex-direction: column; gap: 2px; align-items: center;
+}
+.survey-cta span { font-size: 10px; letter-spacing: 0.06em; opacity: 0.75; }
+
 /* Corner control that re-opens the specimen card after the visitor has
  * whispered and returned to the field. Small, quiet, bottom-right. */
 .specimen-recall {
