@@ -154,7 +154,9 @@ export function drawMoshCreature(g: G, spec: MosaicSpec, ox: number, oy: number,
     if (!dye || dye.progress <= 0) return c.color;
     const nx = (c.col - spec.center) / (spec.cols || 1);
     const ny = (c.row - spec.rows / 2) / (spec.rows || 1);
-    const proj = 0.5 + (nx * dye.dirX + ny * dye.dirY);
+    // Wavefront originates at the contact side (the cells facing the
+    // partner dye FIRST) and sweeps across to the far side.
+    const proj = 0.5 - (nx * dye.dirX + ny * dye.dirY);
     const thr = Math.max(0, Math.min(1, proj));
     if (dye.progress >= thr + 0.14) return dyedCellColor(spec, c, dye.palette);
     if (dye.progress >= thr) return mixHsl(c.color, dyedCellColor(spec, c, dye.palette), (dye.progress - thr) / 0.14);

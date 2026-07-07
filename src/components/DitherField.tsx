@@ -51,6 +51,10 @@ const CONNECT_R = 135, DISCONNECT_R = 205, BOND_REST = 96, BOND_K = 0.014;
 const MAX_BONDS = 2;
 // mother trees
 const MOTHER_AGE = 40_000, ISOLATION_MS = 16_000, MOTHER_REACH = 380, SUPPORT_LIFE = 16_000;
+// how long the visitor's own creature stays visually flagged
+const MINE_HIGHLIGHT_MS = 5 * 60_000;
+// matter exchange — little mosaic tiles ferried between bonded partners
+const MATTER_MIN = 620, MATTER_MAX = 1150, PACKET_CAP = 140;
 
 interface Body {
   id: string; charId: CharId; x: number; y: number; vx: number; vy: number;
@@ -60,7 +64,10 @@ interface Body {
   dyePal?: MosaicPaletteSpec | null; dyeStart?: number; dyeRelease?: number | null;
   dyeDirX?: number; dyeDirY?: number;
 }
-interface Bond { a: string; b: string; born: number; life: number; support: boolean }
+interface Bond { a: string; b: string; born: number; life: number; support: boolean; emitAt?: number }
+// A mosaic tile in transit from one creature to its bond partner — reads
+// as the two of them trading bits of substance.
+interface Packet { toId: string; sx: number; sy: number; born: number; dur: number; color: string; size: number; perp: number }
 
 // Colour exchange is slow and partial: it ramps in over ~6s and never
 // covers more than ~45% of a creature, so everyone permanently keeps the
@@ -104,6 +111,22 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
     // pointer drag — pick a creature up, fling it on release
     let dragId: string | null = null;
     let dragX = 0, dragY = 0, dragPX = 0, dragPY = 0, dragPT = 0;
+
+    // matter exchange: mosaic tiles in flight between bond partners
+    let packets: Packet[] = [];
+    const emitPacket = (from: Body, to: Body, now: number) => {
+      const cells = from.spec.cells;
+      const col = cells.length ? cells[(seed01(from.id + now) * cells.length) | 0].color : '#fff';
+      // the two directions bow to opposite sides, so a bonded pair reads as
+      // a visible circulation of matter rather than tiles lost in the overlap
+      const dir = from.id < to.id ? 1 : -1;
+      packets.push({
+        toId: to.id, sx: from.x, sy: from.y, born: now,
+        dur: 950 + seed01(to.id + now) * 700,
+        color: col, size: Math.max(5, from.cell * 1.35),
+        perp: dir * (40 + seed01(from.id + to.id + now) * 34),
+      });
+    };
 
     const buildBackdrop = () => {
       W = window.innerWidth; H = window.innerHeight;
@@ -205,6 +228,16 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
         if (b.dyePal && b.dyeRelease == null && !active.has(b.id)) b.dyeRelease = now;
       }
 
+      // matter exchange: bonded partners lob mosaic tiles back and forth
+      for (const bd of bonds.values()) {
+        const A = bodyById.get(bd.a), B = bodyById.get(bd.b);
+        if (!A || !B) continue;
+        if (bd.emitAt == null) { bd.emitAt = now + 250 + seed01(bd.a + bd.b) * 400; continue; }
+        if (now < bd.emitAt) continue;
+        bd.emitAt = now + MATTER_MIN + seed01(bd.b + now) * (MATTER_MAX - MATTER_MIN);
+        if (packets.length < PACKET_CAP) { emitPacket(A, B, now); emitPacket(B, A, now); }
+      }
+
       // forces
       const cx = W / 2, cy = H * 0.5;
       const huddle = clusteredRef.current;
@@ -304,7 +337,9 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
         }
 
         const ww = a.spec.cols * a.cell, hh = a.spec.rows * a.cell;
-        const mine = a.id === mineRef.current;
+        // your own creature is highlighted — but only for the first 5
+        // minutes, after which it quietly blends into the colony.
+        const mine = a.id === mineRef.current && now - a.appearAt < MINE_HIGHLIGHT_MS;
         const rBase = Math.max(ww, hh) / 2 + 10;
 
         // "this one is yours" marker — a birth burst when it first appears,
@@ -349,6 +384,34 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
       }
       ctx.textAlign = 'left';
       ctx.textBaseline = 'alphabetic';
+
+      // matter packets — mosaic tiles in flight toward their target creature
+      if (packets.length) {
+        const keep: Packet[] = [];
+        for (const p of packets) {
+          const to = bodyById.get(p.toId);
+          if (!to) continue;
+          const t = (now - p.born) / p.dur;
+          if (t >= 1) continue;                       // delivered
+          const ease = t * t * (3 - 2 * t);
+          const dx = to.x - p.sx, dy = to.y - p.sy, L = Math.hypot(dx, dy) || 1;
+          const wob = Math.sin(t * Math.PI) * p.perp;
+          const x = p.sx + dx * ease + (-dy / L) * wob;
+          const y = p.sy + dy * ease + (dx / L) * wob;
+          const fade = Math.min(1, Math.min(t, 1 - t) / 0.16);
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = 0.28 * fade;            // soft glow halo
+          ctx.fillRect(x - p.size, y - p.size, p.size * 2, p.size * 2);
+          ctx.globalAlpha = 0.45 * fade;            // trail behind it
+          ctx.fillRect(x - p.size / 2 - (dx / L) * 4, y - p.size / 2 - (dy / L) * 4, p.size * 0.7, p.size * 0.7);
+          ctx.globalAlpha = 0.95 * fade;            // the tile itself
+          ctx.fillRect(x - p.size / 2, y - p.size / 2, p.size, p.size);
+          keep.push(p);
+        }
+        ctx.globalAlpha = 1;
+        packets = keep;
+      }
+
       raf = requestAnimationFrame(frame);
     };
 
