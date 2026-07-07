@@ -877,8 +877,10 @@ export default function App() {
   return (
     <div className="stage">
       {/* The accumulated colony ecology — the page's visual material,
-       *  painted on one canvas behind everything. */}
-      <DitherField creatures={colony} />
+       *  painted on one canvas behind everything. On the landing page the
+       *  colony huddles together; entering the field spreads it as the
+       *  input box shoves a hole through the centre. */}
+      <DitherField creatures={colony} clustered={scene === 'landing'} mineId={latestCreature?.id ?? null} />
 
       {testMode && (
         <div

@@ -27,7 +27,14 @@ export interface FieldCreature extends CreatureSeed {
   text?: string;
 }
 
-interface Props { creatures: FieldCreature[] }
+interface Props {
+  creatures: FieldCreature[];
+  /** landing: the colony huddles together in the middle; field: it spreads
+   *  as the input box shoves a clear hole through the centre. */
+  clustered?: boolean;
+  /** id of THIS visitor's own creature — highlighted so they can find it. */
+  mineId?: string | null;
+}
 
 const CAP = 150;
 // movement — free & uncertain, gentle
@@ -35,6 +42,7 @@ const WANDER_K = 0.03, DAMP = 0.93, MAX_V = 1.3;
 const SEP_R = 68, SEP_K = 0.95;
 const WALL = 70, WALL_K = 0.045;
 const CENTER_R = 220, CENTER_K = 0.05; // clear a hole for the input
+const COHESION_K = 0.0016;             // landing: pull everyone into a huddle
 // bonds — choose to meet, then leave
 const CONNECT_R = 135, DISCONNECT_R = 205, BOND_REST = 96, BOND_K = 0.014;
 const MAX_BONDS = 2;
@@ -44,13 +52,17 @@ const MOTHER_AGE = 40_000, ISOLATION_MS = 16_000, MOTHER_REACH = 380, SUPPORT_LI
 interface Body {
   id: string; charId: CharId; x: number; y: number; vx: number; vy: number;
   bornAt: number; lastBondAt: number; cell: number; spec: MosaicSpec; name: string;
+  appearAt: number; // when it first showed up on this client (for birth fx)
   // tile-swap dye toward a partner's palette during an encounter
   dyePal?: MosaicPaletteSpec | null; dyeStart?: number; dyeRelease?: number | null;
   dyeDirX?: number; dyeDirY?: number;
 }
 interface Bond { a: string; b: string; born: number; life: number; support: boolean }
 
-const DYE_RAMP = 2200, DYE_MAX = 0.8, DYE_RELEASE = 1700;
+// Colour exchange is slow and partial: it ramps in over ~6s and never
+// covers more than ~45% of a creature, so everyone permanently keeps the
+// palette they were born with — an encounter tints them, never rewrites them.
+const DYE_RAMP = 6000, DYE_MAX = 0.45, DYE_RELEASE = 3000;
 
 function seed01(id: string): number {
   let h = 2166136261;
@@ -59,10 +71,14 @@ function seed01(id: string): number {
 }
 function pairKey(a: string, b: string) { return a < b ? `${a}|${b}` : `${b}|${a}`; }
 
-export function DitherField({ creatures }: Props) {
+export function DitherField({ creatures, clustered, mineId }: Props) {
   const ref = useRef<HTMLCanvasElement | null>(null);
   const creaturesRef = useRef(creatures);
   creaturesRef.current = creatures;
+  const clusteredRef = useRef(!!clustered);
+  clusteredRef.current = !!clustered;
+  const mineRef = useRef<string | null>(mineId ?? null);
+  mineRef.current = mineId ?? null;
 
   useEffect(() => {
     const canvas = ref.current;
@@ -81,6 +97,10 @@ export function DitherField({ creatures }: Props) {
       let s = specCache.get(c.id); if (!s) { s = creatureSpec(c); specCache.set(c.id, s); } return s;
     };
     const bodyById = new Map<string, Body>();
+
+    // pointer drag — pick a creature up, fling it on release
+    let dragId: string | null = null;
+    let dragX = 0, dragY = 0, dragPX = 0, dragPY = 0, dragPT = 0;
 
     const buildBackdrop = () => {
       W = window.innerWidth; H = window.innerHeight;
@@ -105,7 +125,7 @@ export function DitherField({ creatures }: Props) {
           id: c.id, charId: c.charId,
           x: c.x * W, y: c.y * H, vx: Math.cos(a) * 0.3, vy: Math.sin(a) * 0.3,
           bornAt: c.bornAt ?? now, lastBondAt: now, cell: c.cell, spec: specOf(c),
-          name: c.name ?? nameFor(c.id),
+          name: c.name ?? nameFor(c.id), appearAt: now,
         };
         bodies.push(b); bodyById.set(b.id, b);
       }
@@ -184,6 +204,7 @@ export function DitherField({ creatures }: Props) {
 
       // forces
       const cx = W / 2, cy = H * 0.5;
+      const huddle = clusteredRef.current;
       for (const a of bodies) {
         let fx = 0, fy = 0;
         for (const b of bodies) {
@@ -202,9 +223,18 @@ export function DitherField({ creatures }: Props) {
         const s = seed01(a.id);
         const ang = Math.sin(now * 0.00031 + s * 8) * 2.4 + Math.sin(now * 0.00017 + s * 13) * 3.2;
         fx += Math.cos(ang) * WANDER_K; fy += Math.sin(ang) * WANDER_K;
-        // clear the centre for the input
         const ddx = a.x - cx, ddy = a.y - cy, dc = Math.hypot(ddx, ddy) || 1;
-        if (dc < CENTER_R) { const p = (CENTER_R - dc) / CENTER_R * CENTER_K; fx += (ddx / dc) * p * CENTER_R * 0.12; fy += (ddy / dc) * p * CENTER_R * 0.12; }
+        if (huddle) {
+          // landing: draw everyone into a loose huddle in the middle
+          fx -= (ddx / dc) * dc * COHESION_K;
+          fy -= (ddy / dc) * dc * COHESION_K;
+        } else if (dc < CENTER_R) {
+          // field: the input box shoves a clear hole through the centre,
+          // so anyone caught in the middle gets pushed outward.
+          const p = (CENTER_R - dc) / CENTER_R * CENTER_K;
+          fx += (ddx / dc) * p * CENTER_R * 0.12;
+          fy += (ddy / dc) * p * CENTER_R * 0.12;
+        }
         // walls
         if (a.x < WALL) fx += (WALL - a.x) * WALL_K; else if (a.x > W - WALL) fx -= (a.x - (W - WALL)) * WALL_K;
         if (a.y < WALL) fy += (WALL - a.y) * WALL_K; else if (a.y > H - WALL) fy -= (a.y - (H - WALL)) * WALL_K;
@@ -214,6 +244,21 @@ export function DitherField({ creatures }: Props) {
         if (sp > MAX_V) { a.vx = (a.vx / sp) * MAX_V; a.vy = (a.vy / sp) * MAX_V; }
         a.x = Math.max(14, Math.min(W - 14, a.x + a.vx));
         a.y = Math.max(14, Math.min(H - 14, a.y + a.vy));
+      }
+
+      // drag override: the held creature tracks the cursor and inherits a
+      // velocity from cursor motion, so releasing flings it with momentum.
+      if (dragId) {
+        const b = bodyById.get(dragId);
+        if (b) {
+          const dtMs = Math.max(1, now - dragPT);
+          b.vx = ((dragX - dragPX) / dtMs) * 12;
+          b.vy = ((dragY - dragPY) / dtMs) * 12;
+          b.x = dragX; b.y = dragY;
+          dragPX = dragX; dragPY = dragY; dragPT = now;
+        } else {
+          dragId = null;
+        }
       }
     };
 
@@ -251,19 +296,46 @@ export function DitherField({ creatures }: Props) {
         }
 
         const ww = a.spec.cols * a.cell, hh = a.spec.rows * a.cell;
+        const mine = a.id === mineRef.current;
+        const rBase = Math.max(ww, hh) / 2 + 10;
+
+        // "this one is yours" marker — a birth burst when it first appears,
+        // then a soft pulsing dashed ring so you can always pick it out.
+        if (mine) {
+          const age = now - a.appearAt;
+          ctx.save();
+          if (age < 6000) {
+            const t = (age % 1300) / 1300;
+            ctx.beginPath();
+            ctx.arc(a.x, a.y, rBase + t * 42, 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(91,79,208,${(1 - t) * 0.55})`;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+          }
+          const pulse = 0.5 + 0.5 * Math.sin(now * 0.004);
+          ctx.beginPath();
+          ctx.arc(a.x, a.y, rBase, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(91,79,208,${0.32 + pulse * 0.34})`;
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([4, 4]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.restore();
+        }
+
         drawMoshCreature(ctx, a.spec, a.x - ww / 2, a.y - hh / 2, a.cell, a.id, gz, dye);
 
         // resident name tag — small mono label beneath each creature, so
         // the whole colony reads as a catalogue of named library residents.
-        const label = a.name.toLowerCase();
-        ctx.font = '600 10px "JetBrains Mono", ui-monospace, monospace';
+        const label = mine ? `${a.name.toLowerCase()} · you` : a.name.toLowerCase();
+        ctx.font = `${mine ? '700' : '600'} 10px "JetBrains Mono", ui-monospace, monospace`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
         try { ctx.letterSpacing = '0.06em'; } catch { /* older browsers */ }
         const ly = a.y + hh / 2 + 5;
         ctx.fillStyle = 'rgba(16,16,16,0.34)';
         ctx.fillText(label, a.x + 0.6, ly + 0.6);   // faint drop for legibility
-        ctx.fillStyle = 'rgba(16,16,16,0.7)';
+        ctx.fillStyle = mine ? 'rgba(91,79,208,0.95)' : 'rgba(16,16,16,0.7)';
         ctx.fillText(label, a.x, ly);
         try { ctx.letterSpacing = '0px'; } catch { /* noop */ }
       }
@@ -272,11 +344,53 @@ export function DitherField({ creatures }: Props) {
       raf = requestAnimationFrame(frame);
     };
 
+    // === pointer drag ===
+    // The canvas fills the viewport (fixed inset:0), so client coords map
+    // straight to canvas space. On press we grab the nearest creature whose
+    // sprite is under the cursor; while held it tracks the pointer.
+    const onDown = (e: PointerEvent) => {
+      const x = e.clientX, y = e.clientY;
+      let best: Body | null = null, bestD = Infinity;
+      for (const b of bodies) {
+        const ww = b.spec.cols * b.cell, hh = b.spec.rows * b.cell;
+        const r = Math.max(ww, hh) / 2 + 12;
+        const d = Math.hypot(b.x - x, b.y - y);
+        if (d < r && d < bestD) { bestD = d; best = b; }
+      }
+      if (best) {
+        dragId = best.id;
+        dragX = dragPX = x; dragY = dragPY = y; dragPT = performance.now();
+        canvas.style.cursor = 'grabbing';
+      }
+    };
+    const onMove = (e: PointerEvent) => {
+      if (dragId) { dragX = e.clientX; dragY = e.clientY; return; }
+      // hover affordance: cursor turns to a grab hand over a creature
+      let over = false;
+      for (const b of bodies) {
+        const ww = b.spec.cols * b.cell, hh = b.spec.rows * b.cell;
+        if (Math.hypot(b.x - e.clientX, b.y - e.clientY) < Math.max(ww, hh) / 2 + 12) { over = true; break; }
+      }
+      canvas.style.cursor = over ? 'grab' : 'default';
+    };
+    const onUp = () => { if (dragId) { dragId = null; canvas.style.cursor = 'grab'; } };
+    canvas.addEventListener('pointerdown', onDown);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+
     buildBackdrop();
     frame();
     const onResize = () => { cancelAnimationFrame(raf); buildBackdrop(); frame(); };
     window.addEventListener('resize', onResize);
-    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', onResize); };
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', onResize);
+      canvas.removeEventListener('pointerdown', onDown);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
   }, []);
 
   return (
@@ -285,7 +399,7 @@ export function DitherField({ creatures }: Props) {
       aria-hidden
       style={{
         position: 'fixed', inset: 0, width: '100%', height: '100%',
-        imageRendering: 'pixelated', pointerEvents: 'none', zIndex: 0,
+        imageRendering: 'pixelated', pointerEvents: 'auto', zIndex: 0,
       }}
     />
   );
