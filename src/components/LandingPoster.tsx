@@ -7,6 +7,7 @@
  * Fades out on enter.
  */
 import { motion } from 'framer-motion';
+import { landingContainer, riseItem, heroItem } from '../ui/motion';
 
 interface Props {
   population: number;
@@ -17,46 +18,46 @@ export function LandingPoster({ population, onEnter }: Props) {
   return (
     <motion.div
       className="landing"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.9, ease: 'easeInOut' }}
+      variants={landingContainer}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
     >
-      <div className="landing-brand">
+      <motion.div className="landing-brand" variants={riseItem}>
         MYCELIUM FIELD<br />2024—∞
         <div className="landing-sw">
           <i style={{ background: '#c79be6' }} />
           <i style={{ background: '#46a65a' }} />
           <i style={{ background: '#dfd49a' }} />
         </div>
-      </div>
+      </motion.div>
 
-      <nav className="landing-nav">
+      <motion.nav className="landing-nav" variants={riseItem}>
         <span>ABOUT</span><span>ARCHIVE</span><span>CREATURES</span>
-      </nav>
+      </motion.nav>
 
-      <div className="landing-hero">
+      <motion.div className="landing-hero" variants={heroItem}>
         <h1>The Whisper<br />Network</h1>
         <div className="landing-sub">an underground web of feeling</div>
         <div className="landing-desc">A DIGITAL ECOSYSTEM OF<br />COLLECTIVE IMAGINATION</div>
-      </div>
+      </motion.div>
 
-      <div className="landing-meta">
+      <motion.div className="landing-meta" variants={riseItem}>
         H&amp;R BLOCK<br />ARTSPACE<br />MYCELIUM FIELD
         <div className="landing-date">whisper a sentence<br />→ grow a specimen</div>
-      </div>
+      </motion.div>
 
-      <button className="landing-enter" onClick={onEnter}>
+      <motion.button className="landing-enter" variants={riseItem} onClick={onEnter}>
         <span>ENTER THE WORLD</span>
         <span className="landing-arrow" />
-      </button>
+      </motion.button>
 
-      <div className="landing-pop">
+      <motion.div className="landing-pop" variants={riseItem}>
         CURRENT POPULATION:<br />
         <span className="n" style={{ fontVariantNumeric: 'tabular-nums' }}>
           {population.toLocaleString()} CREATURES
         </span>
-      </div>
+      </motion.div>
     </motion.div>
   );
 }

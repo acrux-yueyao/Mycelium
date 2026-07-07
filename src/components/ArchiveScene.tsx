@@ -8,6 +8,7 @@ import { CreatureThumb } from './CreatureThumb';
 import { scanRecord } from '../core/scanRecord';
 import { nameFor } from '../core/names';
 import { CHARACTERS } from '../data/characters';
+import { sceneOverlay, EASE } from '../ui/motion';
 import type { FieldCreature } from './DitherField';
 
 interface Props {
@@ -18,10 +19,10 @@ export function ArchiveScene({ creatures }: Props) {
   return (
     <motion.div
       className="scene archive"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.5 }}
+      variants={sceneOverlay}
+      initial="initial"
+      animate="animate"
+      exit="exit"
     >
       <div className="archive-head">
         <h2>SPECIMEN ARCHIVE</h2>
@@ -33,7 +34,13 @@ export function ArchiveScene({ creatures }: Props) {
           const name = c.name || nameFor(c.id);
           const family = CHARACTERS[c.charId]?.name ?? '—';
           return (
-            <div className="archive-card" key={c.id}>
+            <motion.div
+              className="archive-card"
+              key={c.id}
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: EASE, delay: Math.min(i, 22) * 0.028 }}
+            >
               <div className="archive-thumb"><CreatureThumb creature={c} cell={6} height={104} /></div>
               <div className="archive-meta">
                 <div className="archive-id">id:{rec.serial} · {name}</div>
@@ -44,7 +51,7 @@ export function ArchiveScene({ creatures }: Props) {
                   {typeof c.intensity === 'number' ? ` · int ${c.intensity.toFixed(2)}` : ''}
                 </div>
               </div>
-            </div>
+            </motion.div>
           );
         })}
       </div>
