@@ -7,6 +7,7 @@
  */
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import { sceneOverlay } from '../ui/motion';
 import { CreatureThumb } from './CreatureThumb';
 import { scanRecord } from '../core/scanRecord';
 import { nameFor } from '../core/names';
@@ -51,10 +52,10 @@ export function FeedbackScene({ latest, editable, onRename, onNavigate }: Props)
       // where it joins the colony and starts interacting.
       onClick={latest ? () => onNavigate('field') : undefined}
       style={latest ? { cursor: 'pointer' } : undefined}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.5 }}
+      variants={sceneOverlay}
+      initial="initial"
+      animate="animate"
+      exit="exit"
     >
       {!latest ? (
         <div className="feedback-empty">
