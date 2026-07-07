@@ -19,6 +19,7 @@ import { useHandTracking } from './hooks/useHandTracking';
 import { CHARACTERS, type CharId } from './data/characters';
 import type { Morphology } from './core/emotion';
 import { randomName } from './core/names';
+import { decodeCreature } from './core/share';
 import { findNearestBody, stepField } from './core/field';
 import { stepConnections, isActive, type Connection } from './core/connections';
 import { type ExplorationProbe } from './core/probes';
@@ -881,6 +882,19 @@ export default function App() {
     setScene(s);
   };
   const latestReleased = !!latestCreature && releasedRef.current.has(latestCreature.id);
+
+  // ?s=<token> — a shared/claimed spore. Decode it, open its specimen card,
+  // and mark it released so it's read-only and never re-persisted.
+  useEffect(() => {
+    const token = params.get('s');
+    if (!token) return;
+    const c = decodeCreature(token);
+    if (!c) return;
+    releasedRef.current.add(c.id);
+    setLatestCreature(c);
+    setScene('feedback');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Debug bar handler: spawn one entity per CharId from a typed letter sequence.
   const handleDebugSpawn = (ids: CharId[]) => {

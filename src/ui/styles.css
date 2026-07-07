@@ -785,6 +785,16 @@ body,
 .spec-release:hover span { transform: translateX(4px); }
 .spec-archive-link { background: none; border: 0; cursor: pointer; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em; color: var(--ink-dim); text-decoration: underline; }
 
+/* claim & share row under the specimen actions */
+.spec-share { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 14px; }
+.spec-share-btn {
+  background: none; border: 0; cursor: pointer;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--accent); padding: 4px 2px;
+}
+.spec-share-btn:hover { text-decoration: underline; }
+.spec-share-sep { color: var(--ink-soft); }
+
 /* Corner control that re-opens the specimen card after the visitor has
  * whispered and returned to the field. Small, quiet, bottom-right. */
 .specimen-recall {
