@@ -64,8 +64,10 @@ interface Body {
   // tile-swap dye toward a partner's palette during an encounter
   dyePal?: MosaicPaletteSpec | null; dyeStart?: number; dyeRelease?: number | null;
   dyeDirX?: number; dyeDirY?: number;
+  // permanent residual tint left by a long past encounter (never released)
+  permPal?: MosaicPaletteSpec | null; permProg?: number; permDX?: number; permDY?: number;
 }
-interface Bond { a: string; b: string; born: number; life: number; support: boolean; emitAt?: number }
+interface Bond { a: string; b: string; born: number; life: number; support: boolean; emitAt?: number; imprinted?: boolean }
 // A mosaic tile in transit from one creature to its bond partner — reads
 // as the two of them trading bits of substance.
 interface Packet { toId: string; sx: number; sy: number; born: number; dur: number; color: string; size: number; perp: number }
@@ -76,6 +78,10 @@ interface Packet { toId: string; sx: number; sy: number; born: number; dur: numb
 const DYE_RAMP = 6000, DYE_MAX = 0.45, DYE_RELEASE = 3000;
 // blink + idle gaze
 const BLINK_MS = 130, BLINK_MIN = 2600, BLINK_VAR = 4600, GAZE_R = 260;
+// permanent hybridisation — a long encounter leaves a small, permanent
+// residual of the partner's palette from the contact side (outline unchanged),
+// like being quietly changed by a relationship. Rare and subtle.
+const HYBRID_MIN_MS = 7000, HYBRID_CHANCE = 0.4, PERM_PROG = 0.17;
 
 function seed01(id: string): number {
   let h = 2166136261;
@@ -168,6 +174,15 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
       target.dyeDirX = dx / d; target.dyeDirY = dy / d;
     };
 
+    // Freeze a small permanent tint of the partner's palette onto target,
+    // from the contact side — the lasting mark of a long encounter.
+    const imprint = (target: Body, partner: Body) => {
+      const dx = partner.x - target.x, dy = partner.y - target.y, d = Math.hypot(dx, dy) || 1;
+      target.permPal = partner.spec.palette;
+      target.permProg = PERM_PROG;
+      target.permDX = dx / d; target.permDY = dy / d;
+    };
+
     const step = (now: number) => {
       // active-bond count per body
       const bcount = new Map<string, number>();
@@ -180,6 +195,11 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
         const A = bodyById.get(bd.a), B = bodyById.get(bd.b);
         if (!A || !B) { bonds.delete(k); continue; }
         const d = Math.hypot(A.x - B.x, A.y - B.y);
+        // long, sustained encounter → one roll for a permanent mutual imprint
+        if (!bd.imprinted && now - bd.born > HYBRID_MIN_MS && d < DISCONNECT_R) {
+          bd.imprinted = true;
+          if (seed01(k + 'hyb') < HYBRID_CHANCE) { imprint(A, B); imprint(B, A); }
+        }
         if (now - bd.born > bd.life || d > DISCONNECT_R) {
           bonds.delete(k);
           cooldown.set(k, now + 7000 + seed01(k) * 5000);
@@ -362,6 +382,10 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
             if (p <= 0.001) { a.dyePal = null; a.dyeRelease = null; }
           }
           if (a.dyePal && p > 0) dye = { palette: a.dyePal, progress: p, dirX: a.dyeDirX ?? 0, dirY: a.dyeDirY ?? 0 };
+        }
+        // no active/releasing dye → fall back to the permanent residual tint
+        if (!dye && a.permPal && (a.permProg ?? 0) > 0) {
+          dye = { palette: a.permPal, progress: a.permProg!, dirX: a.permDX ?? 0, dirY: a.permDY ?? 0 };
         }
 
         const ww = a.spec.cols * a.cell, hh = a.spec.rows * a.cell;
