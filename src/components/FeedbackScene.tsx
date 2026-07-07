@@ -5,10 +5,13 @@
  * the right — then it's released into the field. Frosted-glass editorial
  * layout.
  */
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { CreatureThumb } from './CreatureThumb';
 import { scanRecord } from '../core/scanRecord';
 import { nameFor } from '../core/names';
+import { shareUrl } from '../core/share';
+import { downloadShareCard } from '../core/shareCard';
 import { CHARACTERS } from '../data/characters';
 import type { FieldCreature } from './DitherField';
 import type { Scene } from './SceneNav';
@@ -22,6 +25,25 @@ interface Props {
 }
 
 export function FeedbackScene({ latest, editable, onRename, onNavigate }: Props) {
+  const [copied, setCopied] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const copyLink = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!latest) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl(latest));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch { /* clipboard blocked — ignore */ }
+  };
+  const saveImage = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!latest || saving) return;
+    setSaving(true);
+    try { await downloadShareCard(latest); } finally { setSaving(false); }
+  };
+
   return (
     <motion.div
       className="scene specimen"
@@ -113,6 +135,17 @@ export function FeedbackScene({ latest, editable, onRename, onNavigate }: Props)
                   release into the field <span aria-hidden>▸</span>
                 </button>
                 <button className="spec-archive-link" onClick={(e) => { e.stopPropagation(); onNavigate('archive'); }}>view archive</button>
+              </div>
+
+              {/* claim & share — the spore is reproducible from its link */}
+              <div className="spec-share" onClick={(e) => e.stopPropagation()}>
+                <button className="spec-share-btn" onClick={copyLink}>
+                  {copied ? '✓ link copied' : 'copy link'}
+                </button>
+                <span className="spec-share-sep" aria-hidden>·</span>
+                <button className="spec-share-btn" onClick={saveImage}>
+                  {saving ? 'saving…' : 'save image'}
+                </button>
               </div>
             </div>
           );
