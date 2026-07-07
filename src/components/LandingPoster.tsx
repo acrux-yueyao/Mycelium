@@ -1,5 +1,5 @@
 /**
- * LandingPoster — the "Beautiful Worlds" entry page.
+ * LandingPoster — the "The Whisper Network" entry page.
  *
  * A biennial-style poster laid over the live ecology (DitherField renders
  * behind it in App). Editorial mono type pinned to the corners, the
@@ -36,8 +36,8 @@ export function LandingPoster({ population, onEnter }: Props) {
       </nav>
 
       <div className="landing-hero">
-        <h1>Beautiful<br />World(s):</h1>
-        <div className="landing-sub">weaving the new ecology</div>
+        <h1>The Whisper<br />Network</h1>
+        <div className="landing-sub">an underground web of feeling</div>
         <div className="landing-desc">A DIGITAL ECOSYSTEM OF<br />COLLECTIVE IMAGINATION</div>
       </div>
 
