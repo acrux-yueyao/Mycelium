@@ -120,6 +120,9 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
     // pointer drag — pick a creature up, fling it on release
     let dragId: string | null = null;
     let dragX = 0, dragY = 0, dragPX = 0, dragPY = 0, dragPT = 0;
+    // landing cursor parallax — the whole field leans toward the cursor
+    let paraX = 0, paraY = 0, paraTX = 0, paraTY = 0;
+    const PARA_AMP = 26;
 
     // matter exchange: mosaic tiles in flight between bond partners
     let packets: Packet[] = [];
@@ -332,6 +335,15 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
       sync(now);
       step(now);
 
+      // landing cursor parallax — ease toward the cursor; snaps off (eases
+      // back to 0) in the field so drag hit-testing stays pixel-accurate.
+      const ptx = clusteredRef.current ? paraTX : 0;
+      const pty = clusteredRef.current ? paraTY : 0;
+      paraX += (ptx - paraX) * 0.05;
+      paraY += (pty - paraY) * 0.05;
+      canvas.style.transform =
+        Math.abs(paraX) > 0.05 || Math.abs(paraY) > 0.05 ? `translate(${paraX}px,${paraY}px)` : 'none';
+
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, W, H);
       // the ambient backdrop shows at full strength on the cover (landing),
@@ -487,6 +499,8 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
       }
     };
     const onMove = (e: PointerEvent) => {
+      paraTX = (e.clientX / W - 0.5) * PARA_AMP;
+      paraTY = (e.clientY / H - 0.5) * PARA_AMP;
       if (dragId) { dragX = e.clientX; dragY = e.clientY; return; }
       // hover affordance: cursor turns to a grab hand over a creature
       let over = false;
