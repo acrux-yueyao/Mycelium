@@ -60,6 +60,7 @@ interface Body {
   id: string; charId: CharId; x: number; y: number; vx: number; vy: number;
   bornAt: number; lastBondAt: number; cell: number; spec: MosaicSpec; name: string;
   appearAt: number; // when it first showed up on this client (for birth fx)
+  blinkAt: number;  // wall-clock ms when the next blink starts
   // tile-swap dye toward a partner's palette during an encounter
   dyePal?: MosaicPaletteSpec | null; dyeStart?: number; dyeRelease?: number | null;
   dyeDirX?: number; dyeDirY?: number;
@@ -73,6 +74,8 @@ interface Packet { toId: string; sx: number; sy: number; born: number; dur: numb
 // covers more than ~45% of a creature, so everyone permanently keeps the
 // palette they were born with — an encounter tints them, never rewrites them.
 const DYE_RAMP = 6000, DYE_MAX = 0.45, DYE_RELEASE = 3000;
+// blink + idle gaze
+const BLINK_MS = 130, BLINK_MIN = 2600, BLINK_VAR = 4600, GAZE_R = 260;
 
 function seed01(id: string): number {
   let h = 2166136261;
@@ -152,6 +155,7 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
           x: c.x * W, y: c.y * H, vx: Math.cos(a) * 0.3, vy: Math.sin(a) * 0.3,
           bornAt: c.bornAt ?? now, lastBondAt: now, cell: c.cell, spec: specOf(c),
           name: c.name ?? nameFor(c.id), appearAt: now,
+          blinkAt: now + BLINK_MIN + seed01(c.id + 'blink') * BLINK_VAR,
         };
         bodies.push(b); bodyById.set(b.id, b);
       }
@@ -326,7 +330,25 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
         let gz = seed01(a.id) < 0.5 ? -0.85 : 0.85;
         const pid = partnerOf.get(a.id);
         const t = pid ? bodyById.get(pid) : null;
-        if (t) gz = t.x > a.x ? 0.85 : -0.85;
+        if (t) {
+          gz = t.x > a.x ? 0.85 : -0.85;
+        } else {
+          // idle: glance toward the nearest neighbour if one is close
+          let nn: Body | null = null, best = GAZE_R;
+          for (const o of bodies) {
+            if (o === a) continue;
+            const d = Math.hypot(o.x - a.x, o.y - a.y);
+            if (d < best) { best = d; nn = o; }
+          }
+          if (nn) gz = nn.x > a.x ? 0.7 : -0.7;
+        }
+
+        // blink schedule — closed for BLINK_MS, then reschedule
+        let blink = false;
+        if (now >= a.blinkAt) {
+          if (now < a.blinkAt + BLINK_MS) blink = true;
+          else a.blinkAt = now + BLINK_MIN + seed01(a.id + (now | 0)) * BLINK_VAR;
+        }
 
         // dye progress: ramp up while bonded, fade back after parting
         let dye = null as null | { palette: MosaicPaletteSpec; progress: number; dirX: number; dirY: number };
@@ -372,7 +394,7 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
           ctx.restore();
         }
 
-        drawMoshCreature(ctx, a.spec, a.x - ww / 2, a.y - hh / 2, a.cell, a.id, gz, dye);
+        drawMoshCreature(ctx, a.spec, a.x - ww / 2, a.y - hh / 2, a.cell, a.id, gz, dye, blink);
 
         // resident name tag — small mono label beneath each creature, so
         // the whole colony reads as a catalogue of named library residents.
