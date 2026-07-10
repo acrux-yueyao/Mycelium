@@ -27,6 +27,9 @@ export interface DyeState {
   /** unit direction toward the partner (sweep origin). */
   dirX: number;
   dirY: number;
+  /** partner's signature colour, laid boldest at the contact seam so the
+   *  exchange reads as "it took on that one's colour". */
+  seam?: string;
 }
 
 function parseHsl(s: string): [number, number, number] {
@@ -158,9 +161,15 @@ export function drawMoshCreature(g: G, spec: MosaicSpec, ox: number, oy: number,
     // partner dye FIRST) and sweeps across to the far side.
     const proj = 0.5 - (nx * dye.dirX + ny * dye.dirY);
     const thr = Math.max(0, Math.min(1, proj));
-    if (dye.progress >= thr + 0.14) return dyedCellColor(spec, c, dye.palette);
-    if (dye.progress >= thr) return mixHsl(c.color, dyedCellColor(spec, c, dye.palette), (dye.progress - thr) / 0.14);
-    return c.color;
+    if (dye.progress < thr) return c.color;
+    let out = dye.progress >= thr + 0.14
+      ? dyedCellColor(spec, c, dye.palette)
+      : mixHsl(c.color, dyedCellColor(spec, c, dye.palette), (dye.progress - thr) / 0.14);
+    // contact-seam emphasis — the cells nearest the touch point take on the
+    // partner's signature colour, boldest at the seam and fading inward, so
+    // the connection reads directionally as a mutual exchange.
+    if (dye.seam && proj < 0.18) out = mixHsl(out, dye.seam, 0.6 * (1 - proj / 0.18));
+    return out;
   };
   const rng = new Rng(xmur3(seed + ':mosh')());
 
