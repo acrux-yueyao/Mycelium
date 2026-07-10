@@ -47,7 +47,7 @@ const CENTER_R = 220, CENTER_K = 0.05; // clear a hole for the input
 // gathers in the middle instead of clumping into one suspicious knot.
 const HUDDLE_R_FRAC = 0.26, HUDDLE_K = 0.006;
 // bonds — choose to meet, then leave
-const CONNECT_R = 135, DISCONNECT_R = 205, BOND_REST = 96, BOND_K = 0.014;
+const CONNECT_R = 135, DISCONNECT_R = 205, BOND_REST = 116, BOND_K = 0.014;
 const MAX_BONDS = 2;
 // mother trees
 const MOTHER_AGE = 40_000, ISOLATION_MS = 16_000, MOTHER_REACH = 380, SUPPORT_LIFE = 16_000;
@@ -63,7 +63,7 @@ interface Body {
   blinkAt: number;  // wall-clock ms when the next blink starts
   // tile-swap dye toward a partner's palette during an encounter
   dyePal?: MosaicPaletteSpec | null; dyeStart?: number; dyeRelease?: number | null;
-  dyeDirX?: number; dyeDirY?: number;
+  dyeDirX?: number; dyeDirY?: number; dyeSeam?: string;
   // permanent residual tint left by a long past encounter (never released)
   permPal?: MosaicPaletteSpec | null; permProg?: number; permDX?: number; permDY?: number;
 }
@@ -89,6 +89,14 @@ function seed01(id: string): number {
   return ((h >>> 0) % 10000) / 10000;
 }
 function pairKey(a: string, b: string) { return a < b ? `${a}|${b}` : `${b}|${a}`; }
+// a creature's "signature" colour = its most saturated cell — used as the
+// bold seam colour when a partner dyes it, so the exchange reads clearly.
+function satOf(hsl: string): number { const m = hsl.match(/(\d+(?:\.\d+)?)%/); return m ? parseFloat(m[1]) : 0; }
+function sigColor(b: Body): string {
+  let best = '#888', bestSat = -1;
+  for (const c of b.spec.cells) { const s = satOf(c.color); if (s > bestSat) { bestSat = s; best = c.color; } }
+  return best;
+}
 
 export function DitherField({ creatures, clustered, mineId }: Props) {
   const ref = useRef<HTMLCanvasElement | null>(null);
@@ -176,6 +184,7 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
       target.dyePal = partner.spec.palette;
       target.dyeStart = now; target.dyeRelease = null;
       target.dyeDirX = dx / d; target.dyeDirY = dy / d;
+      target.dyeSeam = sigColor(partner);
     };
 
     // Freeze a small permanent tint of the partner's palette onto target,
@@ -391,7 +400,7 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
         }
 
         // dye progress: ramp up while bonded, fade back after parting
-        let dye = null as null | { palette: MosaicPaletteSpec; progress: number; dirX: number; dirY: number };
+        let dye = null as null | { palette: MosaicPaletteSpec; progress: number; dirX: number; dirY: number; seam?: string };
         if (a.dyePal && a.dyeStart != null) {
           let p: number;
           if (a.dyeRelease == null) {
@@ -401,7 +410,7 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
             p = atRelease * Math.max(0, 1 - (now - a.dyeRelease) / DYE_RELEASE);
             if (p <= 0.001) { a.dyePal = null; a.dyeRelease = null; }
           }
-          if (a.dyePal && p > 0) dye = { palette: a.dyePal, progress: p, dirX: a.dyeDirX ?? 0, dirY: a.dyeDirY ?? 0 };
+          if (a.dyePal && p > 0) dye = { palette: a.dyePal, progress: p, dirX: a.dyeDirX ?? 0, dirY: a.dyeDirY ?? 0, seam: a.dyeSeam };
         }
         // no active/releasing dye → fall back to the permanent residual tint
         if (!dye && a.permPal && (a.permProg ?? 0) > 0) {
@@ -449,6 +458,12 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
           const gust = Math.max(0, Math.sin(now * 0.0006 + s * 10)); // slow 0..1
           sway = Math.sin(now * 0.004 + s * 6) * (2 + gust * 7);     // occasional stronger sway
           if (Math.sin(now * 0.02 + s * 20) > 0.93) mAlpha = 0.78;   // occasional flicker
+        }
+        // synchronised breathing for a bonded pair — both beat together, so
+        // they read as "a couple" rather than two creatures that overlap.
+        if (pid) {
+          const key = a.id < pid ? a.id + pid : pid + a.id;
+          dcell *= 1 + 0.05 * Math.sin(now * 0.0045 + seed01(key) * 6.283);
         }
         const dw = a.spec.cols * dcell, dh = a.spec.rows * dcell;
         if (mAlpha < 1) ctx.globalAlpha = mAlpha;
