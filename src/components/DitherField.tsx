@@ -126,17 +126,18 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
 
     // matter exchange: mosaic tiles in flight between bond partners
     let packets: Packet[] = [];
-    const emitPacket = (from: Body, to: Body, now: number) => {
+    const emitPacket = (from: Body, to: Body, now: number, feed = false) => {
       const cells = from.spec.cells;
       const col = cells.length ? cells[(seed01(from.id + now) * cells.length) | 0].color : '#fff';
-      // the two directions bow to opposite sides, so a bonded pair reads as
-      // a visible circulation of matter rather than tiles lost in the overlap
+      // feed = a mother-tree nourishing an isolated creature: a slow, near-straight
+      // one-directional stream (in the mother's own colours). otherwise a peer
+      // exchange that bows to opposite sides.
       const dir = from.id < to.id ? 1 : -1;
       packets.push({
         toId: to.id, sx: from.x, sy: from.y, born: now,
-        dur: 950 + seed01(to.id + now) * 700,
-        color: col, size: Math.max(5, from.cell * 1.35),
-        perp: dir * (40 + seed01(from.id + to.id + now) * 34),
+        dur: feed ? 1500 : 950 + seed01(to.id + now) * 700,
+        color: col, size: feed ? Math.max(6, from.cell * 1.5) : Math.max(5, from.cell * 1.35),
+        perp: feed ? dir * 14 : dir * (40 + seed01(from.id + to.id + now) * 34),
       });
     };
 
@@ -262,7 +263,10 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
         if (bd.emitAt == null) { bd.emitAt = now + 250 + seed01(bd.a + bd.b) * 400; continue; }
         if (now < bd.emitAt) continue;
         bd.emitAt = now + MATTER_MIN + seed01(bd.b + now) * (MATTER_MAX - MATTER_MIN);
-        if (packets.length < PACKET_CAP) { emitPacket(A, B, now); emitPacket(B, A, now); }
+        if (packets.length < PACKET_CAP) {
+          if (bd.support) emitPacket(A, B, now, true);          // mother (a) feeds the lonely (b): warm, one-way
+          else { emitPacket(A, B, now); emitPacket(B, A, now); }
+        }
       }
 
       // forces
@@ -358,6 +362,10 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
       // interaction shows as a tile-swap dye toward the partner's palette.
       const partnerOf = new Map<string, string>();
       for (const bd of bonds.values()) { partnerOf.set(bd.a, bd.b); partnerOf.set(bd.b, bd.a); }
+      // a mother tree becomes visible only while it's actually supporting an
+      // isolated creature — the supporter (a) of each live support bond.
+      const supporterIds = new Set<string>();
+      for (const bd of bonds.values()) { if (bd.support) supporterIds.add(bd.a); }
       for (const a of bodies) {
         let gz = seed01(a.id) < 0.5 ? -0.85 : 0.85;
         const pid = partnerOf.get(a.id);
@@ -430,20 +438,34 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
           ctx.restore();
         }
 
-        drawMoshCreature(ctx, a.spec, a.x - ww / 2, a.y - hh / 2, a.cell, a.id, gz, dye, blink);
+        // mother tree (currently supporting an isolated creature): render a
+        // little larger, with a gentle sway and the occasional flicker — a
+        // quiet living "elder" presence rather than a glowing halo.
+        const isMother = supporterIds.has(a.id);
+        let dcell = a.cell, sway = 0, mAlpha = 1;
+        if (isMother) {
+          const s = seed01(a.id);
+          dcell = a.cell * 1.4;                                  // bigger
+          const gust = Math.max(0, Math.sin(now * 0.0006 + s * 10)); // slow 0..1
+          sway = Math.sin(now * 0.004 + s * 6) * (2 + gust * 7);     // occasional stronger sway
+          if (Math.sin(now * 0.02 + s * 20) > 0.93) mAlpha = 0.78;   // occasional flicker
+        }
+        const dw = a.spec.cols * dcell, dh = a.spec.rows * dcell;
+        if (mAlpha < 1) ctx.globalAlpha = mAlpha;
+        drawMoshCreature(ctx, a.spec, a.x + sway - dw / 2, a.y - dh / 2, dcell, a.id, gz, dye, blink);
+        if (mAlpha < 1) ctx.globalAlpha = 1;
 
-        // resident name tag — small mono label beneath each creature, so
-        // the whole colony reads as a catalogue of named library residents.
+        // resident name tag — small mono label beneath each creature.
         const label = mine ? `${a.name.toLowerCase()} · you` : a.name.toLowerCase();
         ctx.font = `${mine ? '700' : '600'} 10px "JetBrains Mono", ui-monospace, monospace`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
         try { ctx.letterSpacing = '0.06em'; } catch { /* older browsers */ }
-        const ly = a.y + hh / 2 + 5;
+        const ly = a.y + dh / 2 + 5;
         ctx.fillStyle = 'rgba(16,16,16,0.34)';
-        ctx.fillText(label, a.x + 0.6, ly + 0.6);   // faint drop for legibility
+        ctx.fillText(label, a.x + sway + 0.6, ly + 0.6);   // faint drop for legibility
         ctx.fillStyle = mine ? 'rgba(91,79,208,0.95)' : 'rgba(16,16,16,0.7)';
-        ctx.fillText(label, a.x, ly);
+        ctx.fillText(label, a.x + sway, ly);
         try { ctx.letterSpacing = '0px'; } catch { /* noop */ }
       }
       ctx.textAlign = 'left';
