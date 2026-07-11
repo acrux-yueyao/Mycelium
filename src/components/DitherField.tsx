@@ -55,6 +55,8 @@ const MOTHER_AGE = 40_000, ISOLATION_MS = 16_000, MOTHER_REACH = 380, SUPPORT_LI
 const MINE_HIGHLIGHT_MS = 5 * 60_000;
 // matter exchange — little mosaic tiles ferried between bonded partners
 const MATTER_MIN = 620, MATTER_MAX = 1150, PACKET_CAP = 140;
+// closed loop: how often to poll the live cultivation chamber's telemetry
+const BIO_POLL_MS = 10_000;
 
 interface Body {
   id: string; charId: CharId; x: number; y: number; vx: number; vy: number;
@@ -89,6 +91,14 @@ function seed01(id: string): number {
   return ((h >>> 0) % 10000) / 10000;
 }
 function pairKey(a: string, b: string) { return a < b ? `${a}|${b}` : `${b}|${a}`; }
+// Map one live-fungus telemetry frame to a 0..1 "activity" the colony breathes
+// with. Prefer the mycelium biopotential (its swing tracks metabolic activity);
+// fall back to how far chamber humidity sits above a ~70% resting point.
+function bioActivity(f: { biopotential?: number | null; humidity?: number | null }): number {
+  if (f.biopotential != null) return Math.max(0, Math.min(1, Math.abs(f.biopotential) / 50));
+  if (f.humidity != null) return Math.max(0, Math.min(1, (f.humidity - 70) / 30));
+  return 0;
+}
 // a creature's "signature" colour = its most saturated cell — used as the
 // bold seam colour when a partner dyes it, so the exchange reads clearly.
 function satOf(hsl: string): number { const m = hsl.match(/(\d+(?:\.\d+)?)%/); return m ? parseFloat(m[1]) : 0; }
@@ -106,6 +116,30 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
   clusteredRef.current = !!clustered;
   const mineRef = useRef<string | null>(mineId ?? null);
   mineRef.current = mineId ?? null;
+  // closed loop: latest telemetry from the physical cultivation chamber.
+  // `live` stays false until a real frame arrives, so with no installation
+  // connected the colony looks exactly as it does today (zero added motion).
+  const bioRef = useRef({ activity: 0, live: false });
+
+  // Poll /api/bio for the fungus's live state. Degrades silently when the
+  // endpoint is absent / not configured — the colony just keeps its resting look.
+  useEffect(() => {
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const poll = async () => {
+      try {
+        const res = await fetch('/api/bio');
+        if (res.ok) {
+          const data = await res.json();
+          const f = data?.latest;
+          if (f) { bioRef.current.activity = bioActivity(f); bioRef.current.live = true; }
+        }
+      } catch { /* offline / not configured — keep the last value */ }
+      if (alive) timer = setTimeout(poll, BIO_POLL_MS);
+    };
+    poll();
+    return () => { alive = false; if (timer) clearTimeout(timer); };
+  }, []);
 
   useEffect(() => {
     const canvas = ref.current;
@@ -348,6 +382,11 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
       sync(now);
       step(now);
 
+      // closed loop: the live fungus's activity gives the whole colony a faint
+      // shared breath — nothing at rest, fuller when the culture is active.
+      const bio = bioRef.current;
+      const breath = bio.live ? 0.012 + 0.03 * bio.activity : 0;
+
       // landing cursor parallax — ease toward the cursor; snaps off (eases
       // back to 0) in the field so drag hit-testing stays pixel-accurate.
       const ptx = clusteredRef.current ? paraTX : 0;
@@ -465,6 +504,8 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
           const key = a.id < pid ? a.id + pid : pid + a.id;
           dcell *= 1 + 0.05 * Math.sin(now * 0.0045 + seed01(key) * 6.283);
         }
+        // whole-colony breath driven by the live fungus (0 when disconnected)
+        if (breath > 0) dcell *= 1 + breath * Math.sin(now * 0.0045 + seed01(a.id) * 6.283);
         const dw = a.spec.cols * dcell, dh = a.spec.rows * dcell;
         if (mAlpha < 1) ctx.globalAlpha = mAlpha;
         drawMoshCreature(ctx, a.spec, a.x + sway - dw / 2, a.y - dh / 2, dcell, a.id, gz, dye, blink);
