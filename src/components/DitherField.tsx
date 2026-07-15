@@ -198,8 +198,11 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
     };
 
     const sync = (now: number) => {
+      // fewer live creatures on a phone so the small canvas doesn't turn into
+      // an unreadable pile (extras stay baked into the backdrop / off-stage).
+      const cap = window.innerWidth < 640 ? 60 : CAP;
       for (const c of creaturesRef.current) {
-        if (known.has(c.id) || bodies.length >= CAP) continue;
+        if (known.has(c.id) || bodies.length >= cap) continue;
         known.add(c.id);
         const a = seed01(c.id + 'v') * Math.PI * 2;
         const b: Body = {
@@ -316,6 +319,10 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
       const cx = W / 2, cy = H * 0.5;
       const huddle = clusteredRef.current;
       const HUDDLE_R = Math.min(W, H) * HUDDLE_R_FRAC;
+      // On a phone the fixed 220px input hole and 70px wall margins eat almost
+      // the whole width, so scale them to the viewport (desktop keeps its values).
+      const centerR = Math.min(CENTER_R, W * 0.30);
+      const wall = Math.min(WALL, W * 0.06);
       for (const a of bodies) {
         let fx = 0, fy = 0;
         for (const b of bodies) {
@@ -343,16 +350,16 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
             fx -= (ddx / dc) * f;
             fy -= (ddy / dc) * f;
           }
-        } else if (dc < CENTER_R) {
+        } else if (dc < centerR) {
           // field: the input box shoves a clear hole through the centre,
           // so anyone caught in the middle gets pushed outward.
-          const p = (CENTER_R - dc) / CENTER_R * CENTER_K;
-          fx += (ddx / dc) * p * CENTER_R * 0.12;
-          fy += (ddy / dc) * p * CENTER_R * 0.12;
+          const p = (centerR - dc) / centerR * CENTER_K;
+          fx += (ddx / dc) * p * centerR * 0.12;
+          fy += (ddy / dc) * p * centerR * 0.12;
         }
         // walls
-        if (a.x < WALL) fx += (WALL - a.x) * WALL_K; else if (a.x > W - WALL) fx -= (a.x - (W - WALL)) * WALL_K;
-        if (a.y < WALL) fy += (WALL - a.y) * WALL_K; else if (a.y > H - WALL) fy -= (a.y - (H - WALL)) * WALL_K;
+        if (a.x < wall) fx += (wall - a.x) * WALL_K; else if (a.x > W - wall) fx -= (a.x - (W - wall)) * WALL_K;
+        if (a.y < wall) fy += (wall - a.y) * WALL_K; else if (a.y > H - wall) fy -= (a.y - (H - wall)) * WALL_K;
 
         a.vx = (a.vx + fx) * DAMP; a.vy = (a.vy + fy) * DAMP;
         const sp = Math.hypot(a.vx, a.vy);
@@ -561,12 +568,15 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
     // The canvas fills the viewport (fixed inset:0), so client coords map
     // straight to canvas space. On press we grab the nearest creature whose
     // sprite is under the cursor; while held it tracks the pointer.
+    // touch fingers need a bigger target than a mouse cursor.
+    const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+    const grabPad = coarse ? 30 : 12;
     const onDown = (e: PointerEvent) => {
       const x = e.clientX, y = e.clientY;
       let best: Body | null = null, bestD = Infinity;
       for (const b of bodies) {
         const ww = b.spec.cols * b.cell, hh = b.spec.rows * b.cell;
-        const r = Math.max(ww, hh) / 2 + 12;
+        const r = Math.max(ww, hh) / 2 + grabPad;
         const d = Math.hypot(b.x - x, b.y - y);
         if (d < r && d < bestD) { bestD = d; best = b; }
       }
@@ -574,6 +584,7 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
         dragId = best.id;
         dragX = dragPX = x; dragY = dragPY = y; dragPT = performance.now();
         canvas.style.cursor = 'grabbing';
+        try { canvas.setPointerCapture(e.pointerId); } catch { /* not supported */ }
       }
     };
     const onMove = (e: PointerEvent) => {
@@ -615,6 +626,7 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
       style={{
         position: 'fixed', inset: 0, width: '100%', height: '100%',
         imageRendering: 'pixelated', pointerEvents: 'auto', zIndex: 0,
+        touchAction: 'none',
       }}
     />
   );

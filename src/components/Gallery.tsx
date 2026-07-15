@@ -85,7 +85,7 @@ export function Gallery() {
           textAlign: 'center',
           fontFamily: 'ui-monospace, monospace',
           fontSize: 11,
-          color: '#8a7f76',
+          color: '#9d9c92',
         }}
       >
         <Entity
@@ -110,7 +110,7 @@ export function Gallery() {
     fontFamily: 'system-ui, sans-serif',
     fontSize: 13,
     fontWeight: 600,
-    color: '#6b5f56',
+    color: '#6b6a62',
     margin: '22px 16px 8px',
     letterSpacing: '0.04em',
     display: 'flex',
@@ -127,7 +127,7 @@ export function Gallery() {
       style={{
         position: 'absolute',
         inset: 0,
-        background: '#f4ecdf',
+        background: '#F1F0EB',
         overflow: 'auto',
         padding: 16,
         boxSizing: 'border-box',
@@ -161,7 +161,7 @@ export function Gallery() {
       <div
         style={{
           position: 'absolute', top: 12, right: 16,
-          fontFamily: 'system-ui, sans-serif', fontSize: 12, color: '#8a7f76',
+          fontFamily: 'system-ui, sans-serif', fontSize: 12, color: '#9d9c92',
         }}
       >
         back to the stage: drop <code>?gallery</code> from the URL
