@@ -179,6 +179,34 @@ h2.head{font-family:var(--disp); font-weight:700; line-height:1.02; letter-spaci
 .cta.primary{background:var(--ink); color:var(--ground)}
 .colophon{padding:44px 0 80px; color:var(--soft); font-size:11.5px; line-height:1.9}
 .colophon b{color:var(--dim)}
+
+/* ===== data evidence (sourced) ===== */
+.ev-h{font-family:var(--disp); font-weight:700; font-size:clamp(15px,2vw,20px); margin:34px 0 16px}
+.ev-h span{color:var(--accent-ink)}
+.ev-src{font-size:11px; color:var(--soft); margin-top:12px; letter-spacing:.02em}
+.ev-src a{color:var(--accent-ink); text-decoration:none; border-bottom:1px solid var(--accent-soft)}
+.agebars{display:grid; gap:12px; max-width:660px}
+.agebar{display:grid; grid-template-columns:96px 1fr 46px; align-items:center; gap:12px}
+.agebar .lab{font-size:12px; color:var(--dim); text-align:right}
+.agebar .track{height:28px; background:var(--panel); border:1px solid var(--edge); position:relative; overflow:hidden}
+.agebar .track i{position:absolute; left:0; top:0; bottom:0; background:var(--accent); display:block}
+.agebar .track i.mid{background:#8f86ef} .agebar .track i.low{background:#bcb7de}
+.agebar .val{font-family:var(--disp); font-weight:700; font-size:14px; font-variant-numeric:tabular-nums}
+.statwall{display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--edge); border:1px solid var(--edge); margin-top:32px}
+@media(max-width:720px){.statwall{grid-template-columns:repeat(2,1fr)}}
+.statwall .stat{background:var(--panel); padding:20px 16px}
+.statwall .stat b{display:block; font-family:var(--disp); font-weight:700; font-size:clamp(24px,3.6vw,38px); color:var(--accent-ink)}
+.statwall .stat span{display:block; font-size:11.5px; color:var(--dim); line-height:1.5; margin-top:8px}
+.worldmap{margin-top:10px; border:1px solid var(--edge); background:var(--panel); padding:clamp(14px,3vw,26px)}
+.worldmap svg{display:block; width:100%; height:auto}
+.mapkey{display:flex; flex-wrap:wrap; gap:8px 20px; margin-top:14px; font-size:11.5px; color:var(--dim)}
+.mapkey i{display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; vertical-align:middle}
+.clips{display:flex; flex-wrap:wrap; gap:13px; margin-top:34px}
+.clip{flex:1 1 240px; text-decoration:none; border:1px solid var(--edge); background:#fff; padding:15px 17px;
+  transform:rotate(-.5deg); box-shadow:2px 3px 0 rgba(17,17,16,.05); transition:transform .15s ease}
+.clip:nth-child(even){transform:rotate(.7deg)} .clip:hover{transform:rotate(0) translateY(-2px)}
+.clip .pub{display:block; font-family:var(--mono); font-size:10px; letter-spacing:.13em; text-transform:uppercase; color:var(--accent-ink)}
+.clip .hd{display:block; font-family:var(--disp); font-weight:700; font-size:14px; color:var(--ink); line-height:1.32; margin-top:8px}
 </style>
 
 <div class="rail" id="rail"></div>
@@ -218,6 +246,71 @@ h2.head{font-family:var(--disp); font-weight:700; line-height:1.02; letter-spaci
     </div>
     <p class="note rv d3">孤独，不在于身边有多少人。它是<b>你想要的连接，和你真正感到的连接，
       两者之间的那道落差</b>。<span class="src">— 美国医务总监, 2023</span></p>
+  </div>
+</section>
+
+<!-- ============ 1b · EVIDENCE (sourced data) ============ -->
+<section class="scene">
+  <div class="wrap">
+    <div class="eyebrow rv">01 · 背景 — 数据实证<span class="zh">the evidence</span></div>
+    <h2 class="head rv">孤独，<br>用数字说话。</h2>
+    <p class="sub rv d1">下面这些数字，都是这件作品引用的外部研究——每一条都标了出处、都能点开。
+      原型本身不测量任何东西；这些只是它立足的地面。</p>
+
+    <div class="ev-h rv d1">最孤独的不是老人——是<span>19–29 岁的年轻人</span></div>
+    <div class="agebars rv d1">
+      <div class="agebar"><span class="lab">19–29 岁</span><span class="track"><i style="width:47%"></i></span><span class="val">27%</span></div>
+      <div class="agebar"><span class="lab">全球平均</span><span class="track"><i class="mid" style="width:42%"></i></span><span class="val">24%</span></div>
+      <div class="agebar"><span class="lab">65 岁以上</span><span class="track"><i class="low" style="width:30%"></i></span><span class="val">17%</span></div>
+    </div>
+    <div class="ev-src rv d1">自述“非常或比较孤独”的比例 · <a href="https://news.gallup.com/opinion/gallup/512618/almost-quarter-world-feels-lonely.aspx">Meta-Gallup《全球社会连接状态》(2023)，覆盖 142 国</a></div>
+
+    <div class="statwall rv d2">
+      <div class="stat"><b>约 50%</b><span>的美国成年人自述感到孤独</span></div>
+      <div class="stat"><b>−70%</b><span>15–24 岁与朋友面对面相处的时间，比二十年前少了约七成</span></div>
+      <div class="stat"><b>+29%</b><span>社会隔离带来的早逝风险——相当于每天抽 15 支烟</span></div>
+      <div class="stat"><b>+29 / 32%</b><span>与连接匮乏相关的心脏病 / 中风风险</span></div>
+    </div>
+    <div class="ev-src rv d2">美国医务总监, <a href="https://www.hhs.gov/sites/default/files/surgeon-general-social-connection-advisory.pdf">《我们的孤独与隔离流行病》(2023)</a></div>
+
+    <div class="ev-h rv d3">同一种感受，铺满整张地图</div>
+    <div class="worldmap rv d3">
+      <svg viewBox="0 0 1000 372" role="img" aria-label="孤独的风格化世界地图">
+        <g fill="#d9d4c5">
+          <ellipse cx="190" cy="120" rx="98" ry="66"/><ellipse cx="150" cy="70" rx="55" ry="30"/>
+          <ellipse cx="272" cy="270" rx="46" ry="78"/>
+          <ellipse cx="505" cy="108" rx="46" ry="34"/>
+          <ellipse cx="545" cy="212" rx="60" ry="86"/>
+          <ellipse cx="705" cy="128" rx="150" ry="76"/><ellipse cx="740" cy="205" rx="46" ry="34"/>
+          <ellipse cx="838" cy="292" rx="46" ry="30"/>
+        </g>
+        <!-- least lonely: Vietnam 5% -->
+        <g><circle cx="742" cy="196" r="9" fill="#3fae86"/><circle cx="742" cy="196" r="16" fill="none" stroke="#3fae86" stroke-width="1.4" opacity=".5"/>
+          <text x="742" y="234" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="12" fill="#2c7d5f"><tspan font-weight="700">越南 5%</tspan></text>
+          <text x="742" y="250" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#6b6a62">最不孤独</text></g>
+        <!-- most lonely: Lesotho 58% -->
+        <g><circle cx="556" cy="286" r="9" fill="#5b4fd0"/><circle cx="556" cy="286" r="16" fill="none" stroke="#5b4fd0" stroke-width="1.4" opacity=".5"/>
+          <text x="556" y="324" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="12" fill="#4b41b8"><tspan font-weight="700">莱索托 58%</tspan></text>
+          <text x="556" y="340" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#6b6a62">最孤独</text></g>
+      </svg>
+      <div class="mapkey">
+        <span><i style="background:#8f86ef"></i>全球 24% 的人感到孤独</span>
+        <span><i style="background:#3fae86"></i>最低——越南 5%</span>
+        <span><i style="background:#5b4fd0"></i>最高——莱索托 58%</span>
+        <span>覆盖 142 个国家</span>
+      </div>
+    </div>
+    <div class="ev-src rv d3">142 国的孤独图景 · <a href="https://www.gallup.com/analytics/509675/state-of-social-connections.aspx">Meta-Gallup 2023</a></div>
+
+    <div class="ev-h rv d4">它早就上了各家新闻</div>
+    <div class="clips rv d4">
+      <a class="clip" href="https://www.npr.org/2023/05/02/1173418268/loneliness-connection-mental-health-dementia-surgeon-general"><span class="pub">NPR · 2023 年 5 月</span><span class="hd">America has a loneliness epidemic. Here are 6 steps to address it.</span></a>
+      <a class="clip" href="https://www.pbs.org/newshour/health/loneliness-poses-health-risks-as-deadly-as-smoking-u-s-surgeon-general-says"><span class="pub">PBS NewsHour · 2023</span><span class="hd">Loneliness poses health risks as deadly as smoking, U.S. surgeon general says</span></a>
+      <a class="clip" href="https://www.forbes.com/sites/bryanrobinson/2023/05/06/us-surgeon-general-cites-loneliness-as-serious-mental-health-hazard-in-new-report/"><span class="pub">Forbes · 2023 年 5 月</span><span class="hd">Surgeon General cites loneliness as a serious mental-health hazard</span></a>
+      <a class="clip" href="https://news.gallup.com/opinion/gallup/512618/almost-quarter-world-feels-lonely.aspx"><span class="pub">Gallup · 2023</span><span class="hd">Almost a quarter of the world feels lonely — and young adults most of all.</span></a>
+    </div>
+    <p class="note rv d4">这些是别人的研究结论，引用来交代这件作品为什么存在。<b>项目本身不做任何测量声明</b>——
+      它不采集统计数据，上面这些数字也都不是在描述这个原型。</p>
   </div>
 </section>
 
