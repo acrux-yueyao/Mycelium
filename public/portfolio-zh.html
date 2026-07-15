@@ -56,7 +56,7 @@ a{color:var(--accent-ink); text-decoration:none; border-bottom:1px solid var(--a
 .dim{color:var(--dim)} .hl{color:var(--accent-ink)}
 
 /* masthead + hero */
-.mast{display:flex; justify-content:space-between; align-items:baseline; gap:14px; flex-wrap:wrap; padding:26px 0 18px}
+.mast{display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap; padding:26px 0 18px}
 .mast .sw{display:flex; gap:5px} .mast .sw i{width:12px;height:12px;display:block}
 .hero{padding:clamp(26px,4vw,44px) 0 0}
 .hero h1{font-family:var(--display); font-weight:700; line-height:.92; font-size:clamp(44px,10vw,116px); margin:8px 0 0; text-wrap:balance}
@@ -138,12 +138,33 @@ a{color:var(--accent-ink); text-decoration:none; border-bottom:1px solid var(--a
 @keyframes fi{to{opacity:1; transform:none}}
 @media (prefers-reduced-motion:reduce){.fadein{animation:none; opacity:1; transform:none}}
 :focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+/* wayfinding + deep-page hub */
+.setnav{display:flex; flex-wrap:wrap; gap:6px 18px; margin-top:14px; font-family:var(--mono); font-size:11.5px; letter-spacing:.03em}
+.setnav a{color:var(--dim); text-decoration:none; border-bottom:1px solid var(--edge); padding-bottom:1px}
+.setnav a:hover{color:var(--accent-ink); border-color:var(--accent)}
+.index{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--edge); border:1px solid var(--edge); margin-top:6px}
+@media(max-width:720px){.index{grid-template-columns:1fr}}
+.index a{background:var(--panel); padding:22px 20px; text-decoration:none; display:flex; flex-direction:column; gap:7px; transition:background .15s ease}
+.index a:hover{background:var(--ground)}
+.index .n{font-family:var(--mono); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--soft)}
+.index .t{font-family:var(--display); font-weight:700; font-size:16px; color:var(--ink); line-height:1.2}
+.index .z{font-size:11px; color:var(--soft); margin-top:-3px}
+.index .d{font-size:12px; color:var(--dim); line-height:1.6; flex:1}
+.index .go{font-family:var(--mono); font-size:11px; color:var(--accent-ink); letter-spacing:.03em; margin-top:2px}
 </style>
 
 <div class="wrap"><div class="sheet">
 
   <header class="mast">
-    <div class="eyebrow">MYCELIUM · 作品集 · 2024—∞</div>
+    <div>
+      <div class="eyebrow">MYCELIUM · 作品集 · 2024—∞</div>
+      <nav class="setnav" aria-label="全部内容">
+        <a href="#try">动手试试</a>
+        <a href="/research-zh">调研 ▸</a>
+        <a href="/case-zh">案例研究 ▸</a>
+        <a href="/board-zh">设计系统 ▸</a>
+      </nav>
+    </div>
     <div class="sw" aria-hidden="true"><i style="background:var(--dreamy)"></i><i style="background:var(--companion)"></i><i style="background:var(--curious)"></i><i style="background:var(--accent)"></i></div>
   </header>
   <hr class="rule">
@@ -266,12 +287,7 @@ a{color:var(--accent-ink); text-decoration:none; border-bottom:1px solid var(--a
       <div class="rq"><b>问题 3</b> — AI 作为规则生成者，而非陪伴</div>
       <div class="rq"><b>问题 4</b> — 情绪映射为形态、行为、关系</div>
     </div>
-    <p class="body dim" style="margin-top:18px">扎根于孤独研究（美国医务总监 2023；Baek 等 2023）、情感计算批判，以及以照护为取向的设计研究（Hirsch）。完整的框架、方法与伦理，见案例研究：</p>
-    <div class="cta-row">
-      <a class="cta primary" href="/research-zh">前期调研与背景 · 视觉随笔 ▸</a>
-      <a class="cta" href="/case-zh">完整案例研究 · EN ▸</a>
-      <a class="cta" href="/case-zh">完整案例研究 · 中文 ▸</a>
-    </div>
+    <p class="body dim" style="margin-top:18px">扎根于孤独研究（美国医务总监 2023；Baek 等 2023）、情感计算批判，以及以照护为取向的设计研究（Hirsch）。完整的框架、方法、伦理与引用的数据，都在调研随笔与案例研究里——链接见下方。</p>
   </section>
 
   <section class="sec">
@@ -286,6 +302,37 @@ a{color:var(--accent-ink); text-decoration:none; border-bottom:1px solid var(--a
     <div class="glance" style="margin-top:1px">
       <div class="g"><div class="k">是数据，不是装饰</div><div class="v">人口、强度、主导家族、躁动、孤独——来自活体菌落的真实聚合，设定真实的环境目标。</div></div>
       <div class="g"><div class="k">诚实且安全</div><div class="v">投影只显示情绪读数，绝不显示原句；生物安全为数周展期从头设计。</div></div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <!-- DEEP-PAGE HUB -->
+  <section class="sec">
+    <div class="sec-head"><div class="sec-no">08</div><h2 class="sec-title">读完整的记录</h2></div>
+    <p class="body dim">这一页是精简版。剩下的都在三份更深的文档里——它生长自的调研、完整的设计研究记述，以及把一切串起来的视觉系统。</p>
+    <div class="index">
+      <a href="/research-zh">
+        <div class="n">01 · 调研</div>
+        <div class="t">前期调研与背景</div>
+        <div class="z">Research &amp; background</div>
+        <div class="d">孤独研究、平台批判，以及项目背后引用的真实数据——做成一篇可滚动的视觉随笔。</div>
+        <div class="go">打开随笔 ▸</div>
+      </a>
+      <a href="/case-zh">
+        <div class="n">02 · 案例研究</div>
+        <div class="t">设计研究案例</div>
+        <div class="z">完整案例 · EN / 中</div>
+        <div class="d">完整的框架、方法、决策、伦理与评估——它如何被做出来、为什么这样做的长篇记述。</div>
+        <div class="go">打开案例研究 ▸</div>
+      </a>
+      <a href="/board-zh">
+        <div class="n">03 · 设计系统</div>
+        <div class="t">视觉语言</div>
+        <div class="z">设计系统板</div>
+        <div class="d">配色家族、字体、确定性的孢子语法，以及动效规则——让每一屏都保持一致的那块板。</div>
+        <div class="go">打开设计板 ▸</div>
+      </a>
     </div>
   </section>
 

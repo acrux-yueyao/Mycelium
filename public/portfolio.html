@@ -56,7 +56,7 @@ a{color:var(--accent-ink); text-decoration:none; border-bottom:1px solid var(--a
 .dim{color:var(--dim)} .hl{color:var(--accent-ink)}
 
 /* masthead + hero */
-.mast{display:flex; justify-content:space-between; align-items:baseline; gap:14px; flex-wrap:wrap; padding:26px 0 18px}
+.mast{display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap; padding:26px 0 18px}
 .mast .sw{display:flex; gap:5px} .mast .sw i{width:12px;height:12px;display:block}
 .hero{padding:clamp(26px,4vw,44px) 0 0}
 .hero h1{font-family:var(--display); font-weight:700; line-height:.92; font-size:clamp(44px,10vw,116px); margin:8px 0 0; text-wrap:balance}
@@ -138,12 +138,33 @@ a{color:var(--accent-ink); text-decoration:none; border-bottom:1px solid var(--a
 @keyframes fi{to{opacity:1; transform:none}}
 @media (prefers-reduced-motion:reduce){.fadein{animation:none; opacity:1; transform:none}}
 :focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+/* wayfinding + deep-page hub */
+.setnav{display:flex; flex-wrap:wrap; gap:6px 18px; margin-top:14px; font-family:var(--mono); font-size:11.5px; letter-spacing:.03em}
+.setnav a{color:var(--dim); text-decoration:none; border-bottom:1px solid var(--edge); padding-bottom:1px}
+.setnav a:hover{color:var(--accent-ink); border-color:var(--accent)}
+.index{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--edge); border:1px solid var(--edge); margin-top:6px}
+@media(max-width:720px){.index{grid-template-columns:1fr}}
+.index a{background:var(--panel); padding:22px 20px; text-decoration:none; display:flex; flex-direction:column; gap:7px; transition:background .15s ease}
+.index a:hover{background:var(--ground)}
+.index .n{font-family:var(--mono); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--soft)}
+.index .t{font-family:var(--display); font-weight:700; font-size:16px; color:var(--ink); line-height:1.2}
+.index .z{font-size:11px; color:var(--soft); margin-top:-3px}
+.index .d{font-size:12px; color:var(--dim); line-height:1.55; flex:1}
+.index .go{font-family:var(--mono); font-size:11px; color:var(--accent-ink); letter-spacing:.03em; margin-top:2px}
 </style>
 
 <div class="wrap"><div class="sheet">
 
   <header class="mast">
-    <div class="eyebrow">MYCELIUM · PORTFOLIO · 2024—∞</div>
+    <div>
+      <div class="eyebrow">MYCELIUM · PORTFOLIO · 2024—∞</div>
+      <nav class="setnav" aria-label="the full set">
+        <a href="#try">Try it</a>
+        <a href="/research">Research ▸</a>
+        <a href="/case">Case study ▸</a>
+        <a href="/board">Design system ▸</a>
+      </nav>
+    </div>
     <div class="sw" aria-hidden="true"><i style="background:var(--dreamy)"></i><i style="background:var(--companion)"></i><i style="background:var(--curious)"></i><i style="background:var(--accent)"></i></div>
   </header>
   <hr class="rule">
@@ -266,12 +287,7 @@ a{color:var(--accent-ink); text-decoration:none; border-bottom:1px solid var(--a
       <div class="rq"><b>RQ3</b> — AI as rule generator, not companion</div>
       <div class="rq"><b>RQ4</b> — emotion mapped to form, behaviour, relation</div>
     </div>
-    <p class="body dim" style="margin-top:18px">It draws on loneliness research (U.S. Surgeon General 2023; Baek et al. 2023), a critique of affective computing, and care-oriented design research (Hirsch). The full framing, methods and ethics are in the case study:</p>
-    <div class="cta-row">
-      <a class="cta primary" href="/research">Research &amp; background · visual essay ▸</a>
-      <a class="cta" href="/case">Full case study · EN ▸</a>
-      <a class="cta" href="/case-zh">完整案例研究 · 中文 ▸</a>
-    </div>
+    <p class="body dim" style="margin-top:18px">It draws on loneliness research (U.S. Surgeon General 2023; Baek et al. 2023), a critique of affective computing, and care-oriented design research (Hirsch). The full framing, methods, ethics and the sourced data sit in the research essay and case study — linked below.</p>
   </section>
 
   <section class="sec">
@@ -286,6 +302,37 @@ a{color:var(--accent-ink); text-decoration:none; border-bottom:1px solid var(--a
     <div class="glance" style="margin-top:1px">
       <div class="g"><div class="k">Data, not decoration</div><div class="v">population, intensity, dominant family, agitation, loneliness — real aggregates from the live colony set real environment targets.</div></div>
       <div class="g"><div class="k">Honest &amp; safe</div><div class="v">the projection shows only the emotion reading, never the sentence; biosafety is designed in for a weeks-long gallery run.</div></div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <!-- DEEP-PAGE HUB -->
+  <section class="sec">
+    <div class="sec-head"><div class="sec-no">08</div><h2 class="sec-title">Read the full record</h2></div>
+    <p class="body dim">This page is the short version. Three deeper documents carry the rest — the research it grew from, the full design-research write-up, and the visual system that holds it together.</p>
+    <div class="index">
+      <a href="/research">
+        <div class="n">01 · research</div>
+        <div class="t">Research &amp; background</div>
+        <div class="z">前期调研 · 背景故事</div>
+        <div class="d">The loneliness research, the platform critique, and the sourced data behind the project — as a scrollable visual essay.</div>
+        <div class="go">open the essay ▸</div>
+      </a>
+      <a href="/case">
+        <div class="n">02 · case study</div>
+        <div class="t">Design-research case study</div>
+        <div class="z">完整案例研究 · EN / 中</div>
+        <div class="d">The full framing, method, decisions, ethics, and evaluation — the long-form account of how it was made and why.</div>
+        <div class="go">open the case study ▸</div>
+      </a>
+      <a href="/board">
+        <div class="n">03 · design system</div>
+        <div class="t">The visual language</div>
+        <div class="z">设计系统板</div>
+        <div class="d">Colour families, type, the deterministic spore grammar, and the motion rules — the board that keeps every screen consistent.</div>
+        <div class="go">open the board ▸</div>
+      </a>
     </div>
   </section>
 
