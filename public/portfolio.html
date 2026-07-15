@@ -114,6 +114,14 @@ a{color:var(--accent-ink); text-decoration:none; border-bottom:1px solid var(--a
 .mech h4{margin:0; font-family:var(--display); font-weight:700; font-size:13.5px}
 .mech .zh{color:var(--soft); font-size:10.5px; margin-top:2px}
 .mech p{margin:9px 0 0; color:var(--dim); font-size:11.5px; line-height:1.55}
+.mechfig{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px}
+@media(max-width:640px){.mechfig{grid-template-columns:1fr}}
+.mechfig figure{margin:0; border:1px solid var(--edge); background:var(--panel); padding:10px}
+.mechfig img{width:100%; display:block; border:1px solid var(--edge); image-rendering:pixelated}
+.mechfig figcaption{margin-top:9px; font-size:11px; color:var(--dim); line-height:1.5}
+.mechfig figcaption b{color:var(--ink); font-weight:700; font-family:var(--display)}
+.mechfig .live{display:inline-block; font-family:var(--mono); font-size:9.5px; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--soft); border:1px solid var(--edge); padding:1px 6px; margin-left:6px; vertical-align:middle}
 
 /* research strip */
 .rqs{display:flex; flex-wrap:wrap; gap:10px}
@@ -231,6 +239,16 @@ a{color:var(--accent-ink); text-decoration:none; border-bottom:1px solid var(--a
   <!-- BEHAVIOUR -->
   <section class="sec">
     <div class="sec-head"><div class="sec-no">05</div><h2 class="sec-title">How the colony behaves</h2></div>
+    <div class="mechfig">
+      <figure>
+        <img src="mech-dye.gif" alt="Two compatible creatures meet and dye each other from the contact seam" loading="lazy" />
+        <figcaption><b>Cross-dye encounter</b><span class="live">live render</span><br>Two compatible creatures drift together, take on each other's colour from the seam where they touch, trade matter tiles, then part and slowly fade back toward themselves.</figcaption>
+      </figure>
+      <figure>
+        <img src="mech-mother.gif" alt="An older creature grows larger, sways, and feeds a one-way stream to an isolated one" loading="lazy" />
+        <figcaption><b>Mother-tree support</b><span class="live">live render</span><br>An elder that has been on stage long enough grows larger, sways, and feeds a slow one-way stream to a creature that's been alone too long — which quietly warms toward the elder's palette.</figcaption>
+      </figure>
+    </div>
     <div class="mech">
       <div class="cell"><h4>Connection as colour</h4><div class="zh">逐格染色 — a tendril in colour, not a line</div><p>When two compatible creatures meet, they dye each other starting from where they touch — strongest at the contact seam — and pass small matter tiles back and forth while bonded, breathing in sync.</p></div>
       <div class="cell"><h4>Mother trees</h4><div class="zh">母树 — care as an ecological rule</div><p>A creature that has been around long enough starts supporting an isolated one: it grows visibly larger, sways, flickers, and feeds it a slow one-way stream of matter. Nothing you press sets this off.</p></div>
