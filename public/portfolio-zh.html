@@ -148,6 +148,14 @@ a{color:var(--accent-ink); text-decoration:none; border-bottom:1px solid var(--a
 .phonestrip figure{margin:0}
 .phonestrip .pf{background:#15151b; border-radius:18px; padding:4px}
 .phonestrip img{display:block; width:100%; border-radius:14px}
+/* desktop browser mock */
+.browser{border-radius:11px 11px 9px 9px; overflow:hidden; border:1px solid var(--edge); box-shadow:0 22px 55px -24px rgba(24,20,48,.5); background:#15151b; max-width:880px; margin:6px auto 0}
+.browser .bar{display:flex; align-items:center; gap:7px; padding:9px 13px; background:#1b1b22}
+.browser .bar i{width:10px; height:10px; border-radius:50%; display:block; background:#3a3a44}
+.browser .bar i:nth-child(1){background:#ec6a5e} .browser .bar i:nth-child(2){background:#f4be4f} .browser .bar i:nth-child(3){background:#61c554}
+.browser .url{flex:1; margin-left:8px; font-family:var(--mono); font-size:10.5px; color:#9b9a90; background:#0f0f14; border-radius:6px; padding:4px 10px; text-align:center; letter-spacing:.02em}
+.browser img{display:block; width:100%; background:var(--ground)}
+.devcap{text-align:center; font-family:var(--mono); font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--soft); margin:11px 0 2px}
 .phonestrip figcaption{font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--soft); text-align:center; margin-top:8px}
 
 /* mechanics */
@@ -286,7 +294,13 @@ a{color:var(--accent-ink); text-decoration:none; border-bottom:1px solid var(--a
   <!-- REAL SCREENS -->
   <section class="sec">
     <div class="sec-head"><div class="sec-no">03</div><h2 class="sec-title">已部署的体验</h2></div>
-    <p class="body dim" style="margin-bottom:24px">整个作品都跑在浏览器里——不用安装、不用注册——而且是为手机做的：海报会重排成单栏，菌落自动缩放到小屏，你可以用手指把一只生命体拖着走。</p>
+    <p class="body dim" style="margin-bottom:24px">整个作品都跑在浏览器里——不用安装、不用注册。在电脑上是一张宽幅海报，到手机上会重排成单栏：菌落自动缩放到屏幕大小，你可以用鼠标或手指把一只生命体拖着走。</p>
+    <div class="browser">
+      <div class="bar"><i></i><i></i><i></i><span class="url">mycelium-abxv.vercel.app</span></div>
+      <img src="desktop-landing.png" alt="电脑上的 Mycelium — 海报背后的活体场" loading="lazy">
+    </div>
+    <div class="devcap">电脑端</div>
+    <div class="devcap" style="margin-top:34px">手机端</div>
     <div class="phoneshow">
       <div class="feats l">
         <div class="feat"><span class="dot"></span><div class="t">匿名的低语</div><div class="d">一句私密的话——不用账号，什么语言都行</div></div>

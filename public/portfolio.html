@@ -148,6 +148,14 @@ a{color:var(--accent-ink); text-decoration:none; border-bottom:1px solid var(--a
 .phonestrip figure{margin:0}
 .phonestrip .pf{background:#15151b; border-radius:18px; padding:4px}
 .phonestrip img{display:block; width:100%; border-radius:14px}
+/* desktop browser mock */
+.browser{border-radius:11px 11px 9px 9px; overflow:hidden; border:1px solid var(--edge); box-shadow:0 22px 55px -24px rgba(24,20,48,.5); background:#15151b; max-width:880px; margin:6px auto 0}
+.browser .bar{display:flex; align-items:center; gap:7px; padding:9px 13px; background:#1b1b22}
+.browser .bar i{width:10px; height:10px; border-radius:50%; display:block; background:#3a3a44}
+.browser .bar i:nth-child(1){background:#ec6a5e} .browser .bar i:nth-child(2){background:#f4be4f} .browser .bar i:nth-child(3){background:#61c554}
+.browser .url{flex:1; margin-left:8px; font-family:var(--mono); font-size:10.5px; color:#9b9a90; background:#0f0f14; border-radius:6px; padding:4px 10px; text-align:center; letter-spacing:.02em}
+.browser img{display:block; width:100%; background:var(--ground)}
+.devcap{text-align:center; font-family:var(--mono); font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--soft); margin:11px 0 2px}
 .phonestrip figcaption{font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--soft); text-align:center; margin-top:8px}
 
 /* mechanics */
@@ -286,7 +294,13 @@ a{color:var(--accent-ink); text-decoration:none; border-bottom:1px solid var(--a
   <!-- REAL SCREENS -->
   <section class="sec">
     <div class="sec-head"><div class="sec-no">03</div><h2 class="sec-title">The deployed experience</h2></div>
-    <p class="body dim" style="margin-bottom:24px">The whole thing runs in the browser — no install, no account — and it's built for the phone: the poster reflows to a single column, the colony scales to the small screen, and you drag a creature with your finger.</p>
+    <p class="body dim" style="margin-bottom:24px">The whole thing runs in the browser — no install, no account. It reads as a wide desktop poster, then reflows to a single column on a phone: the colony scales to the screen, and you drag a creature with a mouse or a finger.</p>
+    <div class="browser">
+      <div class="bar"><i></i><i></i><i></i><span class="url">mycelium-abxv.vercel.app</span></div>
+      <img src="desktop-landing.png" alt="Mycelium on a desktop — the living field behind the poster" loading="lazy">
+    </div>
+    <div class="devcap">on a desktop</div>
+    <div class="devcap" style="margin-top:34px">on a phone</div>
     <div class="phoneshow">
       <div class="feats l">
         <div class="feat"><span class="dot"></span><div class="t">Anonymous whisper</div><div class="d">a private sentence — no account, any language</div></div>
