@@ -655,8 +655,24 @@ body,
 .landing-pop .n { font-size: 15px; font-weight: 700; }
 
 @media (max-width: 640px) {
+  /* Phone: drop the desktop poster's corner anchors and stack everything into
+     one scrollable column over the ambient colony. */
+  .landing {
+    display: flex; flex-direction: column; align-items: flex-start;
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: calc(26px + env(safe-area-inset-top)) 22px calc(30px + env(safe-area-inset-bottom));
+  }
+  .landing > * { position: static; inset: auto; }
   .landing-nav { display: none; }
-  .landing-meta { bottom: 150px; }
+  .landing-brand { margin: 0; }
+  .landing-hero { max-width: 100%; margin-top: 9vh; }
+  .landing-hero h1 { font-size: clamp(40px, 13.5vw, 76px); }
+  .landing-sub { margin-top: 12px; }
+  .landing-desc { margin-top: 16px; }
+  .landing-meta { margin-top: 8vh; }
+  .landing-enter { margin-top: 26px; font-size: 14px; }
+  .landing-arrow { width: 88px; }
+  .landing-pop { text-align: left; margin-top: 22px; }
 }
 
 /* ===== Scene nav (field / archive / feedback) ===== */
@@ -677,6 +693,15 @@ body,
 .scene-nav-link.is-active::after { content: ''; position: absolute; left: 0; right: 0; bottom: -2px; height: 2px; background: var(--accent); }
 .scene-nav-pop { font-size: 12px; letter-spacing: 0.1em; color: var(--ink-dim); }
 
+@media (max-width: 640px) {
+  .scene-nav { padding: calc(11px + env(safe-area-inset-top)) 15px 11px; }
+  .scene-nav-brand { font-size: 12px; letter-spacing: 0.14em; }
+  .scene-nav-links { gap: 15px; }
+  .scene-nav-link { font-size: 11px; letter-spacing: 0.06em; }
+  .scene-nav-pop { font-size: 11px; letter-spacing: 0.04em; }
+}
+@media (max-width: 380px) { .scene-nav-pop { display: none; } }
+
 /* ===== full-screen scenes ===== */
 .scene {
   position: fixed; inset: 0; z-index: 30;
@@ -684,7 +709,9 @@ body,
   overflow-y: auto; overflow-x: hidden;
   padding: 84px 40px 40px;
 }
-@media (max-width: 640px) { .scene { padding: 76px 18px 40px; } }
+@media (max-width: 640px) {
+  .scene { padding: calc(72px + env(safe-area-inset-top)) 18px calc(40px + env(safe-area-inset-bottom)); }
+}
 
 /* archive */
 .archive-head { margin-bottom: 26px; }
@@ -907,4 +934,22 @@ body,
   .spec-body { height: auto; flex-direction: column; gap: 14px; }
   .spec-card { position: static; width: 100%; }
   .spec-render { order: -1; }
+}
+
+/* Hand tracking is impractical on a phone camera — hide it on touch devices. */
+@media (pointer: coarse) { .hand-toggle { display: none; } }
+
+/* Phone: keep the field's floating controls from piling into one corner and
+   respect the home-bar safe area. Mute stays bottom-right; the "your specimen"
+   pill moves to bottom-centre so they never overlap after a whisper. */
+@media (max-width: 640px) {
+  .mute-toggle {
+    right: calc(14px + env(safe-area-inset-right));
+    bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+  .specimen-recall {
+    right: auto; left: 50%; transform: translateX(-50%);
+    bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+  .specimen-recall:hover { transform: translateX(-50%) translateY(-1px); }
 }
