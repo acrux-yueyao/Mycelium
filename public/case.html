@@ -108,6 +108,12 @@ table.tb td.g{font-family:var(--display); font-weight:700; color:var(--accent-in
 .cover-spores{display:flex; align-items:flex-end; gap:clamp(10px,3vw,30px); flex-wrap:wrap; padding:34px 0 8px; margin-top:22px; border-top:1px solid var(--edge)}
 .sp{display:flex; flex-direction:column; align-items:center; gap:6px}
 .sp canvas{image-rendering:pixelated; display:block}
+/* real-engine image assets */
+.sp img{image-rendering:pixelated; display:block; width:58px; height:auto}
+.fam .stage img{image-rendering:pixelated; height:104px; width:auto; display:block}
+.arche .a .stage img{image-rendering:pixelated; height:130px; width:auto; display:block}
+.anat .stageC img{image-rendering:pixelated; height:clamp(170px,26vw,236px); width:auto; display:block}
+.mech .cell img.mechgif{width:100%; height:auto; margin-bottom:12px; border:1px solid var(--edge); border-radius:4px; image-rendering:pixelated; display:block}
 .sp .nm{font-size:9px; letter-spacing:.06em; color:var(--dim)} .sp .nm b{color:var(--accent-ink)}
 
 .fam-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:18px 0}
@@ -438,7 +444,7 @@ table.tb td.g{font-family:var(--display); font-weight:700; color:var(--accent-in
           <div class="dl l"><div class="k">form</div><div class="v">central-axis symmetry + per-row envelope + edge dither (density)</div></div>
           <div class="dl l"><div class="k">expression</div><div class="v">procedural face — the pupil glances and blinks</div></div>
         </div>
-        <div class="stageC"><canvas data-spore data-seed="anatomy-07" data-hue="266" data-intensity="0.82" data-cell="11"></canvas></div>
+        <div class="stageC"><img src="case-anatomy.png" alt="specimen anatomy" loading="lazy"></div>
         <div class="col r">
           <div class="dl r"><div class="k">colour</div><div class="v">tintHue + intensity widen the palette; local hue jumps</div></div>
           <div class="dl r"><div class="k">rhythm</div><div class="v">agitation drives jitter &amp; a breathing cycle</div></div>
@@ -461,9 +467,9 @@ table.tb td.g{font-family:var(--display); font-weight:700; color:var(--accent-in
       <div class="sec-head"><div class="sec-no">16</div><h2 class="sec-title">Social Simulation</h2></div>
       <div class="body"><p class="lead">Entities are not fixed icons; they take part in a social field. A bond between two compatible creatures is not drawn as a line. It shows up as <b>tile-swap dyeing</b>: each one picks up the other's palette starting from the point where they touch, so the tendril is made of colour rather than a stroke.</p></div>
       <div class="mech">
-        <div class="cell"><canvas data-ic="dye"></canvas><h4>Contact-point dyeing</h4><div class="fen">the connection, as colour</div><p>When two compatible creatures meet, one's cells take on the other's palette from the touch side, sweeping across — the tendril made of pixels. It releases when they part.</p></div>
-        <div class="cell"><canvas data-ic="matter"></canvas><h4>Matter exchange</h4><div class="fen">bonded partners trade tiles</div><p>Bonded partners ferry small mosaic tiles back and forth — a visible circulation of substance along the (colour) connection.</p></div>
-        <div class="cell"><canvas data-ic="hybrid"></canvas><h4>Compatibility &amp; drift</h4><div class="fen">who bonds with whom</div><p>Underneath: attraction, separation, walls, centre-clear, loneliness drift, and a compatibility matrix that decides who bonds — no user control.</p></div>
+        <div class="cell"><img class="mechgif" src="mech-dye.gif" alt="dye" loading="lazy"><h4>Contact-point dyeing</h4><div class="fen">the connection, as colour</div><p>When two compatible creatures meet, one's cells take on the other's palette from the touch side, sweeping across — the tendril made of pixels. It releases when they part.</p></div>
+        <div class="cell"><img class="mechgif" src="mech-matter.gif" alt="matter" loading="lazy"><h4>Matter exchange</h4><div class="fen">bonded partners trade tiles</div><p>Bonded partners ferry small mosaic tiles back and forth — a visible circulation of substance along the (colour) connection.</p></div>
+        <div class="cell"><img class="mechgif" src="mech-hybrid.gif" alt="hybrid" loading="lazy"><h4>Compatibility &amp; drift</h4><div class="fen">who bonds with whom</div><p>Underneath: attraction, separation, walls, centre-clear, loneliness drift, and a compatibility matrix that decides who bonds — no user control.</p></div>
       </div>
       <table class="tb" style="margin-top:6px"><thead><tr><th>Bond lifecycle</th><th>Shown as</th></tr></thead><tbody>
         <tr><td class="g">meet</td><td>a compatible pair meets; the dye begins sweeping in from the contact side</td></tr>
@@ -478,7 +484,7 @@ table.tb td.g{font-family:var(--display); font-weight:700; color:var(--accent-in
     <section class="sec" id="s17">
       <div class="sec-head"><div class="sec-no">17</div><h2 class="sec-title">Mother Tree</h2></div>
       <div class="anat tick" style="grid-template-columns:auto 1fr">
-        <div class="stageC" style="padding-left:6px"><canvas data-ic="mother" style="width:180px"></canvas></div>
+        <div class="stageC" style="padding-left:6px"><img class="mechgif" src="mech-mother.gif" alt="mother tree" style="width:180px" loading="lazy"></div>
         <div class="body" style="padding:6px 18px">
           <p class="lead">Care as an internal ecological mechanism — not a button, prompt, or chatbot reply.</p>
           <p class="dim">An entity that has stayed on stage long enough (~40s) quietly turns into a <b>mother tree</b>. It reaches out with longer-lived, softer support tendrils toward entities that have been on their own for a while. The care comes out of the field's own rules, from age, time, and proximity, and nobody has to press a button for it, which is a large part of why it matters.</p>
@@ -514,7 +520,7 @@ table.tb td.g{font-family:var(--display); font-weight:700; color:var(--accent-in
         <tr><td class="g">Supporting</td><td>heatmap of emotional intensity · time-of-day mood / exam mode · hand-gesture interaction · ambient sound &amp; event audio · 15 hybrid forms</td></tr>
         <tr><td class="g">Research tools</td><td>gallery mode · debug mode (framed as observation instruments, not product features)</td></tr>
       </tbody></table>
-      <p class="note">Every spore on this page is generated live in your browser by the same deterministic procedure the prototype uses — no hand-drawn art, no image model.</p>
+      <p class="note">Every specimen on this page is rendered by the same deterministic engine the prototype uses — no hand-drawn art, no image model.</p>
     </section>
     <hr class="rule">
 
@@ -625,7 +631,7 @@ table.tb td.g{font-family:var(--display); font-weight:700; color:var(--accent-in
       <div class="big">MYCELIUM</div>
       Design research prototype · from private disclosure to a collective emotional ecology.<br>
       Translation chain — emotional input → AI interpretation → morphological mapping → social simulation → collective emotional ecology.<br>
-      <span style="opacity:.7">Every spore in this document is generated live in your browser by the real algorithm.</span>
+      <span style="opacity:.7">Every specimen in this document is rendered by the product's own engine.</span>
     </footer>
 
   </main>
@@ -634,83 +640,23 @@ table.tb td.g{font-family:var(--display); font-weight:700; color:var(--accent-in
 
 <script>
 (function(){
-  function xmur3(str){let h=1779033703^str.length;for(let i=0;i<str.length;i++){h=Math.imul(h^str.charCodeAt(i),3432918353);h=(h<<13)|(h>>>19);}return function(){h=Math.imul(h^(h>>>16),2246822507);h=Math.imul(h^(h>>>13),3266489909);return (h^=h>>>16)>>>0;};}
-  function mkrng(seed){let s=(seed>>>0)||1;return function(){s=(Math.imul(s,1664525)+1013904223)>>>0;return s/4294967296;};}
-  var ENVS={
-    wide:[1,2,4,6,7,7,7,6,5,4,3,3,2,1,1,1],
-    round:[2,4,6,7,7,7,6,6,5,4,3,2,2,1,1,1],
-    bell:[1,2,3,5,6,7,7,7,6,5,4,3,2,2,1,1]
-  };
-  var COLS=15, CX=7, EYE=6;
-  function drawSpore(ctx, ox, oy, cell, seedStr, hue, inten, satBase, envKey){
-    satBase = satBase==null?48:satBase;
-    var ENV=ENVS[envKey||'wide'], ROWS=ENV.length;
-    var rnd = mkrng(xmur3(seedStr)());
-    var cells=[], colBottom={};
-    for(var r=0;r<ROWS;r++){
-      var hw=Math.max(0,Math.min(CX, Math.round(ENV[r]+(rnd()-0.5)*1.7)));
-      for(var c=CX-hw;c<=CX+hw;c++){
-        var t=r/ROWS, h=hue+(rnd()-0.5)*26;
-        if(rnd()<inten*0.24) h=(hue+90+rnd()*180);
-        var sat=satBase+inten*30+(rnd()-0.5)*10, li=45+t*20+(rnd()-0.5)*10;
-        sat=Math.max(12,Math.min(82,sat)); li=Math.max(26,Math.min(74,li));
-        var color='hsl('+((((h%360)+360)%360)|0)+' '+(sat|0)+'% '+(li|0)+'%)';
-        cells.push({c:c,r:r,color:color});
-        if(!colBottom[c]||r>colBottom[c].r) colBottom[c]={r:r,color:color};
-      }
-    }
-    ctx.imageSmoothingEnabled=false;
-    for(var k in colBottom){var b=colBottom[k], len=1+Math.floor(rnd()*7);for(var s=1;s<=len;s++){ctx.globalAlpha=Math.max(0,0.4-(s/len)*0.4);ctx.fillStyle=b.color;ctx.fillRect(ox+(+k)*cell, oy+(b.r+s)*cell, cell, cell);}}
-    ctx.globalAlpha=1;
-    var gr=Math.floor(rnd()*ROWS), ga=(rnd()<0.5?1:0)*cell*(1+Math.floor(rnd()*2));
-    for(var i=0;i<cells.length;i++){var cl=cells[i], sx=cl.r===gr?ga:0;ctx.fillStyle=cl.color;ctx.fillRect(ox+cl.c*cell+sx, oy+cl.r*cell, cell, cell);}
-    var gaze=(rnd()<0.5?-1:1);
-    function eye(c0){var x=ox+c0*cell, y=oy+EYE*cell;ctx.fillStyle='#f4f2ec';ctx.fillRect(x,y,cell*2,cell);ctx.fillStyle='#111';ctx.fillRect(x+(gaze*0.5+0.5)*cell,y,cell,cell);}
-    eye(CX-3); eye(CX+1);
-  }
-  function mountSpore(cv){
-    var cell=+cv.dataset.cell||8, seed=cv.dataset.seed||'x', hue=+cv.dataset.hue||266;
-    var inten=cv.dataset.intensity!=null?+cv.dataset.intensity:0.6, sat=cv.dataset.sat!=null?+cv.dataset.sat:null, env=cv.dataset.env||'wide';
-    var maxRows=16, pad=8, w=COLS*cell, h=(maxRows+pad)*cell, dpr=Math.min(2,window.devicePixelRatio||1);
-    cv.width=w*dpr; cv.height=h*dpr; cv.style.width=w+'px'; cv.style.height=h+'px';
-    var ctx=cv.getContext('2d'); ctx.scale(dpr,dpr);
-    drawSpore(ctx,0,0,cell,seed,hue,inten,sat,env);
-  }
 
   // cover spores
-  var hero=[{seed:'ember-drift',hue:24,i:0.7,nm:'Ember Drift'},{seed:'calm-bell',hue:212,i:0.4,nm:'Calm Bell'},{seed:'moony-moth',hue:266,i:0.85,nm:'Moony Moth'},{seed:'mint-pip',hue:158,i:0.6,nm:'Mint Pip'},{seed:'quiet-wisp',hue:220,i:0.3,nm:'Quiet Wisp',sat:16}];
+  var hero=[{en:'tender',nm:'Ember Drift'},{en:'calm',nm:'Calm Bell'},{en:'dreamy',nm:'Moony Moth'},{en:'companion',nm:'Mint Pip'},{en:'lonely',nm:'Quiet Wisp'}];
   var hs=document.getElementById('coverSpores');
-  hero.forEach(function(s,idx){var w=document.createElement('div');w.className='sp';var cv=document.createElement('canvas');cv.dataset.spore='';cv.dataset.seed=s.seed;cv.dataset.hue=s.hue;cv.dataset.intensity=s.i;cv.dataset.cell=(idx===2?8:6);if(s.sat!=null)cv.dataset.sat=s.sat;var nm=document.createElement('div');nm.className='nm';nm.innerHTML=(idx===2?'<b>'+s.nm+' · you</b>':s.nm);w.appendChild(cv);w.appendChild(nm);hs.appendChild(w);});
+  hero.forEach(function(s,idx){var w=document.createElement('div');w.className='sp';var im=document.createElement('img');im.src='spore-fam-'+s.en+'.png';im.alt=s.nm;im.loading='lazy';var nm=document.createElement('div');nm.className='nm';nm.innerHTML=(idx===2?'<b>'+s.nm+' · you</b>':s.nm);w.appendChild(im);w.appendChild(nm);hs.appendChild(w);});
 
   // families
   var fams=[{en:'tender',zh:'温柔 · 暖桃',hue:24,i:0.55,sat:52,hex:'#dd9668'},{en:'calm',zh:'平静 · 冷蓝',hue:212,i:0.5,sat:46,hex:'#6f9ed4'},{en:'curious',zh:'好奇 · 橙',hue:32,i:0.7,sat:62,hex:'#e2892f'},{en:'dreamy',zh:'梦幻 · 薰衣草',hue:266,i:0.75,sat:48,hex:'#9b84d6'},{en:'companion',zh:'陪伴 · 薄荷',hue:158,i:0.6,sat:46,hex:'#49bd97'},{en:'lonely',zh:'孤独 · 冷灰',hue:220,i:0.3,sat:14,hex:'#9aa1ac'}];
   var fg=document.getElementById('famGrid');
-  if(fg) fams.forEach(function(f){var card=document.createElement('div');card.className='fam';card.innerHTML='<div class="stage"><canvas data-spore data-seed="fam-'+f.en+'" data-hue="'+f.hue+'" data-intensity="'+f.i+'" data-sat="'+f.sat+'" data-cell="6"></canvas></div><div class="lab"><div class="en">'+f.en+'</div><div class="zh cjk">'+f.zh+'</div><div class="hue"><i style="background:'+f.hex+'"></i>H '+f.hue+'°</div></div>';fg.appendChild(card);});
+  if(fg) fams.forEach(function(f){var card=document.createElement('div');card.className='fam';card.innerHTML='<div class="stage"><img src="spore-fam-'+f.en+'.png" alt="'+f.en+'" loading="lazy"></div><div class="lab"><div class="en">'+f.en+'</div><div class="zh cjk">'+f.zh+'</div><div class="hue"><i style="background:'+f.hex+'"></i>H '+f.hue+'°</div></div>';fg.appendChild(card);});
 
   // archetypes
   var arch=[{env:'wide',t:'Wide cap',d:'broad shoulders, short stem',seed:'arch-wide',hue:32,i:0.6},{env:'round',t:'Round head',d:'full crown, compact',seed:'arch-round',hue:158,i:0.55},{env:'bell',t:'Bell',d:'tall, tapering',seed:'arch-bell',hue:266,i:0.7}];
   var ag=document.getElementById('archeGrid');
-  if(ag) arch.forEach(function(a){var d=document.createElement('div');d.className='a';d.innerHTML='<div class="stage"><canvas data-spore data-env="'+a.env+'" data-seed="'+a.seed+'" data-hue="'+a.hue+'" data-intensity="'+a.i+'" data-cell="7"></canvas></div><div class="t">'+a.t+'</div><div class="d">'+a.d+'</div>';ag.appendChild(d);});
+  if(ag) arch.forEach(function(a){var d=document.createElement('div');d.className='a';d.innerHTML='<div class="stage"><img src="case-arch-'+a.env+'.png" alt="'+a.t+'" loading="lazy"></div><div class="t">'+a.t+'</div><div class="d">'+a.d+'</div>';ag.appendChild(d);});
 
-  document.querySelectorAll('canvas[data-spore]').forEach(mountSpore);
 
-  // mechanic icons
-  var U=5;
-  function icon(cv,kind){
-    var dpr=Math.min(2,window.devicePixelRatio||1), W=cv.clientWidth||200, H=60, cy=30;
-    cv.width=W*dpr; cv.height=H*dpr; cv.style.height=H+'px';
-    var g=cv.getContext('2d'); g.scale(dpr,dpr);
-    var acc=getComputedStyle(document.documentElement).getPropertyValue('--accent-ink').trim()||'#5b4fd0';
-    g.clearRect(0,0,W,H); g.imageSmoothingEnabled=false;
-    function blob(cx,cy,hue,n){n=n||5;var o=n*U/2;for(var r=0;r<n;r++)for(var c=0;c<n;c++){var edge=(r===0||c===0||r===n-1||c===n-1);if(edge&&(r+c)%3===0)continue;g.fillStyle='hsl('+hue+' 55% '+(46+r*3)+'%)';g.fillRect(cx-o+c*U,cy-o+r*U,U,U);}}
-    var L=32,R=W-32;
-    if(kind==='dye'){blob(L,cy,24);blob(R,cy,266);for(var i=0;i<4;i++){g.fillStyle='hsl(266 55% 56%)';g.fillRect(L-12+i*U,cy-U,U,U);g.fillRect(L-12+i*U,cy,U,U);}}
-    else if(kind==='matter'){blob(L,cy,158);blob(R,cy,24);for(var j=0;j<4;j++){var t=j/3;g.fillStyle=acc;g.globalAlpha=.85;g.fillRect(L+16+t*(R-L-32)-3,cy-11-Math.sin(t*Math.PI)*6,6,6);g.fillRect(R-16-t*(R-L-32)-3,cy+11+Math.sin(t*Math.PI)*6-6,6,6);}g.globalAlpha=1;}
-    else if(kind==='bond'){g.strokeStyle=acc;g.setLineDash([4,4]);g.lineWidth=1.5;g.beginPath();g.moveTo(L+14,cy);g.lineTo(R-14,cy);g.stroke();g.setLineDash([]);blob(L,cy,266);blob(R,cy,158);}
-    else if(kind==='mother'){var top=14;blob(W/2,top+4,124,5);[L,W/2,R].forEach(function(mx){g.strokeStyle=acc;g.globalAlpha=.6;g.lineWidth=1.5;g.beginPath();g.moveTo(W/2,top+10);g.lineTo(mx,H-14);g.stroke();g.globalAlpha=1;blob(mx,H-12,220,3);});}
-  }
-  document.querySelectorAll('canvas[data-ic]').forEach(function(cv){icon(cv,cv.dataset.ic);});
-  new MutationObserver(function(){document.querySelectorAll('canvas[data-ic]').forEach(function(cv){icon(cv,cv.dataset.ic);});}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 
   // scrollspy
   var links={}; document.querySelectorAll('.toc a').forEach(function(a){links[a.getAttribute('href').slice(1)]=a;});
