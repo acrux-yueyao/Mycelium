@@ -205,6 +205,13 @@ a{color:var(--accent-ink); text-decoration:none; border-bottom:1px solid var(--a
 .mycofig svg{width:100%; height:auto; display:block}
 .myco-src{font-size:11px; color:var(--soft); margin-top:12px; line-height:1.7; letter-spacing:.01em}
 .myco-src a{color:var(--accent-ink); text-decoration:none; border-bottom:1px solid var(--edge)} .myco-src em{font-style:italic}
+.forestmap{display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--edge); border:1px solid var(--edge); margin-top:18px}
+.forestmap>div{background:var(--panel); padding:13px 16px}
+.forestmap .hd{font-family:var(--mono); font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; padding:10px 16px}
+.forestmap .hd.l{color:var(--dim)} .forestmap .hd.r{color:var(--accent-ink)}
+.forestmap .l{color:var(--dim); font-size:12.5px; line-height:1.5}
+.forestmap .r{color:var(--ink); font-size:12.5px; line-height:1.5}
+@media(max-width:560px){ .forestmap{grid-template-columns:1fr} .forestmap .hd{display:none} .forestmap .r::before{content:"\21b3  "; color:var(--soft)} }
 .myco-legend{display:none !important}
 @media(max-width:640px){ .myco-legend{display:grid !important} .mycofig .svg-ann{display:none} }
 </style>
@@ -274,7 +281,15 @@ a{color:var(--accent-ink); text-decoration:none; border-bottom:1px solid var(--a
 </svg></div>
     <div class="myco-src">真实的菌根科学，均带出处：<a href="https://www.nature.com/articles/41557">Simard 等，<em>Nature</em> 388:579 (1997)</a> · <a href="https://www.science.org/doi/10.1126/science.aad6188">Klein、Siegwolf &amp; Körner，<em>Science</em> 352:342 (2016)</a> · <a href="https://nph.onlinelibrary.wiley.com/doi/10.1111/j.1469-8137.2009.03069.x">Beiler 等，<em>New Phytologist</em> 185:543 (2010)</a> · Smith &amp; Read，<em>Mycorrhizal Symbiosis</em> (2008)。</div>
     <div class="loop myco-legend" style="margin-top:14px"><div class="step"><div class="k">共同菌根网络</div><div class="t">一张真菌网连起许多树</div><div class="d">Simard 等, Nature 1997</div></div><div class="step"><div class="k">枢纽 / 母树</div><div class="t">最大最老的树连接最多</div><div class="d">Beiler 等, New Phytologist 2010</div></div><div class="step"><div class="k">地下碳交易</div><div class="t">碳在树与树之间流动</div><div class="d">Klein 等, Science 2016</div></div><div class="step"><div class="k">菌根共生</div><div class="t">真菌用养分换取树的碳</div><div class="d">Smith & Read, 2008</div></div></div>
-    <p class="body dim" style="margin-top:20px">Mycelium 借的正是这个——一张缓慢、共享、看不见的网：连接被感到，而不是被表演。</p>
+    <p class="body dim" style="max-width:40ch; margin-top:22px">把森林当作一个共同体来读，这套生物学就不再只是关于树。<b style="color:var(--ink)">共同体</b>，是一个你所拥有的会被悄悄分出去的地方——一个的盈余，成为另一个的存活；最年长的，托住最年幼的；而这一切都不必被宣告，才算数。</p>
+    <div class="forestmap">
+      <div class="hd l">在森林里</div><div class="hd r">在一个共同体里</div>
+      <div class="l">真菌用养分交换树的碳</div><div class="r">成员彼此供养——不计得失</div>
+      <div class="l">碳从盈余流向匮乏</div><div class="r">有余的人，托住匮乏的人</div>
+      <div class="l">母树养活幼苗</div><div class="r">你被先来的人托住</div>
+      <div class="l">缓慢、共享、看不见</div><div class="r">归属是被感到的，从不表演</div>
+    </div>
+    <p class="body dim" style="max-width:40ch; margin-top:20px">这种感觉——被一个你从不需要表演的群体悄悄托住——恰恰是孤独所缺席的。这也正是 <b style="color:var(--ink)">Mycelium</b> 想还给人的：一个不必解释一句，也能与他人同在的地方。</p>
   </section>
   <hr class="rule">
 

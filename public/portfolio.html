@@ -205,6 +205,13 @@ a{color:var(--accent-ink); text-decoration:none; border-bottom:1px solid var(--a
 .mycofig svg{width:100%; height:auto; display:block}
 .myco-src{font-size:11px; color:var(--soft); margin-top:12px; line-height:1.7; letter-spacing:.01em}
 .myco-src a{color:var(--accent-ink); text-decoration:none; border-bottom:1px solid var(--edge)} .myco-src em{font-style:italic}
+.forestmap{display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--edge); border:1px solid var(--edge); margin-top:18px}
+.forestmap>div{background:var(--panel); padding:13px 16px}
+.forestmap .hd{font-family:var(--mono); font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; padding:10px 16px}
+.forestmap .hd.l{color:var(--dim)} .forestmap .hd.r{color:var(--accent-ink)}
+.forestmap .l{color:var(--dim); font-size:12.5px; line-height:1.5}
+.forestmap .r{color:var(--ink); font-size:12.5px; line-height:1.5}
+@media(max-width:560px){ .forestmap{grid-template-columns:1fr} .forestmap .hd{display:none} .forestmap .r::before{content:"\21b3  "; color:var(--soft)} }
 .myco-legend{display:none !important}
 @media(max-width:640px){ .myco-legend{display:grid !important} .mycofig .svg-ann{display:none} }
 </style>
@@ -274,7 +281,15 @@ a{color:var(--accent-ink); text-decoration:none; border-bottom:1px solid var(--a
 </svg></div>
     <div class="myco-src">Real mycorrhizal science, cited: <a href="https://www.nature.com/articles/41557">Simard et al., <em>Nature</em> 388:579 (1997)</a> · <a href="https://www.science.org/doi/10.1126/science.aad6188">Klein, Siegwolf &amp; Körner, <em>Science</em> 352:342 (2016)</a> · <a href="https://nph.onlinelibrary.wiley.com/doi/10.1111/j.1469-8137.2009.03069.x">Beiler et al., <em>New Phytologist</em> 185:543 (2010)</a> · Smith &amp; Read, <em>Mycorrhizal Symbiosis</em> (2008).</div>
     <div class="loop myco-legend" style="margin-top:14px"><div class="step"><div class="k">common mycorrhizal network</div><div class="t">one fungal web links many trees</div><div class="d">Simard et al., Nature 1997</div></div><div class="step"><div class="k">hub / mother trees</div><div class="t">biggest, oldest = most connected</div><div class="d">Beiler et al., New Phytologist 2010</div></div><div class="step"><div class="k">belowground carbon trade</div><div class="t">carbon moves tree to tree</div><div class="d">Klein et al., Science 2016</div></div><div class="step"><div class="k">mycorrhizal symbiosis</div><div class="t">fungi trade nutrients for the tree's carbon</div><div class="d">Smith & Read, 2008</div></div></div>
-    <p class="body dim" style="margin-top:20px">Mycelium borrows exactly this — a slow, shared, out-of-sight web where connection is felt, not performed.</p>
+    <p class="body dim" style="max-width:66ch; margin-top:22px">Read the forest as a community and the biology stops being about trees. A <b style="color:var(--ink)">community</b> is a place where what you have is quietly shared — the surplus of one becomes another's survival, the oldest hold up the youngest, and none of it has to be announced to count.</p>
+    <div class="forestmap">
+      <div class="hd l">in a forest</div><div class="hd r">in a community</div>
+      <div class="l">fungi trade nutrients for the tree's carbon</div><div class="r">members sustain each other — no score kept</div>
+      <div class="l">carbon flows from surplus to deficit</div><div class="r">the ones who have more carry the ones who don't</div>
+      <div class="l">mother trees keep the seedlings alive</div><div class="r">you're held by the ones who came before</div>
+      <div class="l">slow, shared, out of sight</div><div class="r">belonging is felt, never performed</div>
+    </div>
+    <p class="body dim" style="max-width:66ch; margin-top:20px">That feeling — being quietly held by a group you never had to perform for — is exactly what loneliness is the absence of. It's what <b style="color:var(--ink)">Mycelium</b> tries to hand back: a place to be present with others without a single word of explanation.</p>
   </section>
   <hr class="rule">
 
