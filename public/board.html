@@ -112,6 +112,9 @@
 .fam{border:1px solid var(--edge); background:var(--panel); padding:16px 14px; display:flex; flex-direction:column; align-items:center; gap:10px}
 .fam .stage{height:120px; display:flex; align-items:flex-end}
 .fam canvas{image-rendering:pixelated}
+.fam .stage img{image-rendering:pixelated; height:120px; width:auto; display:block}
+.sp img{image-rendering:pixelated; display:block; width:58px; height:auto}
+.anat .stageC img{image-rendering:pixelated; height:clamp(180px,26vw,240px); width:auto; display:block}
 .fam .lab{width:100%; border-top:1px solid var(--edge); padding-top:10px; text-align:center}
 .fam .lab .en{font-family:var(--display); font-weight:700; font-size:14px}
 .fam .lab .zh{font-size:11px; color:var(--dim); margin-top:2px}
@@ -136,7 +139,7 @@
 @media(max-width:820px){.mech{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:520px){.mech{grid-template-columns:1fr}}
 .mech .cell{background:var(--panel); padding:20px}
-.mech .cell .ic{width:100%; height:66px; margin-bottom:14px}
+.mech .cell .ic{width:100%; height:auto; margin-bottom:14px; border:1px solid var(--edge); border-radius:4px; image-rendering:pixelated; display:block}
 .mech .cell h4{margin:0; font-family:var(--display); font-weight:700; font-size:14px}
 .mech .cell .zh{color:var(--soft); font-size:10.5px; margin-top:2px}
 .mech .cell p{margin:9px 0 0; color:var(--dim); font-size:11.5px; line-height:1.55}
@@ -246,7 +249,7 @@
         <div class="dl l"><div class="k">outline</div><div class="v">central-axis symmetry + per-row half-width envelope + edge dither</div></div>
         <div class="dl l"><div class="k">two-cell pupil</div><div class="v">one white + one black cell; the pupil slides to glance, and blinks</div></div>
       </div>
-      <div class="stageC"><canvas data-spore data-seed="anatomy-07" data-hue="266" data-intensity="0.8" data-cell="12"></canvas></div>
+      <div class="stageC"><img src="case-anatomy.png" alt="specimen anatomy" loading="lazy"></div>
       <div class="col r">
         <div class="dl r"><div class="k">colour bands</div><div class="v">vertical gradient + local hue jumps + off-axis shading</div></div>
         <div class="dl r"><div class="k">datamosh</div><div class="v">downward pixel-sort streaks + a single shifted glitch row</div></div>
@@ -260,12 +263,12 @@
     <div class="sec-head"><div class="sec-no">05</div><h2 class="sec-title">How they behave</h2></div>
     <p class="sec-lede">The colony runs itself. Each creature follows its own uncertain path, meets others, and comes away quietly changed.</p>
     <div class="mech" style="margin-top:22px">
-      <div class="cell"><canvas class="ic" data-ic="dye"></canvas><h4>Contact-point dyeing</h4><div class="zh cjk">逐格染色</div><p>When two meet, one's cells take on the other's palette from the touch point, sweeping across — outline unchanged.</p></div>
-      <div class="cell"><canvas class="ic" data-ic="matter"></canvas><h4>Matter exchange</h4><div class="zh cjk">互换物质</div><p>Bonded partners ferry mosaic tiles back and forth, bowing to opposite sides — a visible circulation of substance.</p></div>
-      <div class="cell"><canvas class="ic" data-ic="bond"></canvas><h4>Free bonds</h4><div class="zh cjk">自由结伴</div><p>Compatible creatures drift together, hold for a while, then cool off and leave. No one is tethered.</p></div>
-      <div class="cell"><canvas class="ic" data-ic="mother"></canvas><h4>Mother-tree support</h4><div class="zh cjk">母树机制</div><p>A creature on stage long enough quietly becomes a mother tree, reaching a warm line to anyone left alone too long.</p></div>
-      <div class="cell"><canvas class="ic" data-ic="hybrid"></canvas><h4>Permanent hybridisation</h4><div class="zh cjk">永久杂交</div><p>A long encounter leaves a small, permanent trace of the partner's palette — changed by a relationship, not fused.</p></div>
-      <div class="cell"><canvas class="ic" data-ic="gaze"></canvas><h4>Blink &amp; gaze</h4><div class="zh cjk">眨眼 · 注视</div><p>Each blinks on its own rhythm and glances toward its nearest neighbour — the field feels watched-over, alive.</p></div>
+      <div class="cell"><img class="ic" src="mech-dye.gif" alt="dye" loading="lazy"><h4>Contact-point dyeing</h4><div class="zh cjk">逐格染色</div><p>When two meet, one's cells take on the other's palette from the touch point, sweeping across — outline unchanged.</p></div>
+      <div class="cell"><img class="ic" src="mech-matter.gif" alt="matter" loading="lazy"><h4>Matter exchange</h4><div class="zh cjk">互换物质</div><p>Bonded partners ferry mosaic tiles back and forth, bowing to opposite sides — a visible circulation of substance.</p></div>
+      <div class="cell"><img class="ic" src="mech-bond.gif" alt="bond" loading="lazy"><h4>Free bonds</h4><div class="zh cjk">自由结伴</div><p>Compatible creatures drift together, hold for a while, then cool off and leave. No one is tethered.</p></div>
+      <div class="cell"><img class="ic" src="mech-mother.gif" alt="mother" loading="lazy"><h4>Mother-tree support</h4><div class="zh cjk">母树机制</div><p>A creature on stage long enough quietly becomes a mother tree, reaching a warm line to anyone left alone too long.</p></div>
+      <div class="cell"><img class="ic" src="mech-hybrid.gif" alt="hybrid" loading="lazy"><h4>Permanent hybridisation</h4><div class="zh cjk">永久杂交</div><p>A long encounter leaves a small, permanent trace of the partner's palette — changed by a relationship, not fused.</p></div>
+      <div class="cell"><img class="ic" src="mech-gaze.gif" alt="gaze" loading="lazy"><h4>Blink &amp; gaze</h4><div class="zh cjk">眨眼 · 注视</div><p>Each blinks on its own rhythm and glances toward its nearest neighbour — the field feels watched-over, alive.</p></div>
     </div>
   </section>
   <hr class="rule">
@@ -345,7 +348,7 @@
     Ground #F1F0EB · Ink #111110 · Accent #5B4FD0 · six emotion families<br>
     Stack — React · Vite · TypeScript · canvas 2D · framer-motion · Upstash Redis · Vercel Edge<br>
     <span style="color:var(--accent-ink)">the same sentence always grows the same spore.</span><br>
-    <span style="opacity:.7">Every spore on this board is generated live in your browser by the real algorithm.</span>
+    <span style="opacity:.7">Every specimen on this board is rendered by the product's own engine.</span>
   </footer>
 
 </div>
@@ -353,63 +356,10 @@
 
 <script>
 (function(){
-  function xmur3(str){let h=1779033703^str.length;for(let i=0;i<str.length;i++){h=Math.imul(h^str.charCodeAt(i),3432918353);h=(h<<13)|(h>>>19);}return function(){h=Math.imul(h^(h>>>16),2246822507);h=Math.imul(h^(h>>>13),3266489909);return (h^=h>>>16)>>>0;};}
-  function mkrng(seed){let s=(seed>>>0)||1;return function(){s=(Math.imul(s,1664525)+1013904223)>>>0;return s/4294967296;};}
-  var ENV=[1,2,4,6,7,7,7,6,5,4,3,3,2,1,1,1], ROWS=ENV.length, COLS=15, CX=7, EYE=6;
-
-  function drawSpore(ctx, ox, oy, cell, seedStr, hue, inten, satBase){
-    satBase = satBase==null?48:satBase;
-    var rnd = mkrng(xmur3(seedStr)());
-    var cells=[], colBottom={};
-    for(var r=0;r<ROWS;r++){
-      var hw=Math.max(0,Math.min(CX, Math.round(ENV[r]+(rnd()-0.5)*1.7)));
-      for(var c=CX-hw;c<=CX+hw;c++){
-        var t=r/ROWS, h=hue+(rnd()-0.5)*26;
-        if(rnd()<inten*0.24) h=(hue+90+rnd()*180);
-        var sat=satBase+inten*30+(rnd()-0.5)*10;
-        var li=45+t*20+(rnd()-0.5)*10;
-        sat=Math.max(12,Math.min(82,sat)); li=Math.max(26,Math.min(74,li));
-        var color='hsl('+((((h%360)+360)%360)|0)+' '+(sat|0)+'% '+(li|0)+'%)';
-        cells.push({c:c,r:r,color:color});
-        if(!colBottom[c]||r>colBottom[c].r) colBottom[c]={r:r,color:color};
-      }
-    }
-    ctx.imageSmoothingEnabled=false;
-    for(var k in colBottom){var b=colBottom[k], len=1+Math.floor(rnd()*7);
-      for(var s=1;s<=len;s++){ctx.globalAlpha=Math.max(0,0.4-(s/len)*0.4);ctx.fillStyle=b.color;ctx.fillRect(ox+(+k)*cell, oy+(b.r+s)*cell, cell, cell);}}
-    ctx.globalAlpha=1;
-    var gr=Math.floor(rnd()*ROWS), ga=(rnd()<0.5?1:0)*cell*(1+Math.floor(rnd()*2));
-    for(var i=0;i<cells.length;i++){var cl=cells[i], sx=cl.r===gr?ga:0;ctx.fillStyle=cl.color;ctx.fillRect(ox+cl.c*cell+sx, oy+cl.r*cell, cell, cell);}
-    var gaze=(rnd()<0.5?-1:1);
-    function eye(c0){var x=ox+c0*cell, y=oy+EYE*cell;ctx.fillStyle='#f4f2ec';ctx.fillRect(x,y,cell*2,cell);ctx.fillStyle='#111';ctx.fillRect(x+(gaze*0.5+0.5)*cell,y,cell,cell);}
-    eye(CX-3); eye(CX+1);
-  }
-
-  function mountSpore(cv){
-    var cell=+cv.dataset.cell||8, seed=cv.dataset.seed||'x', hue=+cv.dataset.hue||266;
-    var inten=cv.dataset.intensity!=null?+cv.dataset.intensity:0.6, sat=cv.dataset.sat!=null?+cv.dataset.sat:null;
-    var pad=8, w=COLS*cell, h=(ROWS+pad)*cell, dpr=Math.min(2,window.devicePixelRatio||1);
-    cv.width=w*dpr; cv.height=h*dpr; cv.style.width=w+'px'; cv.style.height=h+'px';
-    var ctx=cv.getContext('2d'); ctx.scale(dpr,dpr);
-    drawSpore(ctx,0,0,cell,seed,hue,inten,sat);
-  }
-
   // hero row
-  var hero=[
-    {seed:'ember-drift', hue:24, i:0.7, nm:'Ember Drift'},
-    {seed:'calm-bell', hue:212, i:0.4, nm:'Calm Bell'},
-    {seed:'moony-moth', hue:266, i:0.85, nm:'Moony Moth'},
-    {seed:'mint-pip', hue:158, i:0.6, nm:'Mint Pip'},
-    {seed:'quiet-wisp', hue:220, i:0.3, nm:'Quiet Wisp', sat:16}
-  ];
+  var hero=[{en:'tender',nm:'Ember Drift'},{en:'calm',nm:'Calm Bell'},{en:'dreamy',nm:'Moony Moth'},{en:'companion',nm:'Mint Pip'},{en:'lonely',nm:'Quiet Wisp'}];
   var hs=document.getElementById('heroSpores');
-  hero.forEach(function(s,idx){
-    var wrap=document.createElement('div'); wrap.className='sp';
-    var cv=document.createElement('canvas'); cv.dataset.spore=''; cv.dataset.seed=s.seed; cv.dataset.hue=s.hue;
-    cv.dataset.intensity=s.i; cv.dataset.cell=(idx===2?9:7); if(s.sat!=null)cv.dataset.sat=s.sat;
-    var nm=document.createElement('div'); nm.className='nm'; nm.innerHTML=(idx===2?'<b>'+s.nm+' · you</b>':s.nm);
-    wrap.appendChild(cv); wrap.appendChild(nm); hs.appendChild(wrap); mountSpore(cv);
-  });
+  if(hs) hero.forEach(function(s,idx){var wrap=document.createElement('div');wrap.className='sp';var im=document.createElement('img');im.src='spore-fam-'+s.en+'.png';im.alt=s.nm;im.loading='lazy';var nm=document.createElement('div');nm.className='nm';nm.innerHTML=(idx===2?'<b>'+s.nm+' · you</b>':s.nm);wrap.appendChild(im);wrap.appendChild(nm);hs.appendChild(wrap);});
 
   // families
   var fams=[
@@ -423,41 +373,12 @@
   var fg=document.getElementById('famGrid');
   fams.forEach(function(f){
     var card=document.createElement('div'); card.className='fam';
-    card.innerHTML='<div class="stage"><canvas data-spore data-seed="fam-'+f.en+'" data-hue="'+f.hue+'" data-intensity="'+f.i+'" data-sat="'+f.sat+'" data-cell="7"></canvas></div>'+
+    card.innerHTML='<div class="stage"><img src="spore-fam-'+f.en+'.png" alt="'+f.en+'" loading="lazy"></div>'+
       '<div class="lab"><div class="en">'+f.en+'</div><div class="zh cjk">'+f.zh+'</div><div class="hue"><i style="background:'+f.hex+'"></i>H '+f.hue+'°</div></div>';
-    fg.appendChild(card); mountSpore(card.querySelector('canvas'));
+    fg.appendChild(card);
   });
 
-  // mount every spore canvas (static + the dynamic hero/family ones)
-  document.querySelectorAll('canvas[data-spore]').forEach(mountSpore);
 
-  // mechanic mini-diagrams
-  var U=5; // pixel unit
-  function icon(cv,kind){
-    var dpr=Math.min(2,window.devicePixelRatio||1), W=cv.clientWidth||220, H=66, cy=32;
-    cv.width=W*dpr; cv.height=H*dpr; cv.style.height=H+'px';
-    var g=cv.getContext('2d'); g.scale(dpr,dpr);
-    var acc=getComputedStyle(document.documentElement).getPropertyValue('--accent-ink').trim()||'#5b4fd0';
-    g.clearRect(0,0,W,H); g.imageSmoothingEnabled=false;
-    function blob(cx,cy,hue,n){n=n||5;var o=n*U/2;for(var r=0;r<n;r++)for(var c=0;c<n;c++){var edge=(r===0||c===0||r===n-1||c===n-1);if(edge&&(r+c)%3===0)continue;g.fillStyle='hsl('+hue+' 55% '+(46+r*3)+'%)';g.fillRect(cx-o+c*U,cy-o+r*U,U,U);}}
-    var L=34, R=W-34;
-    if(kind==='dye'){ blob(L,cy,24); blob(R,cy,266);
-      // half-dyed sweep on the left creature
-      for(var i=0;i<4;i++){g.fillStyle='hsl(266 55% 56%)';g.fillRect(L-12+i*U,cy-U,U,U);g.fillRect(L-12+i*U,cy,U,U);} }
-    else if(kind==='matter'){ blob(L,cy,158); blob(R,cy,24);
-      for(var j=0;j<4;j++){var t=j/3;g.fillStyle=acc;g.globalAlpha=.85;g.fillRect(L+16+t*(R-L-32)-3,cy-12-Math.sin(t*Math.PI)*6,6,6);g.fillRect(R-16-t*(R-L-32)-3,cy+12+Math.sin(t*Math.PI)*6-6,6,6);} g.globalAlpha=1; }
-    else if(kind==='bond'){ g.strokeStyle=acc; g.setLineDash([4,4]); g.lineWidth=1.5; g.beginPath(); g.moveTo(L+14,cy); g.lineTo(R-14,cy); g.stroke(); g.setLineDash([]); blob(L,cy,266); blob(R,cy,158); }
-    else if(kind==='mother'){ var top=16; blob(W/2,top+4,124,5);
-      [L,W/2,R].forEach(function(mx){g.strokeStyle=acc;g.globalAlpha=.6;g.lineWidth=1.5;g.beginPath();g.moveTo(W/2,top+10);g.lineTo(mx,H-16);g.stroke();g.globalAlpha=1;blob(mx,H-14,220,3);}); }
-    else if(kind==='hybrid'){ var n=6,o=n*U/2;for(var r2=0;r2<n;r2++)for(var c2=0;c2<n;c2++){var mine=c2<4;g.fillStyle=mine?'hsl(158 50% 50%)':'hsl(266 58% 60%)';g.fillRect(W/2-o+c2*U,cy-o+r2*U,U,U);} }
-    else if(kind==='gaze'){ function face(cx,gz){g.fillStyle='#f4f2ec';g.fillRect(cx-11,cy-3,9,6);g.fillRect(cx+2,cy-3,9,6);g.fillStyle='#111';g.fillRect(cx-11+(gz>0?4:0),cy-3,5,6);g.fillRect(cx+2+(gz>0?4:0),cy-3,5,6);} face(L+6,1); face(R-6,-1);
-      g.strokeStyle=acc;g.globalAlpha=.5;g.setLineDash([3,3]);g.beginPath();g.moveTo(L+18,cy);g.lineTo(R-18,cy);g.stroke();g.setLineDash([]);g.globalAlpha=1; }
-  }
-  document.querySelectorAll('canvas[data-ic]').forEach(function(cv){ icon(cv, cv.dataset.ic); });
-
-  // re-render icons on theme change (accent color shifts)
-  var mo=new MutationObserver(function(){document.querySelectorAll('canvas[data-ic]').forEach(function(cv){icon(cv,cv.dataset.ic);});});
-  mo.observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 })();
 </script>
 
