@@ -30,20 +30,28 @@ export function useCreatures() {
   useEffect(() => {
     if (TEST_MODE) return; // sandbox: don't touch the backend
     let alive = true;
-    fetch('/api/creatures')
-      .then((r) => r.json())
-      .then((d) => {
-        if (!alive) return;
-        if (d?.configured) setConfigured(true);
-        if (Array.isArray(d?.creatures) && d.creatures.length) {
-          setColony(d.creatures.slice(0, MAX_LOCAL));
-        }
-        if (typeof d?.population === 'number' && d.population > 0) {
-          setPopulation(d.population);
-        }
-      })
-      .catch(() => {});
-    return () => { alive = false; };
+    const load = () =>
+      fetch('/api/creatures')
+        .then((r) => r.json())
+        .then((d) => {
+          if (!alive) return;
+          if (d?.configured) setConfigured(true);
+          if (Array.isArray(d?.creatures) && d.creatures.length) {
+            setColony(d.creatures.slice(0, MAX_LOCAL));
+          }
+          if (typeof d?.population === 'number' && d.population > 0) {
+            setPopulation(d.population);
+          }
+        })
+        .catch(() => {});
+    load();
+    // Kiosk panels (the physical tower) keep themselves fresh: creatures
+    // whispered from visitors' phones surface within ~20s on every screen.
+    const kiosk =
+      typeof window !== 'undefined' &&
+      new URLSearchParams(window.location.search).has('kiosk');
+    const timer = kiosk ? setInterval(load, 20000) : null;
+    return () => { alive = false; if (timer) clearInterval(timer); };
   }, []);
 
   const add = useCallback((c: FieldCreature) => {

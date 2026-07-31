@@ -198,6 +198,7 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
     };
 
     const sync = (now: number) => {
+      if (!W || !H) return; // not laid out yet: don't seed bodies at 0,0
       // fewer live creatures on a phone so the small canvas doesn't turn into
       // an unreadable pile (extras stay baked into the backdrop / off-stage).
       const cap = window.innerWidth < 640 ? 60 : CAP;
@@ -407,7 +408,7 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
       ctx.clearRect(0, 0, W, H);
       // the ambient backdrop shows at full strength on the cover (landing),
       // and at half strength everywhere else so it reads as a faint ground.
-      if (backdrop) {
+      if (backdrop && backdrop.width > 0 && backdrop.height > 0) {
         ctx.globalAlpha = clusteredRef.current ? 1 : 0.5;
         ctx.drawImage(backdrop, 0, 0, W, H);
         ctx.globalAlpha = 1;

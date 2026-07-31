@@ -953,3 +953,28 @@ body,
   }
   .specimen-recall:hover { transform: translateX(-50%) translateY(-1px); }
 }
+
+/* ── kiosk mode: the physical tower's screens ─────────────────── */
+body.kiosk-mode { cursor: none; }
+body.kiosk-mode .tree-hole, body.kiosk-mode .field-prompt { display: none; }
+
+.sky-scene {
+  position: fixed; inset: 0; overflow: hidden;
+}
+.sky-item { position: absolute; }
+.sky-caption {
+  position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%);
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.28em;
+  color: var(--ink-soft); white-space: nowrap;
+}
+
+.micro-scene {
+  position: fixed; inset: 0; display: flex; align-items: center;
+  justify-content: center; gap: 56px; padding: 40px;
+}
+.micro-stage canvas { image-rendering: pixelated; }
+.micro-meta { font-family: var(--font-mono); color: var(--ink); max-width: 300px; }
+.micro-label { font-size: 11px; letter-spacing: 0.28em; color: var(--ink-soft); margin-bottom: 14px; }
+.micro-name { font-size: 26px; font-weight: 700; letter-spacing: 0.04em; margin-bottom: 18px; }
+.micro-row { font-size: 13px; color: var(--ink-dim); letter-spacing: 0.05em; line-height: 2.0; }
+.micro-dim { color: var(--ink-soft); }

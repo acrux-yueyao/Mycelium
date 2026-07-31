@@ -6,6 +6,8 @@ import { SceneNav, type Scene } from './components/SceneNav';
 import { ArchiveScene } from './components/ArchiveScene';
 import { FeedbackScene } from './components/FeedbackScene';
 import { SurveyScene } from './components/SurveyScene';
+import { SkyScene } from './components/SkyScene';
+import { MicroScene } from './components/MicroScene';
 import { useCreatures } from './hooks/useCreatures';
 import { DebugSpawnBar } from './components/DebugSpawnBar';
 import { Entity, type HybridSource } from './components/Entity';
@@ -165,6 +167,13 @@ export default function App() {
       : new URLSearchParams();
   const showGallery = params.has('gallery');
   const showDebug = params.has('debug');
+  // ?kiosk=field|archive|sky|micro — the physical tower's screens. Each
+  // Pi panel opens one fixed scene, chromeless, and never navigates.
+  const kioskRaw = params.get('kiosk');
+  const kiosk: Scene | null =
+    kioskRaw === 'field' || kioskRaw === 'archive' || kioskRaw === 'sky' || kioskRaw === 'micro'
+      ? (kioskRaw as Scene)
+      : null;
   if (showGallery) return <Gallery />;
 
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
@@ -173,7 +182,7 @@ export default function App() {
   const [probes, setProbes] = useState<ExplorationProbe[]>([]);
   // Scene: the landing poster gates entry into the live field. Debug
   // mode skips straight into the field.
-  const [scene, setScene] = useState<Scene>(showDebug ? 'field' : 'landing');
+  const [scene, setScene] = useState<Scene>(kiosk ?? (showDebug ? 'field' : 'landing'));
   // The creature this visitor most recently grew — shown on the feedback
   // card. Null until they whisper their first sentence.
   const [latestCreature, setLatestCreature] = useState<FieldCreature | null>(null);
@@ -188,6 +197,11 @@ export default function App() {
       setLatestCreature({ ...colony[0], text: '今天心里像被风轻轻揉过的纸' });
     }
   }, [showDebug, colony, latestCreature]);
+  useEffect(() => {
+    if (!kiosk) return;
+    document.body.classList.add('kiosk-mode');
+    return () => document.body.classList.remove('kiosk-mode');
+  }, [kiosk]);
   const [muted, setMutedState] = useState(false);
   const { loading, error, read, clearError } = useEmotion();
 
@@ -914,7 +928,9 @@ export default function App() {
        *  painted on one canvas behind everything. On the landing page the
        *  colony huddles together; entering the field spreads it as the
        *  input box shoves a hole through the centre. */}
-      <DitherField creatures={colony} clustered={scene === 'landing'} mineId={latestCreature?.id ?? null} />
+      {scene !== 'sky' && scene !== 'micro' && (
+        <DitherField creatures={colony} clustered={scene === 'landing'} mineId={latestCreature?.id ?? null} />
+      )}
 
       {testMode && (
         <div
@@ -929,7 +945,7 @@ export default function App() {
         </div>
       )}
 
-      {scene !== 'landing' && (
+      {scene !== 'landing' && !kiosk && (
         <SceneNav scene={scene} population={population} onNavigate={navigate} />
       )}
 
@@ -942,6 +958,8 @@ export default function App() {
           />
         )}
         {scene === 'archive' && <ArchiveScene key="archive" creatures={colony} />}
+        {scene === 'sky' && <SkyScene key="sky" creatures={colony} population={population} />}
+        {scene === 'micro' && <MicroScene key="micro" creatures={colony} />}
         {scene === 'survey' && <SurveyScene key="survey" onNavigate={navigate} />}
         {scene === 'feedback' && (
           <FeedbackScene

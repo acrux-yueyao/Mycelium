@@ -3,7 +3,7 @@
  * Editorial mono nav that moves between the rooms of the world and shows
  * the living population.
  */
-export type Scene = 'landing' | 'field' | 'archive' | 'feedback' | 'survey';
+export type Scene = 'landing' | 'field' | 'archive' | 'feedback' | 'survey' | 'sky' | 'micro';
 
 interface Props {
   scene: Scene;
