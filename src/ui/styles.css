@@ -967,6 +967,9 @@ body.kiosk-mode {
   --ink-soft:    #6E6D64;
 }
 body.kiosk-mode .field-prompt { display: none; }
+/* installation screens carry no clickable chrome: nobody can click */
+body.kiosk-mode .hand-toggle,
+body.kiosk-mode .mute-toggle { display: none; }
 /* the tree hole stays visible on the tower as a quiet invitation,
    sunk into the night instead of floating as a bright paper card */
 body.kiosk-mode .totem { opacity: 0.75; }
