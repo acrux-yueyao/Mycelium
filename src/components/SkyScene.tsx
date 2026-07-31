@@ -33,7 +33,7 @@ export function SkyScene({ creatures, population }: Props) {
         delay: -r() * 40,
         dx: 6 + r() * 14,
         dy: 8 + r() * 18,
-        dim: 0.7 + r() * 0.3,
+        dim: 0.9 + r() * 0.1,
       };
     });
   }, [creatures]);

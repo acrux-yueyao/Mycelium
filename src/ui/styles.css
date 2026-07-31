@@ -955,13 +955,26 @@ body,
 }
 
 /* ── kiosk mode: the physical tower's screens ─────────────────── */
-body.kiosk-mode { cursor: none; }
+/* The tower is night: same world, inverted ground. Colour = emotion
+   glows out of darkness; the web/phone experience stays paper-cream. */
+body.kiosk-mode {
+  cursor: none;
+  --cream:       #0B0B0A;
+  --cream-deep:  #101010;
+  --cream-edge:  #24231F;
+  --ink:         #EDECE3;
+  --ink-dim:     #A3A296;
+  --ink-soft:    #6E6D64;
+}
 body.kiosk-mode .tree-hole, body.kiosk-mode .field-prompt { display: none; }
 
 .sky-scene {
   position: fixed; inset: 0; overflow: hidden;
 }
 .sky-item { position: absolute; }
+/* night sky: the palette was tuned for paper; lift it so creatures glow */
+body.kiosk-mode .sky-item { filter: saturate(1.35) brightness(1.7); }
+body.kiosk-mode .sky-item canvas { image-rendering: pixelated; }
 .sky-caption {
   position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%);
   font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.28em;

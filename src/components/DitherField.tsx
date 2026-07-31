@@ -526,9 +526,10 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
         ctx.textBaseline = 'top';
         try { ctx.letterSpacing = '0.06em'; } catch { /* older browsers */ }
         const ly = a.y + dh / 2 + 5;
-        ctx.fillStyle = 'rgba(16,16,16,0.34)';
+        const nightInk = document.body.classList.contains('kiosk-mode');
+        ctx.fillStyle = nightInk ? 'rgba(0,0,0,0.5)' : 'rgba(16,16,16,0.34)';
         ctx.fillText(label, a.x + sway + 0.6, ly + 0.6);   // faint drop for legibility
-        ctx.fillStyle = mine ? 'rgba(91,79,208,0.95)' : 'rgba(16,16,16,0.7)';
+        ctx.fillStyle = mine ? 'rgba(91,79,208,0.95)' : nightInk ? 'rgba(237,236,227,0.75)' : 'rgba(16,16,16,0.7)';
         ctx.fillText(label, a.x + sway, ly);
         try { ctx.letterSpacing = '0px'; } catch { /* noop */ }
       }
