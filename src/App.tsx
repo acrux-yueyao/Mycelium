@@ -201,6 +201,11 @@ export default function App() {
   useEffect(() => {
     if (!kiosk) return;
     document.body.classList.add('kiosk-mode');
+    // kiosk chromium runs with autoplay allowed — no gesture will ever
+    // come, so boot the ambient bed ourselves. Harmless elsewhere: a
+    // blocked context just stays suspended until a real gesture.
+    ensureAudioContext();
+    ambientStart();
     return () => document.body.classList.remove('kiosk-mode');
   }, [kiosk]);
   const [muted, setMutedState] = useState(false);
