@@ -8,6 +8,7 @@ import { FeedbackScene } from './components/FeedbackScene';
 import { SurveyScene } from './components/SurveyScene';
 import { SkyScene } from './components/SkyScene';
 import { MicroScene } from './components/MicroScene';
+import { KioskInvite } from './components/KioskInvite';
 import { useCreatures } from './hooks/useCreatures';
 import { DebugSpawnBar } from './components/DebugSpawnBar';
 import { Entity, type HybridSource } from './components/Entity';
@@ -948,6 +949,8 @@ export default function App() {
       {scene !== 'landing' && !kiosk && (
         <SceneNav scene={scene} population={population} onNavigate={navigate} />
       )}
+
+      {kiosk === 'field' && <KioskInvite />}
 
       <AnimatePresence>
         {scene === 'landing' && (

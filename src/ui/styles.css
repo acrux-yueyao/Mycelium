@@ -972,6 +972,36 @@ body.kiosk-mode .hand-toggle,
 body.kiosk-mode .mute-toggle { display: none; }
 /* large 1080p panels run hot: pull saturation back a touch at night */
 body.kiosk-mode .dither-canvas { filter: saturate(0.82) brightness(0.96); }
+
+/* The field kiosk's QR doorway — a quiet cream card in the corner. */
+.kiosk-invite {
+  position: fixed;
+  right: 28px;
+  bottom: 28px;
+  z-index: 55;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px 14px 14px;
+  border-radius: 10px;
+  background: rgba(237, 236, 227, 0.92);
+  border: 1px solid rgba(237, 236, 227, 0.25);
+  pointer-events: none;
+}
+.kiosk-invite-qr {
+  width: 108px;
+  height: 108px;
+  display: block;
+  image-rendering: pixelated;
+}
+.kiosk-invite-text {
+  font-family: var(--font-mono);
+  color: #141412;
+  letter-spacing: 0.12em;
+}
+.kiosk-invite-cn { font-size: 13px; margin-bottom: 6px; }
+.kiosk-invite-en { font-size: 10px; opacity: 0.75; }
+.kiosk-invite-sub { font-size: 9px; opacity: 0.45; margin-top: 8px; font-style: italic; letter-spacing: 0.08em; }
 /* the tree hole stays visible on the tower as a quiet invitation,
    sunk into the night instead of floating as a bright paper card */
 body.kiosk-mode .totem { opacity: 0.75; }
