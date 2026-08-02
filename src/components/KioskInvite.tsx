@@ -43,6 +43,17 @@ const QR = [
   '11111110001111001101011011100',
 ];
 
+// the field's night dust, brightened to scanning luminance: moss, haze
+// blue, honey, lilac, cream — so the code reads as congregated particles
+const TINTS = [
+  '178,204,146', // moss green
+  '154,180,214', // haze blue
+  '224,190,132', // honey
+  '196,172,216', // lilac
+  '226,225,214', // cream
+  '150,210,190', // pale teal
+];
+
 const N = QR.length;
 const CELL = 5;            // px per module
 const PAD = CELL * 4;      // quiet zone — the spec's 4 modules, kept as calm void
@@ -73,15 +84,16 @@ export function KioskInvite() {
       grad.addColorStop(1, 'rgba(6,6,5,0)');
       g.fillStyle = grad;
       g.fillRect(0, 0, SIZE, SIZE);
-      // modules shimmer like motes: a slow wave drifts across the grid,
-      // never dipping below the contrast a camera needs
+      // modules shimmer like the field's coloured dust: each keeps a stable
+      // hue from the night palette (all bright enough that a camera's
+      // luminance threshold still separates them from the black)
       const s = t * 0.0011;
       for (let y = 0; y < N; y++) {
         const row = QR[y];
         for (let x = 0; x < N; x++) {
           if (row[x] !== '1') continue;
           const a = 0.82 + 0.13 * Math.sin(s + x * 1.7 + y * 2.3);
-          g.fillStyle = `rgba(226,225,214,${a.toFixed(2)})`;
+          g.fillStyle = `rgba(${TINTS[(x * 7 + y * 13) % TINTS.length]},${a.toFixed(2)})`;
           g.fillRect(PAD + x * CELL, PAD + y * CELL, CELL - 1, CELL - 1);
         }
       }
