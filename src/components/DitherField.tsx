@@ -624,6 +624,7 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
   return (
     <canvas
       ref={ref}
+      className="dither-canvas"
       aria-hidden
       style={{
         position: 'fixed', inset: 0, width: '100%', height: '100%',
