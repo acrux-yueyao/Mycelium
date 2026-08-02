@@ -57,7 +57,23 @@ const TINTS = [
 const N = QR.length;
 const CELL = 5;            // px per module
 const PAD = CELL * 4;      // quiet zone — the spec's 4 modules, kept as calm void
-const SIZE = N * CELL + PAD * 2;
+const FRINGE = 26;         // outer band where stray motes dissolve the edge
+const SIZE = N * CELL + PAD * 2 + FRINGE * 2;
+
+// stray motes: loose particles orbiting the code so its boundary never
+// reads as a square. Deterministic ring placement keeps them out of the
+// quiet zone; only their drift and flicker are animated.
+const STRAYS = Array.from({ length: 46 }, (_, i) => {
+  const ang = i * 2.399963; // golden angle — even, organic spread
+  const inner = (N * CELL) / 2 + PAD + 2;
+  return {
+    ang,
+    r: inner + (i * 37 % 100) / 100 * (FRINGE - 6),
+    size: 2 + (i % 3),
+    tint: i % 6,
+    ph: i * 1.7,
+  };
+});
 
 export function KioskInvite() {
   const ref = useRef<HTMLCanvasElement | null>(null);
@@ -75,27 +91,38 @@ export function KioskInvite() {
       if (t - last < 120) return; // ~8fps is plenty for a shimmer
       last = t;
       g.clearRect(0, 0, SIZE, SIZE);
-      // a soft dark pool the code floats in; edges dissolve into the field
+      // a faint dark pool under the code — just enough to damp the field's
+      // dust inside the quiet zone, weak enough to stay unnoticed
+      const qext = (N * CELL) / 2;
       const grad = g.createRadialGradient(
-        SIZE / 2, SIZE / 2, SIZE * 0.28,
-        SIZE / 2, SIZE / 2, SIZE * 0.66,
+        SIZE / 2, SIZE / 2, qext * 0.7,
+        SIZE / 2, SIZE / 2, qext + PAD + 4,
       );
-      grad.addColorStop(0, 'rgba(6,6,5,0.94)');
+      grad.addColorStop(0, 'rgba(6,6,5,0.45)');
       grad.addColorStop(1, 'rgba(6,6,5,0)');
       g.fillStyle = grad;
       g.fillRect(0, 0, SIZE, SIZE);
-      // modules shimmer like the field's coloured dust: each keeps a stable
-      // hue from the night palette (all bright enough that a camera's
-      // luminance threshold still separates them from the black)
+      // modules as translucent coloured dust — held just above the
+      // luminance floor a camera needs against the black field
       const s = t * 0.0011;
+      const org = FRINGE + PAD;
       for (let y = 0; y < N; y++) {
         const row = QR[y];
         for (let x = 0; x < N; x++) {
           if (row[x] !== '1') continue;
-          const a = 0.82 + 0.13 * Math.sin(s + x * 1.7 + y * 2.3);
+          const a = 0.40 + 0.10 * Math.sin(s + x * 1.7 + y * 2.3);
           g.fillStyle = `rgba(${TINTS[(x * 7 + y * 13) % TINTS.length]},${a.toFixed(2)})`;
-          g.fillRect(PAD + x * CELL, PAD + y * CELL, CELL - 1, CELL - 1);
+          g.fillRect(org + x * CELL, org + y * CELL, CELL - 1, CELL - 1);
         }
+      }
+      // stray motes drift around the outside, dissolving the square edge
+      for (const m of STRAYS) {
+        const wob = 3 * Math.sin(s * 0.6 + m.ph);
+        const mx = SIZE / 2 + (m.r + wob) * Math.cos(m.ang + s * 0.05);
+        const my = SIZE / 2 + (m.r + wob) * Math.sin(m.ang + s * 0.05);
+        const a = 0.10 + 0.16 * (0.5 + 0.5 * Math.sin(s + m.ph));
+        g.fillStyle = `rgba(${TINTS[m.tint]},${a.toFixed(2)})`;
+        g.fillRect(mx, my, m.size, m.size);
       }
     };
     // paint the first frame synchronously — rAF stalls in hidden tabs,
