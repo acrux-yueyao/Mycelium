@@ -45,7 +45,7 @@ const QR = [
 
 const N = QR.length;
 const CELL = 5;            // px per module
-const PAD = CELL * 3;      // quiet zone, kept as calm void
+const PAD = CELL * 4;      // quiet zone — the spec's 4 modules, kept as calm void
 const SIZE = N * CELL + PAD * 2;
 
 export function KioskInvite() {
@@ -59,9 +59,8 @@ export function KioskInvite() {
     const g = cv.getContext('2d');
     if (!g) return;
     let raf = 0;
-    let last = 0;
+    let last = -Infinity;
     const draw = (t: number) => {
-      raf = requestAnimationFrame(draw);
       if (t - last < 120) return; // ~8fps is plenty for a shimmer
       last = t;
       g.clearRect(0, 0, SIZE, SIZE);
@@ -81,13 +80,17 @@ export function KioskInvite() {
         const row = QR[y];
         for (let x = 0; x < N; x++) {
           if (row[x] !== '1') continue;
-          const a = 0.68 + 0.24 * Math.sin(s + x * 1.7 + y * 2.3);
+          const a = 0.82 + 0.13 * Math.sin(s + x * 1.7 + y * 2.3);
           g.fillStyle = `rgba(226,225,214,${a.toFixed(2)})`;
           g.fillRect(PAD + x * CELL, PAD + y * CELL, CELL - 1, CELL - 1);
         }
       }
     };
-    raf = requestAnimationFrame(draw);
+    // paint the first frame synchronously — rAF stalls in hidden tabs,
+    // and the code must exist the instant the page does
+    draw(performance.now());
+    const tick = (t: number) => { raf = requestAnimationFrame(tick); draw(t); };
+    raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, []);
 

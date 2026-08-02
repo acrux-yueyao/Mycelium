@@ -979,8 +979,8 @@ body.kiosk-mode .dither-canvas { filter: saturate(0.82) brightness(0.96); }
   top: 18px;
   left: 18px;
   z-index: 55;
-  width: 175px;
-  height: 175px;
+  width: 185px;
+  height: 185px;
   pointer-events: none;
   image-rendering: pixelated;
 }
