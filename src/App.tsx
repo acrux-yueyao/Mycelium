@@ -934,7 +934,7 @@ export default function App() {
        *  painted on one canvas behind everything. On the landing page the
        *  colony huddles together; entering the field spreads it as the
        *  input box shoves a hole through the centre. */}
-      {scene !== 'sky' && scene !== 'micro' && (
+      {scene !== 'sky' && scene !== 'micro' && !(kiosk && scene === 'archive') && (
         <DitherField creatures={colony} clustered={scene === 'landing'} mineId={latestCreature?.id ?? null} />
       )}
 

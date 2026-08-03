@@ -17,6 +17,9 @@ interface Props {
 }
 
 export function MicroScene({ creatures }: Props) {
+  // the tower's 7" panel is only 480px tall — shrink the microscope so
+  // the specimen and its readout both stay on the slide
+  const compact = typeof window !== 'undefined' && window.innerHeight <= 560;
   const latest = creatures[0];
   if (!latest) {
     return (
@@ -52,7 +55,7 @@ export function MicroScene({ creatures }: Props) {
           scale: { duration: 6, repeat: Infinity, ease: 'easeInOut' },
         }}
       >
-        <CreatureThumb creature={latest} cell={7} height={430} />
+        <CreatureThumb creature={latest} cell={compact ? 4 : 7} height={compact ? 280 : 430} />
       </motion.div>
       <div className="micro-meta">
         <div className="micro-label">NEWEST RESIDENT</div>
