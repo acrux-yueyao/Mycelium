@@ -736,12 +736,17 @@ body,
   body.kiosk-mode .archive-grid {
     display: flex;
     flex-wrap: nowrap;
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: hidden;
     gap: 16px;
-    -webkit-mask-image: linear-gradient(to right, #000 88%, transparent);
-    mask-image: linear-gradient(to right, #000 88%, transparent);
+    padding-bottom: 6px;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 3%, #000 94%, transparent);
+    mask-image: linear-gradient(to right, transparent, #000 3%, #000 94%, transparent);
   }
-  body.kiosk-mode .archive-card { flex: 0 0 188px; }
+  body.kiosk-mode .archive-grid::-webkit-scrollbar { display: none; }
+  body.kiosk-mode .archive-card { flex: 0 0 188px; scroll-snap-align: start; }
 }
 
 /* The tower's 7" low panel (800x480): shrink the microscope to fit. */

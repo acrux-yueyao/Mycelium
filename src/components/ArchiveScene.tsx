@@ -3,6 +3,7 @@
  * accumulated creature in the colony, each rendered as a survey record:
  * the creature + its id / name / coordinates / time and emotion reading.
  */
+import { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { CreatureThumb } from './CreatureThumb';
 import { scanRecord } from '../core/scanRecord';
@@ -16,6 +17,21 @@ interface Props {
 }
 
 export function ArchiveScene({ creatures }: Props) {
+  // On the tower's touch strip the grid scrolls sideways under a finger.
+  // Exhibition etiquette: 45s after the last touch, drift home to the
+  // newest resident so the next visitor never inherits a stale page.
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el || !document.body.classList.contains('kiosk-mode')) return;
+    let timer: number | undefined;
+    const arm = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => el.scrollTo({ left: 0, behavior: 'smooth' }), 45000);
+    };
+    el.addEventListener('scroll', arm, { passive: true });
+    return () => { window.clearTimeout(timer); el.removeEventListener('scroll', arm); };
+  }, []);
   return (
     <motion.div
       className="scene archive"
@@ -28,7 +44,7 @@ export function ArchiveScene({ creatures }: Props) {
         <h2>SPECIMEN ARCHIVE</h2>
         <p>{creatures.length.toLocaleString()} records in view · every creature ever whispered into the field</p>
       </div>
-      <div className="archive-grid">
+      <div className="archive-grid" ref={gridRef}>
         {creatures.map((c, i) => {
           const rec = scanRecord(c.id, c.bornAt ?? 0, i + 1);
           const name = c.name || nameFor(c.id);
