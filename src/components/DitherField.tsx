@@ -119,7 +119,7 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
   // closed loop: latest telemetry from the physical cultivation chamber.
   // `live` stays false until a real frame arrives, so with no installation
   // connected the colony looks exactly as it does today (zero added motion).
-  const bioRef = useRef({ activity: 0, live: false });
+  const bioRef = useRef({ activity: 0, live: false, bpm: 0 });
 
   // Poll /api/bio for the fungus's live state. Degrades silently when the
   // endpoint is absent / not configured — the colony just keeps its resting look.
@@ -132,7 +132,13 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
         if (res.ok) {
           const data = await res.json();
           const f = data?.latest;
-          if (f) { bioRef.current.activity = bioActivity(f); bioRef.current.live = true; }
+          if (f) {
+            bioRef.current.activity = bioActivity(f);
+            bioRef.current.live = true;
+            // the heartbeat dock rides the visitor's live BPM in the co2 slot
+            const bpm = typeof f.co2 === 'number' ? f.co2 : 0;
+            bioRef.current.bpm = bpm > 30 && bpm < 220 ? bpm : 0;
+          }
         }
       } catch { /* offline / not configured — keep the last value */ }
       if (alive) timer = setTimeout(poll, BIO_POLL_MS);
@@ -393,7 +399,10 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
       // closed loop: the live fungus's activity gives the whole colony a faint
       // shared breath — nothing at rest, fuller when the culture is active.
       const bio = bioRef.current;
-      const breath = bio.live ? 0.012 + 0.03 * bio.activity : 0;
+      const breath = bio.live ? 0.015 + 0.11 * bio.activity : 0;
+      // with a visitor's pulse on the dock the whole field beats AT their
+      // heart rate; otherwise a slow ambient breath
+      const breathW = bio.bpm > 0 ? (bio.bpm / 60) * 0.006283 : 0.0045;
 
       // landing cursor parallax — ease toward the cursor; snaps off (eases
       // back to 0) in the field so drag hit-testing stays pixel-accurate.
@@ -513,7 +522,9 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
           dcell *= 1 + 0.05 * Math.sin(now * 0.0045 + seed01(key) * 6.283);
         }
         // whole-colony breath driven by the live fungus (0 when disconnected)
-        if (breath > 0) dcell *= 1 + breath * Math.sin(now * 0.0045 + seed01(a.id) * 6.283);
+        // near-common phase: the colony inhales together, with a faint
+        // ripple across bodies so it reads as alive rather than mechanical
+        if (breath > 0) dcell *= 1 + breath * Math.sin(now * breathW + seed01(a.id) * 0.9);
         const dw = a.spec.cols * dcell, dh = a.spec.rows * dcell;
         if (mAlpha < 1) ctx.globalAlpha = mAlpha;
         drawMoshCreature(ctx, a.spec, a.x + sway - dw / 2, a.y - dh / 2, dcell, a.id, gz, dye, blink);
