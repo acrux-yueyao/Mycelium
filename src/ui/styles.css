@@ -360,6 +360,40 @@ body,
   background: rgba(255, 244, 224, 0.8);
 }
 .mic-button:disabled { cursor: wait; opacity: 0.3; }
+
+/* Send button — the tap path to submit. On desktop Enter also works;
+ * on phones (QR walk-ups, IME keyboards where Enter is a newline or a
+ * candidate-confirm) this button is the only reliable way in, so it's
+ * always present and blooms solid once there's something to whisper. */
+.send-button {
+  flex: 0 0 auto;
+  margin-bottom: 0.4rem;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1.5px dashed rgba(74, 64, 52, 0.22);
+  border-radius: 50%;
+  background: rgba(255, 250, 235, 0.4);
+  color: var(--ink-soft);
+  cursor: pointer;
+  opacity: 0.45;
+  transition: opacity 0.25s, border-color 0.25s, background 0.25s, color 0.25s;
+}
+.send-button:disabled { cursor: default; }
+.send-button.ready {
+  opacity: 1;
+  border-style: solid;
+  border-color: rgba(230, 155, 110, 0.9);
+  background: rgba(255, 235, 210, 0.95);
+  color: #a05c2e;
+}
+.send-button.ready:hover:not(:disabled) {
+  background: rgba(255, 224, 190, 1);
+  box-shadow: 0 0 0 4px rgba(230, 155, 110, 0.18);
+}
 .mic-button.listening {
   opacity: 1;
   border-color: rgba(230, 155, 110, 0.9);
@@ -443,6 +477,11 @@ body,
   transition: opacity 0.4s ease;
 }
 .totem-hint.visible { opacity: 0.75; }
+/* Touch devices have no Enter-to-send; the send button is the
+ * affordance, so the keyboard hint would only mislead. */
+@media (hover: none) and (pointer: coarse) {
+  .totem-hint { display: none; }
+}
 
 .totem-hint kbd {
   font-family: var(--font-mono);
