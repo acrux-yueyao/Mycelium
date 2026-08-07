@@ -38,8 +38,8 @@ if (charId < 0) throw new Error(`--family must be one of ${FAMS.join('|')}`);
 const intensity = Number(arg('intensity', '0.65'));
 const density = Number(arg('density', '0.7'));
 const tintHue = Number(arg('tint', String(h0 % 360)));
-const cellMM = Number(arg('cell', '5')); // printed size of one mosaic cell
-const S = Number(arg('supersample', '2')); // voxels per cell edge
+const cellMM = Number(arg('cell', '7')); // printed size of one brick
+const S = Number(arg('supersample', '1')); // voxels per cell edge (1 = true bricks)
 const id = `w:${h0.toString(16)}`;
 const name =
   arg('name') ??
@@ -225,11 +225,14 @@ for (const { col, pupil } of eyeCells) {
   }
 }
 
-// ---------- 5) meshing: emit only faces against empty space ----------
+// ---------- 5) meshing: LEGO-style bricks ----------
+// Watertight brick shell (shared faces culled) + a round stud on every
+// exposed top face — the assembled-toy read. Studs are 12-gon prisms
+// sunk a hair into the brick so slicers union them cleanly.
 const mm = cellMM / S;
 type V = [number, number, number];
 const tris: Array<{ a: V; b: V; c: V; col: [number, number, number] }> = [];
-const P = (x: number, y: number, z: number): V => [x * mm, z * mm, y * mm]; // z-up for printing
+const P = (x: number, y: number, z: number): V => [x * mm, z * mm, y * mm]; // print z-up
 const FACES: Array<{ d: V; q: [V, V, V, V] }> = [
   { d: [1, 0, 0],  q: [[1,0,0],[1,1,0],[1,1,1],[1,0,1]] },
   { d: [-1, 0, 0], q: [[0,0,1],[0,1,1],[0,1,0],[0,0,0]] },
@@ -238,6 +241,10 @@ const FACES: Array<{ d: V; q: [V, V, V, V] }> = [
   { d: [0, 0, 1],  q: [[0,0,1],[1,0,1],[1,1,1],[0,1,1]] },
   { d: [0, 0, -1], q: [[0,0,0],[0,1,0],[1,1,0],[1,0,0]] },
 ];
+const STUD_R = 0.31;   // stud radius, in cells
+const STUD_H = 0.22;   // stud height above the brick top
+const STUD_N = 12;     // prism sides
+const SINK = 0.02;     // overlap into the brick, for clean slicer unions
 for (let y = 0; y < Y; y++)
   for (let z = 0; z < Z; z++)
     for (let x = 0; x < X; x++) {
@@ -250,6 +257,27 @@ for (let y = 0; y < Y; y++)
         const [q0, q1, q2, q3] = q.map((o) => P(x + o[0], y + o[1], z + o[2])) as [V, V, V, V];
         tris.push({ a: q0, b: q1, c: q2, col });
         tris.push({ a: q0, b: q2, c: q3, col });
+      }
+      // stud on every exposed top face
+      const above = inb(x, y + 1, z) && grid[at(x, y + 1, z)];
+      if (!above) {
+        const cx = x + 0.5, cz = z + 0.5;
+        const y0 = y + 1 - SINK, y1 = y + 1 + STUD_H;
+        const ring0: V[] = [], ring1: V[] = [];
+        for (let k = 0; k < STUD_N; k++) {
+          const a = (k / STUD_N) * Math.PI * 2;
+          const px = cx + Math.cos(a) * STUD_R, pz = cz + Math.sin(a) * STUD_R;
+          ring0.push(P(px, y0, pz));
+          ring1.push(P(px, y1, pz));
+        }
+        const c0 = P(cx, y0, cz), c1 = P(cx, y1, cz);
+        for (let k = 0; k < STUD_N; k++) {
+          const k2 = (k + 1) % STUD_N;
+          tris.push({ a: ring0[k], b: ring1[k], c: ring1[k2], col });   // side
+          tris.push({ a: ring0[k], b: ring1[k2], c: ring0[k2], col });
+          tris.push({ a: c1, b: ring1[k], c: ring1[k2], col });        // top fan
+          tris.push({ a: c0, b: ring0[k2], c: ring0[k], col });        // bottom fan
+        }
       }
     }
 
