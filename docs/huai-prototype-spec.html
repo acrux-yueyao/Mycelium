@@ -210,7 +210,7 @@
 
   <section>
     <h2 class="prose">三、气囊分区与充气顺序</h2>
-    <p class="prose">气囊不做整片，而是五个分区<strong>从外缘向肩颈中心顺序充气</strong>——模拟手臂从外侧环过来收拢的方向感。泄气严格反向且更慢：拥抱「缓慢松开」与「突然放开」是完全不同的情绪体验。</p>
+    <p class="prose">气囊不做整片，而是五个分区<strong>从外缘向肩颈中心顺序充气</strong>——模拟手臂从外侧环过来收拢的方向感。泄气严格反向且更慢：拥抱「缓慢松开」与「突然放开」是完全不同的情绪体验。完整的下料尺寸、时序数据与气路原理图见<strong>第九节 · 气囊工程分册</strong>。</p>
 
     <figure>
       <div class="frame">
@@ -447,7 +447,282 @@
   </section>
 
   <section>
-    <h2 class="prose">九、理论依据与证据分级</h2>
+    <h2 class="prose">九、气囊工程分册（数据与图纸）</h2>
+    <p class="prose">本节是可直接下料、采购与写入论文附录的工程数据。版型为 M 码中性版（领弧 513 mm），全部尺寸不含缝份（缝份另加 10 mm）。核算基准：透镜形囊体积 V ≈ 0.55·L·W·t；囊内设定压 = 目标接触压 +20%（IPC 传输损耗）；1 mmHg = 0.1333 kPa。</p>
+
+    <h3 class="prose">图 5 · 展开裁剪图</h3>
+    <figure>
+      <div class="frame">
+        <svg viewBox="0 0 860 470" width="860" height="470" role="img" aria-label="披肩展开裁剪图，含气囊袋位定位">
+          <path d="M 484.1 125.5 L 646.4 82 A 224 224 0 1 1 213.6 82 L 375.9 125.5 A 56 56 0 1 0 484.1 125.5 Z"
+                fill="var(--surface)" stroke="var(--ink)" stroke-width="1.8"/>
+
+          <path d="M 484.1 125.5 L 646.4 82 A 224 224 0 0 1 652.3 112.7 L 485.6 133.2 A 56 56 0 0 0 484.1 125.5 Z"
+                fill="var(--warm)" opacity=".16"/>
+          <path d="M 484.1 125.5 L 646.4 82 A 224 224 0 0 1 652.3 112.7 L 485.6 133.2 A 56 56 0 0 0 484.1 125.5 Z"
+                fill="none" stroke="var(--warm)" stroke-width="1" stroke-dasharray="4 3"/>
+          <path d="M 374.4 133.2 L 207.7 112.7 A 224 224 0 0 1 213.6 82.0 L 375.9 125.5 A 56 56 0 0 0 374.4 133.2 Z"
+                fill="var(--warm)" opacity=".16"/>
+          <path d="M 374.4 133.2 L 207.7 112.7 A 224 224 0 0 1 213.6 82.0 L 375.9 125.5 A 56 56 0 0 0 374.4 133.2 Z"
+                fill="none" stroke="var(--warm)" stroke-width="1" stroke-dasharray="4 3"/>
+
+          <g transform="translate(430,248)">
+            <rect x="-52" y="-28" width="104" height="56" rx="8" fill="var(--warm-soft)" stroke="var(--warm)" stroke-width="1.5"/>
+          </g>
+          <g transform="translate(528.3,208.8) rotate(-55)">
+            <rect x="-44" y="-24" width="88" height="48" rx="8" fill="var(--dusk-soft)" stroke="var(--dusk)" stroke-width="1.5"/>
+          </g>
+          <g transform="translate(331.7,208.8) rotate(55)">
+            <rect x="-44" y="-24" width="88" height="48" rx="8" fill="var(--dusk-soft)" stroke="var(--dusk)" stroke-width="1.5"/>
+          </g>
+          <g transform="translate(587.6,167.8) rotate(-80)">
+            <rect x="-44" y="-24" width="88" height="48" rx="8" fill="var(--dusk-soft)" stroke="var(--dusk)" stroke-width="1.5"/>
+          </g>
+          <g transform="translate(272.4,167.8) rotate(80)">
+            <rect x="-44" y="-24" width="88" height="48" rx="8" fill="var(--dusk-soft)" stroke="var(--dusk)" stroke-width="1.5"/>
+          </g>
+
+          <rect x="390" y="204" width="80" height="40" rx="5" fill="none" stroke="var(--warm)" stroke-width="1.3" stroke-dasharray="5 3"/>
+          <circle cx="410" cy="232" r="3" fill="var(--warm)"/>
+          <circle cx="450" cy="232" r="3" fill="var(--warm)"/>
+
+          <path d="M 634.8 176.2 A 208 208 0 0 1 225.2 176.2" fill="none" stroke="var(--muted)" stroke-width="1.3" stroke-dasharray="6 4"/>
+          <line x1="634.8" y1="176.2" x2="668" y2="132" stroke="var(--muted)" stroke-width="1.3" stroke-dasharray="6 4"/>
+
+          <circle cx="507.3" cy="119.3" r="4" fill="var(--ink)"/>
+          <circle cx="584.5" cy="98.6"  r="4" fill="var(--ink)"/>
+          <circle cx="352.7" cy="119.3" r="4" fill="var(--ink)"/>
+          <circle cx="275.5" cy="98.6"  r="4" fill="var(--ink)"/>
+
+          <line x1="430" y1="196" x2="430" y2="364" stroke="var(--muted)" stroke-width="1.2"/>
+          <line x1="424" y1="196" x2="436" y2="196" stroke="var(--muted)" stroke-width="1.2"/>
+          <line x1="424" y1="364" x2="436" y2="364" stroke="var(--muted)" stroke-width="1.2"/>
+
+          <text x="430" y="264" text-anchor="middle" class="num" fill="var(--warm)">C</text>
+          <text x="430" y="281" text-anchor="middle" class="sm">260×140</text>
+          <text x="528" y="214" text-anchor="middle" class="num" fill="var(--dusk)">B2</text>
+          <text x="332" y="214" text-anchor="middle" class="num" fill="var(--dusk)">B1</text>
+          <text x="588" y="173" text-anchor="middle" class="num" fill="var(--dusk)">A2</text>
+          <text x="272" y="173" text-anchor="middle" class="num" fill="var(--dusk)">A1</text>
+          <text x="463" y="329" class="sm">纵深 420</text>
+          <text x="430" y="55" text-anchor="middle" class="sm">环形扇 210° · 领弧（内弧）513 · 后中线对称</text>
+          <text x="430" y="404" text-anchor="middle" class="sm">外弧 2053 · 下摆走管道（虚线，r 520）汇至右前襟出口</text>
+          <text x="672" y="122" class="sm">管束+USB 出口</text>
+          <text x="700" y="98" class="sm" fill="var(--warm)">前缘 8° 禁压区</text>
+          <text x="160" y="98" class="sm" fill="var(--warm)" text-anchor="end">（喉前/颈侧不落囊）</text>
+          <text x="620" y="440" class="sm">● 磁扣位 ×2/侧（r 200、r 400）</text>
+          <text x="60" y="440" class="sm">虚线暖框 = 加热片 200×100（贴肤层，C 区正下方）· ● NTC ×2</text>
+          <text x="60" y="30" class="sm">单位 mm · 缝份另加 10 · 图上 4 px = 10 mm</text>
+        </svg>
+      </div>
+      <figcaption><b>图 5 · 展开裁剪图。</b>囊袋极坐标定位（角度自后中线起，径向自圆心起）：C 区 0°、r 200–340；B1/B2 ±55°、r 240–360；A1/A2 ±80°、r 340–460，长边沿弧线切向。前缘 8° 扇区与领缘 60 mm 环带为禁压区——穿着时对应喉前与颈侧。所有气嘴朝囊体下缘外侧角，就近入下摆管道。</figcaption>
+    </figure>
+
+    <h3 class="prose">表 1 · 分区规格</h3>
+    <div class="tablewrap"><table>
+      <tr><th>区</th><th class="n">数量</th><th class="n">净尺寸 mm</th><th>版上定位</th><th class="n">充气厚 mm</th><th class="n">接触面 cm²</th><th class="n">目标接触压</th><th class="n">囊内设定压</th><th class="n">单囊气量</th></tr>
+      <tr><td>A1 / A2（臂缘）</td><td class="n">2</td><td class="n">220×120</td><td>±80° · r 340–460</td><td class="n">25–30</td><td class="n">≈200</td><td class="n">20–27 mmHg</td><td class="n">24–32 mmHg</td><td class="n">≈436 mL</td></tr>
+      <tr><td>B1 / B2（肩）</td><td class="n">2</td><td class="n">220×120</td><td>±55° · r 240–360</td><td class="n">25–30</td><td class="n">≈200</td><td class="n">20–27 mmHg</td><td class="n">24–32 mmHg</td><td class="n">≈436 mL</td></tr>
+      <tr><td>C（肩颈中心）</td><td class="n">1</td><td class="n">260×140</td><td>0° · r 200–340</td><td class="n">20–25</td><td class="n">≈280</td><td class="n">12–16 mmHg（硬限 25）</td><td class="n">14–19 mmHg</td><td class="n">≈501 mL</td></tr>
+      <tr class="total"><td>系统合计</td><td class="n">5</td><td></td><td></td><td></td><td></td><td></td><td></td><td class="n">≈2.24 L（另储气室 0.5 L）</td></tr>
+    </table></div>
+    <div class="callout dusk">
+      <p><strong>供气量核算（自洽性检查）：</strong>系统 2.24 L ÷ 泵带载流量 ≈1.5 L/min ≈ <strong>90 秒</strong>——与入怀序列时长设计值吻合。同步段节律调制每周期耗气 ≈75 mL、6 次/分 = 450 mL/min，泵占空比仅 <strong>22%</strong>，间歇运转是静音策略成立的前提。接触力校核：A 囊 27 mmHg × 200 cm² ≈ 72 N，C 囊 16 mmHg × 280 cm² ≈ 60 N，与 8 kg 级加重毯的局部载荷同量级。</p>
+    </div>
+
+    <h3 class="prose">图 6 · 单囊构造（V1 · TPU 热合）</h3>
+    <figure>
+      <div class="frame">
+        <svg viewBox="0 0 780 310" width="780" height="310" role="img" aria-label="TPU 气囊平面与剖面构造图">
+          <text x="50" y="40" class="lbl">平面（焊接轮廓 · 1.6 px = 1 mm）</text>
+          <rect x="50" y="60" width="352" height="192" rx="32" fill="var(--dusk-soft)" stroke="var(--dusk)" stroke-width="1.8"/>
+          <rect x="62.8" y="72.8" width="326.4" height="166.4" rx="19" fill="none" stroke="var(--dusk)" stroke-width="1" stroke-dasharray="5 4"/>
+          <rect x="58" y="244" width="16" height="34" rx="4" fill="var(--surface)" stroke="var(--dusk)" stroke-width="1.5"/>
+          <line x1="50" y1="268" x2="402" y2="268" stroke="var(--muted)" stroke-width="1.1"/>
+          <text x="226" y="288" text-anchor="middle" class="sm">220</text>
+          <line x1="418" y1="60" x2="418" y2="252" stroke="var(--muted)" stroke-width="1.1"/>
+          <text x="432" y="160" class="sm">120</text>
+          <text x="90" y="300" class="sm">∅6 宝塔气嘴（TPU 焊接 · 下缘外侧角）</text>
+          <text x="330" y="100" class="sm">焊宽 8 · 圆角 R≥20</text>
+
+          <text x="480" y="40" class="lbl">剖面（充至 27 mmHg）</text>
+          <path d="M480,160 Q620,108 760,160 Q620,212 480,160 Z" fill="var(--dusk-soft)" stroke="var(--dusk)" stroke-width="1.8"/>
+          <line x1="620" y1="112" x2="620" y2="208" stroke="var(--muted)" stroke-width="1.1"/>
+          <text x="634" y="164" class="sm">25–30</text>
+          <line x1="480" y1="238" x2="760" y2="238" stroke="var(--warm)" stroke-width="1.5"/>
+          <text x="620" y="258" text-anchor="middle" class="sm">贴肤侧（经慢回弹 + 莫代尔内衬传压）</text>
+        </svg>
+      </div>
+      <figcaption><b>图 6 · 单囊构造。</b>验收标准见表 5。V0 阶段用成品血压计袖带气囊（22×12 cm）代替，构造等效。</figcaption>
+    </figure>
+
+    <h3 class="prose">图 7 · 充泄时序与压力曲线</h3>
+    <figure>
+      <div class="frame">
+        <svg viewBox="0 0 780 400" width="780" height="400" role="img" aria-label="三区充气时序与节律调制曲线">
+          <line x1="60" y1="45" x2="141.5" y2="45" stroke="var(--muted)" stroke-width="1.2" marker-end="url(#arr3)"/>
+          <text x="100" y="36" text-anchor="middle" class="sm">SOA₁ = 18 s</text>
+          <line x1="141.5" y1="45" x2="241.2" y2="45" stroke="var(--muted)" stroke-width="1.2" marker-end="url(#arr3)"/>
+          <text x="192" y="36" text-anchor="middle" class="sm">SOA₂ = 22 s</text>
+          <defs>
+            <marker id="arr3" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" fill="var(--muted)"/>
+            </marker>
+          </defs>
+
+          <line x1="467.8" y1="55" x2="467.8" y2="340" stroke="var(--line)" stroke-width="1.3" stroke-dasharray="6 4"/>
+          <text x="264" y="70" text-anchor="middle" class="sm">入怀 0–90 s（顺序充压）</text>
+          <text x="604" y="70" text-anchor="middle" class="sm">同步段（图示 6 次/分 · 充3s/泄7s）</text>
+
+          <text x="14" y="120" class="sm">A₁+A₂</text>
+          <line x1="60" y1="140" x2="740" y2="140" stroke="var(--line)" stroke-width="1"/>
+          <path d="M60,140 C 200,138 320,92 377,85 L740,85" fill="none" stroke="var(--dusk)" stroke-width="2.2"/>
+          <text x="746" y="89" class="sm" fill="var(--dusk)">27</text>
+
+          <text x="14" y="210" class="sm">B₁+B₂</text>
+          <line x1="60" y1="230" x2="740" y2="230" stroke="var(--line)" stroke-width="1"/>
+          <path d="M141.5,230 C 280,228 380,182 422,175 L467.8,175 l13.6,-8 l31.7,8 l13.6,-8 l31.7,8 l13.6,-8 l31.7,8 l13.6,-8 l31.7,8 l13.6,-8 l31.7,8 l13.6,-8 l31.7,8" fill="none" stroke="var(--dusk)" stroke-width="2.2"/>
+          <text x="746" y="179" class="sm" fill="var(--dusk)">27±4</text>
+
+          <text x="14" y="300" class="sm">C</text>
+          <line x1="60" y1="320" x2="740" y2="320" stroke="var(--line)" stroke-width="1"/>
+          <path d="M241.2,320 C 340,318 430,292 467.8,287 l13.6,-4 l31.7,4 l13.6,-4 l31.7,4 l13.6,-4 l31.7,4 l13.6,-4 l31.7,4 l13.6,-4 l31.7,4 l13.6,-4 l31.7,4" fill="none" stroke="var(--warm)" stroke-width="2.2"/>
+          <text x="746" y="291" class="sm" fill="var(--warm)">16±2</text>
+
+          <line x1="60" y1="345" x2="740" y2="345" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="60"  y="365" text-anchor="middle" class="sm">0</text>
+          <text x="196" y="365" text-anchor="middle" class="sm">30</text>
+          <text x="332" y="365" text-anchor="middle" class="sm">60</text>
+          <text x="468" y="365" text-anchor="middle" class="sm">90</text>
+          <text x="604" y="365" text-anchor="middle" class="sm">120</text>
+          <text x="740" y="365" text-anchor="middle" class="sm">150 s →</text>
+          <text x="400" y="388" text-anchor="middle" class="sm">纵轴：囊内压 mmHg（各区独立基线）· 同步段节律随时间 12→6 次/分渐缓，图示为终态</text>
+        </svg>
+      </div>
+      <figcaption><b>图 7 · 时序与压力。</b>SOA₁/SOA₂ 是 H3 的实验自变量——V0 手动版在 5–25 s 区间扫描，找「一只手臂收拢」感最强的间隔。泄气反向 C→B→A，总时长 ≥180 s（≥2× 充气，H2）。</figcaption>
+    </figure>
+
+    <h3 class="prose">表 2 · 入怀时序 / 表 3 · 节律调制</h3>
+    <div class="tablewrap"><table>
+      <tr><th>区</th><th class="n">起点</th><th class="n">达 60%</th><th class="n">达 100%</th><th class="n">基线压</th><th class="n">调制幅</th><th>调制波形</th></tr>
+      <tr><td>A1+A2</td><td class="n">0 s</td><td class="n">25 s</td><td class="n">70 s</td><td class="n">27 mmHg</td><td class="n">0（静态）</td><td>臂是「稳」的那部分</td></tr>
+      <tr><td>B1+B2</td><td class="n">18 s</td><td class="n">45 s</td><td class="n">80 s</td><td class="n">27 mmHg</td><td class="n">±4 mmHg</td><td>充 3 s / 泄 7 s（吸:呼 = 3:7）</td></tr>
+      <tr><td>C</td><td class="n">40 s</td><td class="n">65 s</td><td class="n">90 s</td><td class="n">16 mmHg</td><td class="n">±2 mmHg</td><td>同上，与 B 同相</td></tr>
+    </table></div>
+
+    <h3 class="prose">图 8 · 气路原理图</h3>
+    <figure>
+      <div class="frame">
+        <svg viewBox="0 0 780 430" width="780" height="430" role="img" aria-label="气路原理图：泵、储气室、阀组与三支路">
+          <rect x="300" y="10" width="130" height="28" rx="5" fill="var(--surface)" stroke="var(--muted)" stroke-width="1.3"/>
+          <text x="365" y="29" text-anchor="middle" class="sm">泄压阀 40 mmHg → 排空</text>
+          <line x1="340" y1="54" x2="340" y2="38" stroke="var(--ink)" stroke-width="1.5"/>
+
+          <rect x="30" y="60" width="120" height="44" rx="6" fill="var(--dusk-soft)" stroke="var(--dusk)" stroke-width="1.5"/>
+          <text x="90" y="79" text-anchor="middle" class="lbl">隔膜泵</text>
+          <text x="90" y="96" text-anchor="middle" class="sm">≥2 L/min @10 kPa</text>
+          <rect x="180" y="68" width="70" height="28" rx="5" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.3"/>
+          <text x="215" y="87" text-anchor="middle" class="sm">单向阀</text>
+          <rect x="280" y="54" width="120" height="56" rx="6" fill="var(--dusk-soft)" stroke="var(--dusk)" stroke-width="1.5"/>
+          <text x="340" y="78" text-anchor="middle" class="lbl">储气室 0.5 L</text>
+          <text x="340" y="96" text-anchor="middle" class="sm">工作压 ≤15 kPa</text>
+
+          <line x1="150" y1="82" x2="180" y2="82" stroke="var(--ink)" stroke-width="1.5" marker-end="url(#arr4)"/>
+          <line x1="250" y1="82" x2="280" y2="82" stroke="var(--ink)" stroke-width="1.5" marker-end="url(#arr4)"/>
+          <line x1="400" y1="82" x2="460" y2="82" stroke="var(--ink)" stroke-width="1.5"/>
+          <line x1="460" y1="82" x2="460" y2="312" stroke="var(--ink)" stroke-width="1.5"/>
+          <defs>
+            <marker id="arr4" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" fill="var(--ink)"/>
+            </marker>
+          </defs>
+
+          <g>
+            <line x1="460" y1="110" x2="490" y2="110" stroke="var(--ink)" stroke-width="1.5"/>
+            <rect x="490" y="88" width="110" height="44" rx="6" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.5"/>
+            <text x="545" y="106" text-anchor="middle" class="sm">3/2 阀 V_A</text>
+            <text x="545" y="122" text-anchor="middle" class="sm">失电=泄气位</text>
+            <line x1="600" y1="110" x2="660" y2="110" stroke="var(--ink)" stroke-width="1.5" marker-end="url(#arr4)"/>
+            <rect x="660" y="88" width="100" height="44" rx="6" fill="var(--dusk-soft)" stroke="var(--dusk)" stroke-width="1.5"/>
+            <text x="710" y="114" text-anchor="middle" class="lbl">囊组 A₁+A₂</text>
+            <line x1="545" y1="132" x2="545" y2="162" stroke="var(--muted)" stroke-width="1.3"/>
+            <rect x="523" y="162" width="44" height="22" rx="4" fill="var(--surface)" stroke="var(--muted)" stroke-width="1.2"/>
+            <text x="545" y="177" text-anchor="middle" class="sm">针阀</text>
+          </g>
+          <g>
+            <line x1="460" y1="220" x2="490" y2="220" stroke="var(--ink)" stroke-width="1.5"/>
+            <rect x="490" y="198" width="110" height="44" rx="6" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.5"/>
+            <text x="545" y="216" text-anchor="middle" class="sm">3/2 阀 V_B</text>
+            <text x="545" y="232" text-anchor="middle" class="sm">失电=泄气位</text>
+            <line x1="600" y1="220" x2="660" y2="220" stroke="var(--ink)" stroke-width="1.5" marker-end="url(#arr4)"/>
+            <rect x="660" y="198" width="100" height="44" rx="6" fill="var(--dusk-soft)" stroke="var(--dusk)" stroke-width="1.5"/>
+            <text x="710" y="224" text-anchor="middle" class="lbl">囊组 B₁+B₂</text>
+            <line x1="545" y1="242" x2="545" y2="272" stroke="var(--muted)" stroke-width="1.3"/>
+            <rect x="523" y="272" width="44" height="22" rx="4" fill="var(--surface)" stroke="var(--muted)" stroke-width="1.2"/>
+            <text x="545" y="287" text-anchor="middle" class="sm">针阀</text>
+          </g>
+          <g>
+            <line x1="460" y1="312" x2="490" y2="312" stroke="var(--ink)" stroke-width="1.5"/>
+            <rect x="490" y="290" width="110" height="44" rx="6" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.5"/>
+            <text x="545" y="308" text-anchor="middle" class="sm">3/2 阀 V_C</text>
+            <text x="545" y="324" text-anchor="middle" class="sm">失电=泄气位</text>
+            <line x1="600" y1="312" x2="660" y2="312" stroke="var(--ink)" stroke-width="1.5" marker-end="url(#arr4)"/>
+            <rect x="660" y="290" width="100" height="44" rx="6" fill="var(--warm-soft)" stroke="var(--warm)" stroke-width="1.5"/>
+            <text x="710" y="316" text-anchor="middle" class="lbl">囊 C</text>
+            <rect x="660" y="344" width="100" height="24" rx="4" fill="var(--surface)" stroke="var(--warm)" stroke-width="1.2"/>
+            <text x="710" y="360" text-anchor="middle" class="sm">泄压 25 mmHg</text>
+            <line x1="710" y1="334" x2="710" y2="344" stroke="var(--warm)" stroke-width="1.3"/>
+            <line x1="545" y1="334" x2="545" y2="364" stroke="var(--muted)" stroke-width="1.3"/>
+            <rect x="523" y="364" width="44" height="22" rx="4" fill="var(--surface)" stroke="var(--muted)" stroke-width="1.2"/>
+            <text x="545" y="379" text-anchor="middle" class="sm">针阀</text>
+          </g>
+
+          <circle cx="460" cy="340" r="13" fill="var(--surface)" stroke="var(--warm)" stroke-width="1.5"/>
+          <text x="460" y="345" text-anchor="middle" class="sm" fill="var(--warm)">P</text>
+          <rect x="40" y="330" width="180" height="56" rx="6" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.5"/>
+          <text x="130" y="352" text-anchor="middle" class="lbl">控制器（Nano）</text>
+          <text x="130" y="371" text-anchor="middle" class="sm">磁扣霍尔断开 → 全阀失电</text>
+          <line x1="220" y1="352" x2="447" y2="342" stroke="var(--muted)" stroke-width="1.2" stroke-dasharray="4 4"/>
+          <line x1="130" y1="330" x2="90" y2="104" stroke="var(--muted)" stroke-width="1.2" stroke-dasharray="4 4"/>
+          <line x1="220" y1="340" x2="490" y2="230" stroke="var(--muted)" stroke-width="1.2" stroke-dasharray="4 4"/>
+
+          <text x="620" y="412" class="sm">实线 = 气路 · 虚线 = 电控</text>
+          <text x="30" y="412" class="sm">故障即安全：任何失电状态，三阀落回泄气位，全系统经针阀缓慢排空</text>
+        </svg>
+      </div>
+      <figcaption><b>图 8 · 气路原理图。</b>「充—保—泄」由 3/2 阀 + 针阀实现：得电充气，失电经针阀慢泄——磁扣断开即全阀断电，90 秒缓释不依赖任何软件。压力传感器 P 装在汇流排，V1 可在 C 支路加装第二只。</figcaption>
+    </figure>
+
+    <h3 class="prose">表 4 · 气路元件 / 表 5 · TPU 囊体工艺验收 / 表 6 · V0 手动换算</h3>
+    <div class="tablewrap"><table>
+      <tr><th>元件</th><th class="n">数量</th><th>关键参数</th></tr>
+      <tr><td>370 型静音隔膜泵</td><td class="n">1</td><td>≥2 L/min @10 kPa；盒外噪声目标 ≤35 dB（消音棉 + 间歇运转）</td></tr>
+      <tr><td>单向阀 ∅6</td><td class="n">1</td><td>泵停机时隔离脉动</td></tr>
+      <tr><td>储气室</td><td class="n">1</td><td>0.5 L，工作压 ≤15 kPa（PET 瓶/铝罐皆可）</td></tr>
+      <tr><td>机械泄压阀</td><td class="n">2</td><td>主路 5.3 kPa（40 mmHg）；C 支路 3.3 kPa（25 mmHg）——均独立于软件</td></tr>
+      <tr><td>3/2 电磁阀</td><td class="n">3</td><td>常位=泄气（故障即安全）；孔径 ≥1.5 mm</td></tr>
+      <tr><td>可调针阀</td><td class="n">3</td><td>整定目标：单区 30→5 mmHg 泄气 40±10 s</td></tr>
+      <tr><td>压力传感器</td><td class="n">1–2</td><td>XGZP6847A 量程 0–10 kPa（满量程≈75 mmHg，分辨率充足）</td></tr>
+      <tr><td>硅胶管</td><td class="n">—</td><td>主路 ID4/OD6 ×1.5 m ×3；囊内分配 ID3/OD5；下摆管道内走线</td></tr>
+    </table></div>
+    <div class="tablewrap"><table>
+      <tr><th>工艺项</th><th>规格</th></tr>
+      <tr><td>囊体材料</td><td>210D 尼龙 + TPU 复合布（0.15–0.2 mm），高频热合</td></tr>
+      <tr><td>焊缝 / 圆角</td><td>焊宽 8 mm；四角 R≥20 mm（消除应力集中）</td></tr>
+      <tr><td>气嘴</td><td>∅6 TPU 宝塔嘴，焊接于下缘外侧角</td></tr>
+      <tr><td>验收</td><td>爆破 ≥16 kPa（3× 最大工作压）；保压 5 kPa×30 min 降幅 ≤0.5 kPa；充泄循环 ≥10,000 次</td></tr>
+    </table></div>
+    <div class="tablewrap"><table>
+      <tr><th>V0 手动操作（手捏球 ≈50 mL/捏）</th><th class="n">数值</th></tr>
+      <tr><td>A 组 / B 组充至目标压</td><td class="n">≈9 捏/路</td></tr>
+      <tr><td>C 充至目标压</td><td class="n">≈10 捏</td></tr>
+      <tr><td>同步段节律（跟随引导音轨）</td><td class="n">每周期 B 路轻捏 1 次、C 半捏；「呼」相拧松放气阀</td></tr>
+      <tr><td>压力代理记录</td><td class="n">实验记录表只记捏数与阀开度——V1 再换算成 mmHg</td></tr>
+    </table></div>
+  </section>
+
+  <section>
+    <h2 class="prose">十、理论依据与证据分级</h2>
     <p class="prose">每一条设计决策标注证据等级：<strong>A</strong> = 直接实证（同场景或同类刺激的对照研究）；<strong>B</strong> = 邻域实证（机制或先例成立，但场景/刺激不同，移植含假设）；<strong>C</strong> = 设计推断（有观察与逻辑支撑，无文献，必须进实验清单）。</p>
 
     <div class="tablewrap"><table>
@@ -487,7 +762,7 @@
   </section>
 
   <section class="prose">
-    <h2>十、参考</h2>
+    <h2>十一、参考</h2>
     <ul class="refs">
       <li>Huggy Pajama（气囊+加热远程拥抱睡衣）— <a href="https://link.springer.com/chapter/10.1007/978-1-84996-137-0_7">Springer</a></li>
       <li>Hugging Suit: Pneumatic System for Remote Haptic Experiences — <a href="https://dl.acm.org/doi/full/10.1145/3764687.3764723">OzCHI 2025</a></li>
