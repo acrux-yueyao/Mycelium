@@ -184,8 +184,8 @@
           <line x1="440" y1="122" x2="500" y2="122" stroke="var(--line)"/>
           <line x1="432" y1="192" x2="500" y2="192" stroke="var(--line)"/>
           <line x1="424" y1="262" x2="500" y2="262" stroke="var(--line)"/>
-          <text x="510" y="47"  class="lbl">① 外罩 · 羊绒戒指绒（可拆洗）</text>
-          <text x="510" y="66"  class="sm">轻、暖而不闷、天然纤维无静电；信封式套罩</text>
+          <text x="510" y="47"  class="lbl">① 外罩坞 · 默认戒指绒罩 / 用户自有织物</text>
+          <text x="510" y="66"  class="sm">无损安装接口；戒指绒只是「出厂的第一件阿贝贝」</text>
           <text x="510" y="117" class="lbl">② 气囊层 · TPU 分区气囊 ×5</text>
           <text x="510" y="136" class="sm">缝入绗缝袋位，深压环抱；V0 用血压计袖带气囊</text>
           <text x="510" y="187" class="lbl">③ 加热 + 心跳层</text>
@@ -196,6 +196,16 @@
       </div>
       <figcaption><b>图 1 · 分层结构。</b>温度传感器（NTC）贴在内衬外侧、加热片与皮肤之间，测的是实际接触温度而非片体温度——绒层隔热性好，这一点决定温控准不准。</figcaption>
     </figure>
+
+    <h3 class="prose">外罩坞：把面料变成接口</h3>
+    <p class="prose">整机分为<strong>底盘</strong>（气囊、加热、心跳、贴肤内衬——所有功能）与<strong>皮肤</strong>（最外层织物）。最外层不再是固定部件，而是一个标准化的无损安装接口——「外罩坞」：默认的戒指绒罩只是出厂的第一件阿贝贝，用户随时可以换上自己的。</p>
+    <p class="prose">这不是配件功能，是概念的升级：<strong>设备不必从零建立依恋，它直接继承阿贝贝已经攒了几十年的依恋。</strong>Winnicott 1953 年提出的过渡性客体理论把安抚物定义为健康的自我安抚机制而非幼稚退行，研究估计多达 40% 的成年人仍在使用某种形式的安抚物——但大多藏着。外罩坞给它一个正式的位置。同时，接口天然接受「带着某个人气味的织物」：Hofer &amp; Chen（2020）让被试枕着伴侣穿过的T恤入睡，睡眠效率提升约 2%——<em>与褪黑素同量级</em>，且不知情时同样有效。伴侣的旧T恤、母亲的围巾装上来，「怀」就同时接通了中介真人触摸这一层，而气味通道是任何执行器都合成不了的。</p>
+    <ul class="prose">
+      <li><strong>领缘磁压条</strong>——两条软衬磁条夹住织物边缘，不缝不穿刺；对应脸颊与下巴的接触区。</li>
+      <li><strong>前襟四点软爪扣</strong>——被褥固定器原理、垫硅胶软片，把方巾/小毛巾类阿贝贝摊平在双手自然搭放的位置。</li>
+      <li><strong>整体披挂模式</strong>——毯类阿贝贝直接罩在底盘外，领缘磁条 + 两侧按扣固定；外挂织物建议 ≤ 500 g，过厚会阻尼节律感知（V1 压力传感器开机自动零点标定，V0 用紧度旋钮补偿）。</li>
+    </ul>
+    <p class="prose"><strong>气味守则：</strong>阿贝贝永不进洗衣机——需要清洗的只有底盘内衬。说明书明写「不要洗它，气味是功能的一部分」。<strong>安全边界：</strong>安装点物理上只存在于外壳一侧，用户织物永远不可能隔在加热片与皮肤之间；披挂增厚导致的保温变化由贴肤 NTC 闭环吸收，硬件熔断不受影响。</p>
   </section>
 
   <section>
@@ -312,6 +322,7 @@
       <tr><td>USB 石墨烯加热片</td><td>5V 三档温控，约 20×10cm</td><td class="n">1</td><td class="n">¥30</td></tr>
       <tr><td>慢回弹海绵</td><td>5mm 薄片</td><td class="n">0.5 m²</td><td class="n">¥20</td></tr>
       <tr><td>磁扣、织带、缝纫耗材</td><td>强磁对扣 ×2</td><td class="n">—</td><td class="n">¥30</td></tr>
+      <tr><td>外罩坞安装件</td><td>软衬磁压条 ×2 + 被褥软爪扣 ×8（垫硅胶片）</td><td class="n">—</td><td class="n">¥25</td></tr>
       <tr><td>充电宝</td><td>10000 mAh（现有即可）</td><td class="n">1</td><td class="n">¥0</td></tr>
       <tr class="total"><td>合计</td><td></td><td></td><td class="n">≈ ¥210–270</td></tr>
     </table></div>
@@ -496,6 +507,8 @@
       <li>Kim et al. 2021, aSpire（气动触觉呼吸调节）— <a href="https://dl.acm.org/doi/10.1145/3411763.3451602">CHI EA 2021</a></li>
       <li>Olszewski et al., IPC 腔压/时序与组织液压力关系 — <a href="https://pubmed.ncbi.nlm.nih.gov/24364846/">PubMed</a></li>
       <li>Costa et al. 2016, EmotionCheck（伪心跳振动降低焦虑）— UbiComp 2016</li>
+      <li>Hofer &amp; Chen 2020, 伴侣气味提升睡眠效率（≈褪黑素量级）— <a href="https://journals.sagepub.com/doi/abs/10.1177/0956797620905615">Psychological Science</a></li>
+      <li>Winnicott 1953, 过渡性客体理论；成人安抚物综述 — <a href="https://en.wikipedia.org/wiki/Comfort_object">Comfort object (overview)</a>、<a href="https://journals.sagepub.com/doi/10.1177/016502548600900308">Litt 1986</a></li>
       <li>需求原声：某社交平台拥抱疗法视频评论区（2026-08 截图存档）——价格锚点 500–1000+ 元/次；「不好意思说」「感觉是营销」等原话见研究章节。</li>
     </ul>
   </section>
