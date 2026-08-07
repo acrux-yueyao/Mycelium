@@ -36,11 +36,13 @@ export function SkyScene({ creatures, population }: Props) {
         left: 4 + r() * 88,          // vw
         top: 6 + r() * 82,           // vh
         height: isNewest ? 170 : 70 + r() * 110, // px — legible at tower distance
-        dur: 26 + r() * 30,          // s  — glacial drift
+        dur: 14 + r() * 18,          // s — a wandering you can actually see
         delay: -r() * 40,
-        dx: 6 + r() * 14,
-        dy: 8 + r() * 18,
+        dx: 24 + r() * 42,           // px — visible drift radius
+        dy: 28 + r() * 50,
         dim: isNewest ? 1 : 0.86 + r() * 0.14,
+        twinkleDur: 3.5 + r() * 4.5, // s — each star breathes on its own clock
+        twinkleDelay: -r() * 8,
         isNewest,
       };
     });
@@ -58,9 +60,24 @@ export function SkyScene({ creatures, population }: Props) {
         <motion.div
           key={s.creature.id}
           className={s.isNewest ? 'sky-item sky-item-newest' : 'sky-item'}
-          style={{ left: `${s.left}vw`, top: `${s.top}vh`, opacity: s.dim }}
-          animate={{ x: [0, s.dx, 0, -s.dx, 0], y: [0, -s.dy, 0, s.dy, 0] }}
-          transition={{ duration: s.dur, delay: s.delay, repeat: Infinity, ease: 'easeInOut' }}
+          style={{ left: `${s.left}vw`, top: `${s.top}vh` }}
+          animate={{
+            x: [0, s.dx, 0, -s.dx, 0],
+            y: [0, -s.dy, 0, s.dy, 0],
+            opacity: [s.dim, s.dim * 0.62, s.dim],
+          }}
+          transition={{
+            duration: s.dur,
+            delay: s.delay,
+            repeat: Infinity,
+            ease: 'easeInOut',
+            opacity: {
+              duration: s.twinkleDur,
+              delay: s.twinkleDelay,
+              repeat: Infinity,
+              ease: 'easeInOut',
+            },
+          }}
         >
           {s.isNewest && (
             <motion.div
