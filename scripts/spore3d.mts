@@ -53,7 +53,7 @@ const spec = buildMosaic({
   morphology: { density, agitation: 0.4, tendrilCount: 5, glow: 0.5, tintHue, particles: false },
   intensity,
 });
-const { cols, rows, cells, eyes } = spec;
+const { cols, rows, cells, eyes, palette } = spec;
 
 const hsl = /hsl\((-?\d+),(\d+)%,(\d+)%\)/;
 const hsl2rgb = (h: number, s: number, l: number): [number, number, number] => {
@@ -71,9 +71,16 @@ const parse = (c: string): [number, number, number] => {
 };
 
 // ---------- 2) extrude the 2D cells into blocks ----------
-// depth by how "core" a cell is: interior solid cells go deepest, edge
-// cells thinner, translucent dither cells a single block.
-const X = cols, Y = rows, Z = DEPTH;
+// ROBOT mode: variable depth — fringe thin, torso core deep enough to
+// swallow the electronics; a pixel "mound" grows under the stem to hide
+// battery + speaker; interior hollows to a 1-brick shell; ports are
+// missing bricks. Every face, side and back included, is a colour brick:
+// nothing mechanical shows from any angle.
+const ROBOT = process.argv.includes('--robot');
+const CORE_D = ROBOT ? Number(arg('coredepth', '3')) : 0; // body depth, blocks (3×20=60mm)
+const MOUND = ROBOT ? Number(arg('mound', '0')) : 0;      // optional pixel mound rows
+const ZDIM = ROBOT ? Math.max(CORE_D, 3) : DEPTH;
+const X = cols, Y = rows + MOUND, Z = ZDIM;
 const grid = new Uint8Array(X * Y * Z);
 const at = (x: number, y: number, z: number) => x + X * (y + Y * z);
 const inb = (x: number, y: number, z: number) =>
@@ -86,14 +93,27 @@ for (const c of cells) cellMapIdx.set(`${c.col},${c.row}`, c);
 const filled2D = (c: number, r: number) =>
   c >= 0 && r >= 0 && c < cols && r < rows && cellMapIdx.has(`${c},${r}`);
 
+// stem extent (for the mound + core zone): widest run of the bottom rows
+let stemL = cols, stemR = 0;
+for (let r = rows - 3; r < rows; r++)
+  for (let c = 0; c < cols; c++)
+    if (filled2D(c, r)) { stemL = Math.min(stemL, c); stemR = Math.max(stemR, c); }
+const cx = (cols - 1) / 2;
+
 for (const cell of cells) {
   const solid2D =
     filled2D(cell.col - 1, cell.row) && filled2D(cell.col + 1, cell.row) &&
     filled2D(cell.col, cell.row - 1) && filled2D(cell.col, cell.row + 1);
-  let d = cell.alpha < 0.9 ? 1 : solid2D ? DEPTH : Math.max(1, DEPTH - 1);
+  let d: number;
+  if (ROBOT) {
+    const coreZone = Math.abs(cell.col - cx) <= 3.2 && cell.row >= eyes.row - 1;
+    d = cell.alpha < 0.9 ? 1 : coreZone ? CORE_D : solid2D ? 3 : 2;
+  } else {
+    d = cell.alpha < 0.9 ? 1 : solid2D ? DEPTH : Math.max(1, DEPTH - 1);
+  }
   const rgb = parse(cell.color);
-  const y = rows - 1 - cell.row;                 // engine row 0 = top
-  const z0 = Math.floor((DEPTH - d) / 2);        // centred in depth
+  const y = rows - 1 - cell.row + MOUND;
+  const z0 = ROBOT ? Z - d : Math.floor((Z - d) / 2); // robot: front flush, grow backward
   for (let dz = 0; dz < d; dz++) {
     const i = at(cell.col, y, z0 + dz);
     grid[i] = 1;
@@ -102,10 +122,61 @@ for (const cell of cells) {
   }
 }
 
+if (ROBOT) {
+  // pixel mound under the stem — the creature's own ground, hiding the base
+  const groundStop = palette.stops[0];
+  for (let m = 0; m < MOUND; m++) {
+    const y = MOUND - 1 - m;                 // m=0 upper mound row
+    const grow = 2 + m;                      // widen per row
+    const l = Math.max(0, stemL - grow), rr = Math.min(cols - 1, stemR + grow);
+    for (let c = l; c <= rr; c++)
+      for (let dz = 0; dz < Math.min(Z, CORE_D + 1); dz++) {
+        const i = at(c, y, Z - 1 - dz);
+        grid[i] = 1;
+        const jig = ((c * 7 + m * 13) % 5) * 0.02;
+        colors.set(i, hsl2rgb(groundStop.h, groundStop.s * 0.55, Math.max(0.2, groundStop.l - 0.14 + jig)));
+        alpha.set(i, 1);
+      }
+  }
+  // interior walls come from the slicer (0% infill + 3-4 perimeters);
+  // here we only open the apertures.
+  // ports as missing bricks: mic at the mouth, speaker grille on the
+  // mound front, USB notch at the back bottom — the creature's own
+  // dither language doing the engineering work.
+  const punch = (x: number, y: number, z: number) => {
+    if (!inb(x, y, z)) return;
+    const i = at(x, y, z);
+    grid[i] = 0; colors.delete(i); alpha.delete(i);
+  };
+  const mouthY = rows - 1 - (eyes.row + 2) + MOUND;
+  punch(Math.round(cx), mouthY, Z - 1);                        // mic @ mouth
+  for (const dx of [-1, 0, 1]) punch(Math.round(cx) + dx, MOUND, 0); // bottom vents (speaker fires down)
+  // back-of-head magnetic door: 3×3 opening behind the cap
+  const doorY = rows - 1 - eyes.row + MOUND + 1;
+  for (let dy = 0; dy < 3; dy++)
+    for (let dx = -1; dx <= 1; dx++) punch(Math.round(cx) + dx, doorY + dy, 0);
+}
+// --dock: emit a standalone charging tray instead of a creature —
+// 6×5 bricks (120×100mm), 1-brick floor + half-brick rim, pogo pins
+// and magnets land on the floor plate.
+if (process.argv.includes('--dock')) {
+  grid.fill(0); colors.clear(); alpha.clear();
+  const dw = 6, dd = 5;
+  const stop = palette.stops[0];
+  const dcol = hsl2rgb(stop.h, stop.s * 0.5, Math.max(0.22, stop.l - 0.16));
+  for (let x = 0; x < Math.min(X, dw); x++)
+    for (let z = 0; z < Math.min(Z, dd); z++) {
+      const i = at(x, 0, z);
+      grid[i] = 1; colors.set(i, dcol); alpha.set(i, 1);
+      const rim = x === 0 || z === 0 || x === dw - 1 || z === dd - 1;
+      if (rim && Y > 1) { const j = at(x, 1, z); grid[j] = 1; colors.set(j, dcol); alpha.set(j, 1); }
+    }
+}
+
 // ---------- 3) the face, straight from the engine spec ----------
 const WHITE: [number, number, number] = [246, 246, 241];
 const BLACK: [number, number, number] = [18, 18, 18];
-const eyeY = rows - 1 - eyes.row;
+const eyeY = rows - 1 - eyes.row + MOUND;
 for (const [c, col] of [
   [eyes.L0, WHITE], [eyes.L0 + 1, BLACK], [eyes.R0, BLACK], [eyes.R0 + 1, WHITE],
 ] as Array<[number, [number, number, number]]>) {
@@ -166,71 +237,6 @@ type V = [number, number, number];
 const tris: Array<{ a: V; b: V; c: V; col: [number, number, number]; al: number }> = [];
 const P = (x: number, y: number, z: number): V => [x * mm, z * mm, y * mm]; // print z-up
 
-// ---------- ROBOT SHELL MODE ----------
-// Hardware-first architecture (cavity drives the form): 20 mm pixel
-// module; the face is thin relief tiles (10 mm plate + 0/8/16 mm
-// stepped protrusion) so the head stays ~55-65 mm; a unified equipment
-// bay hides behind the torso (outer 7×6×3 blocks → ≥100×80×60 mm clear
-// inside); a ballast/speaker base sits under the stem (100×80×70 mm).
-// Electronics split: eyes/sensors in the head, mainboard in the bay,
-// battery + speaker in the base.
-if (process.argv.includes('--robot')) {
-  const DARK: [number, number, number] = [56, 54, 52];
-  const box = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, col: [number, number, number]) => {
-    const c = [
-      P(x0, y0, z0), P(x1, y0, z0), P(x1, y1, z0), P(x0, y1, z0),
-      P(x0, y0, z1), P(x1, y0, z1), P(x1, y1, z1), P(x0, y1, z1),
-    ];
-    const Q: Array<[number, number, number, number]> = [
-      [0, 3, 2, 1], [4, 5, 6, 7], [0, 1, 5, 4], [2, 3, 7, 6], [1, 2, 6, 5], [3, 0, 4, 7],
-    ];
-    for (const [a, b, cc, d] of Q) {
-      tris.push({ a: c[a], b: c[b], c: c[cc], col, al: 1 });
-      tris.push({ a: c[a], b: c[cc], c: c[d], col, al: 1 });
-    }
-  };
-  const PLATE_Z = 3;      // bay depth in blocks behind the face plate
-  const PLATE_T = 0.5;    // 10 mm structural plate
-  const TILE_T = 0.5;     // 10 mm visual tile
-  const rngR = new Rng(xmur3(`${id}:relief`)());
-  // relief tiles — the exact 2D sprite, stepped 0 / 8 / 16 mm
-  for (const cell of cells) {
-    const y = rows - 1 - cell.row;
-    const rgb = parse(cell.color);
-    const relief = cell.alpha < 0.9 ? 0.8 : rngR.next() < 0.62 ? 0 : rngR.next() < 0.75 ? 0.4 : 0.8;
-    box(cell.col, y, PLATE_Z, cell.col + 1, y + 1, PLATE_Z + PLATE_T, rgb);                 // plate
-    box(cell.col + 0.02, y + 0.02, PLATE_Z + PLATE_T, cell.col + 0.98, y + 0.98,
-        PLATE_Z + PLATE_T + TILE_T + relief, rgb);                                          // tile
-  }
-  // eyes flat + white/black (OLED sits behind the pupil tiles)
-  const eyeYr = rows - 1 - eyes.row;
-  for (const [c, col] of [
-    [eyes.L0, WHITE], [eyes.L0 + 1, BLACK], [eyes.R0, BLACK], [eyes.R0 + 1, WHITE],
-  ] as Array<[number, [number, number, number]]>) {
-    box(c, eyeYr, PLATE_Z, c + 1, eyeYr + 1, PLATE_Z + PLATE_T, col);
-    box(c + 0.02, eyeYr + 0.02, PLATE_Z + PLATE_T, c + 0.98, eyeYr + 0.98, PLATE_Z + PLATE_T + TILE_T, col);
-  }
-  // equipment bay: outer 7×6 blocks × PLATE_Z deep, walls 1 block,
-  // open at the back → clear interior 5×4 blocks (100×80) × 60 mm
-  const bw = 7, bh = 6;
-  const bx0 = Math.floor((cols - bw) / 2), by0 = Math.max(0, Math.floor(rows * 0.12));
-  box(bx0, by0, 0, bx0 + 1, by0 + bh, PLATE_Z, DARK);                    // left wall
-  box(bx0 + bw - 1, by0, 0, bx0 + bw, by0 + bh, PLATE_Z, DARK);          // right wall
-  box(bx0 + 1, by0 + bh - 1, 0, bx0 + bw - 1, by0 + bh, PLATE_Z, DARK);  // top wall
-  box(bx0 + 1, by0, 0, bx0 + bw - 1, by0 + 1, PLATE_Z, DARK);            // bottom wall
-  // base: 5×4 blocks footprint × 3.5 high, open top (battery / speaker / ballast)
-  const gw = 5, gd = 4, gh = 3.5;
-  const gx0 = (cols - gw) / 2, gz0 = PLATE_Z + PLATE_T - gd * 0.5 - 1;
-  box(gx0, -gh, gz0, gx0 + 0.5, 0.02, gz0 + gd, DARK);
-  box(gx0 + gw - 0.5, -gh, gz0, gx0 + gw, 0.02, gz0 + gd, DARK);
-  box(gx0 + 0.5, -gh, gz0, gx0 + gw - 0.5, 0.02, gz0 + 0.5, DARK);
-  box(gx0 + 0.5, -gh, gz0 + gd - 0.5, gx0 + gw - 0.5, 0.02, gz0 + gd, DARK);
-  box(gx0, -gh, gz0, gx0 + gw, -gh + 0.5, gz0 + gd, DARK);               // floor
-  console.log(`robot shell: module=${mm}mm · overall ≈ ${cols * mm}mm wide × ${(rows + 3.5) * mm}mm tall`
-    + ` · head depth ${(PLATE_T + TILE_T + 0.8) * mm + PLATE_Z * mm}mm (incl. bay)`
-    + ` · bay interior ${(bw - 2) * mm}×${(bh - 2) * mm}×${PLATE_Z * mm}mm · base ${gw * mm}×${gd * mm}×${gh * mm}mm`);
-}
-const ROBOT = process.argv.includes('--robot');
 const FACES: Array<{ d: V; q: [V, V, V, V] }> = [
   { d: [1, 0, 0],  q: [[1,0,0],[1,1,0],[1,1,1],[1,0,1]] },
   { d: [-1, 0, 0], q: [[0,0,1],[0,1,1],[0,1,0],[0,0,0]] },
@@ -240,7 +246,6 @@ const FACES: Array<{ d: V; q: [V, V, V, V] }> = [
   { d: [0, 0, -1], q: [[0,0,0],[0,1,0],[1,1,0],[1,0,0]] },
 ];
 const STUD_R = 0.3, STUD_H = 0.18, STUD_N = 16, SINK = 0.02;
-if (!ROBOT)
 for (let y = 0; y < Y; y++)
   for (let z = 0; z < Z; z++)
     for (let x = 0; x < X; x++) {
