@@ -11,6 +11,7 @@ import { motion } from 'framer-motion';
 import { CreatureThumb } from './CreatureThumb';
 import type { FieldCreature } from './DitherField';
 import { xmur3 } from '../core/seed';
+import { nameFor } from '../core/names';
 
 const CAP = 80; // Pi-friendly upper bound on simultaneously drifting stars
 
@@ -20,23 +21,30 @@ interface Props {
 }
 
 export function SkyScene({ creatures, population }: Props) {
+  // creatures[0] is always the newest (colony list is newest-first) — it
+  // gets a distinct glow so the sky visibly "answers" the field below the
+  // moment a fresh whisper lands there.
+  const newestId = creatures[0]?.id;
+
   const stars = useMemo(() => {
     return creatures.slice(0, CAP).map((c) => {
       const h = xmur3(`sky:${c.id}`);
       const r = () => (h() >>> 8) / 16777216; // 0..1
+      const isNewest = c.id === newestId;
       return {
         creature: c,
         left: 4 + r() * 88,          // vw
         top: 6 + r() * 82,           // vh
-        height: 40 + r() * 52,       // px — small but legible at distance
+        height: isNewest ? 170 : 70 + r() * 110, // px — legible at tower distance
         dur: 26 + r() * 30,          // s  — glacial drift
         delay: -r() * 40,
         dx: 6 + r() * 14,
         dy: 8 + r() * 18,
-        dim: 0.9 + r() * 0.1,
+        dim: isNewest ? 1 : 0.86 + r() * 0.14,
+        isNewest,
       };
     });
-  }, [creatures]);
+  }, [creatures, newestId]);
 
   return (
     <motion.div
@@ -49,12 +57,22 @@ export function SkyScene({ creatures, population }: Props) {
       {stars.map((s) => (
         <motion.div
           key={s.creature.id}
-          className="sky-item"
+          className={s.isNewest ? 'sky-item sky-item-newest' : 'sky-item'}
           style={{ left: `${s.left}vw`, top: `${s.top}vh`, opacity: s.dim }}
           animate={{ x: [0, s.dx, 0, -s.dx, 0], y: [0, -s.dy, 0, s.dy, 0] }}
           transition={{ duration: s.dur, delay: s.delay, repeat: Infinity, ease: 'easeInOut' }}
         >
+          {s.isNewest && (
+            <motion.div
+              className="sky-newest-glow"
+              animate={{ opacity: [0.35, 0.8, 0.35], scale: [0.9, 1.15, 0.9] }}
+              transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
+            />
+          )}
           <CreatureThumb creature={s.creature} cell={3} height={s.height} />
+          {s.isNewest && (
+            <div className="sky-newest-label">{s.creature.name || nameFor(s.creature.id)}</div>
+          )}
         </motion.div>
       ))}
       <div className="sky-caption">

@@ -1001,7 +1001,7 @@ body.kiosk-mode .field-prompt { display: none; }
 body.kiosk-mode .hand-toggle,
 body.kiosk-mode .mute-toggle { display: none; }
 /* large 1080p panels run hot: pull saturation back a touch at night */
-body.kiosk-mode .dither-canvas { filter: saturate(0.82) brightness(0.96); }
+body.kiosk-mode .dither-canvas { filter: saturate(0.66) brightness(0.94); }
 
 /* The field kiosk's QR doorway — wordless, grown from the field's motes. */
 .kiosk-invite {
@@ -1031,10 +1031,31 @@ body.kiosk-mode .archive-card {
 .sky-scene {
   position: fixed; inset: 0; overflow: hidden;
 }
-.sky-item { position: absolute; }
-/* night sky: the palette was tuned for paper; lift it so creatures glow */
-body.kiosk-mode .sky-item { filter: saturate(1.35) brightness(1.7); }
+.sky-item { position: absolute; display: flex; flex-direction: column; align-items: center; }
+/* night sky: the palette was tuned for paper; lift it so creatures glow —
+   restrained now so distant stars read as light, not neon */
+body.kiosk-mode .sky-item { filter: saturate(1.0) brightness(1.22); }
 body.kiosk-mode .sky-item canvas { image-rendering: pixelated; }
+/* the newest star answers the newest whisper on the field below */
+.sky-newest-glow {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 200px; height: 200px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(250,238,210,0.4) 0%, rgba(250,238,210,0.12) 45%, rgba(250,238,210,0) 75%);
+  filter: blur(10px);
+  pointer-events: none;
+}
+.sky-newest-label {
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+  opacity: 0.85;
+  white-space: nowrap;
+}
 .sky-caption {
   position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%);
   font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.28em;
