@@ -1073,7 +1073,7 @@ body.kiosk-mode .archive-card {
 .sky-item { position: absolute; display: flex; flex-direction: column; align-items: center; }
 /* night sky: the palette was tuned for paper; lift it so creatures glow —
    restrained now so distant stars read as light, not neon */
-body.kiosk-mode .sky-item { filter: saturate(1.0) brightness(1.22); }
+body.kiosk-mode .sky-item { filter: saturate(0.78) brightness(1.18); }
 body.kiosk-mode .sky-item canvas { image-rendering: pixelated; }
 /* the newest star answers the newest whisper on the field below */
 .sky-newest-glow {
