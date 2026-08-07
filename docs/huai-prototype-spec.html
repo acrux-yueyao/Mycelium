@@ -210,7 +210,7 @@
 
   <section>
     <h2 class="prose">三、气囊分区与充气顺序</h2>
-    <p class="prose">气囊不做整片，而是五个分区<strong>从外缘向肩颈中心顺序充气</strong>——模拟手臂从外侧环过来收拢的方向感。泄气严格反向且更慢：拥抱「缓慢松开」与「突然放开」是完全不同的情绪体验。完整的下料尺寸、时序数据与气路原理图见<strong>第九节 · 气囊工程分册</strong>。</p>
+    <p class="prose">气囊不做整片，而是五个分区<strong>从外缘向肩颈中心顺序充气</strong>——模拟手臂从外侧环过来收拢的方向感。泄气严格反向且更慢：拥抱「缓慢松开」与「突然放开」是完全不同的情绪体验。完整的下料尺寸、时序数据与气路原理图见<strong>第九节 · 气囊工程分册</strong>；五大囊是实验平台，产品形态为羽绒服式条囊分布（图 9）。</p>
 
     <figure>
       <div class="frame">
@@ -719,6 +719,62 @@
       <tr><td>同步段节律（跟随引导音轨）</td><td class="n">每周期 B 路轻捏 1 次、C 半捏；「呼」相拧松放气阀</td></tr>
       <tr><td>压力代理记录</td><td class="n">实验记录表只记捏数与阀开度——V1 再换算成 mmHg</td></tr>
     </table></div>
+
+    <h3 class="prose">图 9 · 条囊化分布（羽绒服式 · V1 产品形态）</h3>
+    <p class="prose">五大囊是<strong>实验平台</strong>，不是产品形态——它有一个真实的工程弱点：肩部是双曲率曲面，220 mm 的大平囊充气后会「架桥」，接触压反而不均。产品形态改为<strong>羽绒服式条囊</strong>：8 条 30 mm 宽的弧向通道覆盖全幅，按径向分成三个环带，每带一条蛇形串联气路——<strong>阀数不变，A/B/C 逻辑不变，覆盖率与贴合度大幅上升</strong>。</p>
+    <figure>
+      <div class="frame">
+        <svg viewBox="0 0 860 420" width="860" height="420" role="img" aria-label="条囊化排布图：三个环带共八条弧向通道">
+          <path d="M 484.1 125.5 L 646.4 82 A 224 224 0 1 1 213.6 82 L 375.9 125.5 A 56 56 0 1 0 484.1 125.5 Z"
+                fill="var(--surface)" stroke="var(--ink)" stroke-width="1.8"/>
+
+          <path d="M 638.0 114.5 A 209.6 209.6 0 1 1 222.0 114.5 L 267.2 120.0 A 164 164 0 1 0 592.8 120.0 Z"
+                fill="var(--dusk-soft)" stroke="var(--dusk)" stroke-width="1.4"/>
+          <path d="M 588.8 120.5 A 160 160 0 1 1 271.2 120.5 L 316.5 126.1 A 114.4 114.4 0 1 0 543.5 126.1 Z"
+                fill="var(--dusk-soft)" opacity=".62" stroke="var(--dusk)" stroke-width="1.4"/>
+          <path d="M 539.6 126.5 A 110.4 110.4 0 1 1 320.4 126.5 L 350.6 130.2 A 80 80 0 1 0 509.4 130.2 Z"
+                fill="var(--warm-soft)" stroke="var(--warm)" stroke-width="1.4"/>
+
+          <path d="M 607.9 118.2 A 179.2 179.2 0 1 1 252.1 118.2" fill="none" stroke="var(--muted)" stroke-width="1" stroke-dasharray="5 4"/>
+          <path d="M 623.0 116.3 A 194.4 194.4 0 1 1 237.0 116.3" fill="none" stroke="var(--muted)" stroke-width="1" stroke-dasharray="5 4"/>
+          <path d="M 558.6 124.2 A 129.6 129.6 0 1 1 301.4 124.2" fill="none" stroke="var(--muted)" stroke-width="1" stroke-dasharray="5 4"/>
+          <path d="M 573.7 122.3 A 144.8 144.8 0 1 1 286.3 122.3" fill="none" stroke="var(--muted)" stroke-width="1" stroke-dasharray="5 4"/>
+          <path d="M 524.5 128.4 A 95.2 95.2 0 1 1 335.5 128.4" fill="none" stroke="var(--muted)" stroke-width="1" stroke-dasharray="5 4"/>
+
+          <line x1="430" y1="349.6" x2="430" y2="224" stroke="var(--warm)" stroke-width="1.6" stroke-dasharray="7 5" marker-end="url(#arr5)"/>
+          <defs>
+            <marker id="arr5" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto">
+              <path d="M0,0 L7,3.5 L0,7 Z" fill="var(--warm)"/>
+            </marker>
+          </defs>
+
+          <line x1="656" y1="96" x2="632" y2="112" stroke="var(--ink)" stroke-width="1.5" marker-end="url(#arr4)"/>
+          <line x1="606" y1="104" x2="586" y2="118" stroke="var(--ink)" stroke-width="1.5" marker-end="url(#arr4)"/>
+          <line x1="556" y1="110" x2="536" y2="124" stroke="var(--ink)" stroke-width="1.5" marker-end="url(#arr4)"/>
+
+          <text x="662" y="90" class="sm">A 进气</text>
+          <text x="612" y="98" class="sm">B 进气</text>
+          <text x="560" y="104" class="sm">C 进气</text>
+          <text x="430" y="338" text-anchor="middle" class="num" fill="var(--dusk)">A 带 · 3 通道 · 27 mmHg 静态</text>
+          <text x="430" y="284" text-anchor="middle" class="num" fill="var(--dusk)">B 带 · 3 通道 · 27±4</text>
+          <text x="430" y="237" text-anchor="middle" class="num" fill="var(--warm)">C 带 · 2 通道 · 16±2</text>
+          <text x="446" y="210" class="sm" fill="var(--warm)">带内填充波：外 → 内</text>
+          <text x="430" y="50" text-anchor="middle" class="sm">通道宽 30 · 焊缝间距 38（焊宽 8）· 充气厚 ≈15 · 蛇形串联，端部 U 形回转</text>
+          <text x="430" y="398" text-anchor="middle" class="sm">虚线 = 通道间焊缝 · 各带进气口位于外侧通道端部，带内按流阻被动顺序填充</text>
+        </svg>
+      </div>
+      <figcaption><b>图 9 · 条囊化排布。</b>三带八通道，前缘 8° 禁压区与领缘环带同图 5。每带一条蛇形气路、进气口在最外通道——空气先充满外通道再涌向内侧，<b>带内自动产生「外→内」的填充波</b>，与带间的 A→B→C 阀序叠加成两个尺度的收拢动作。充气时通道横向微缩（38 mm 平幅 → ≈30 mm 弧弦），整件披肩向身体轻微收紧——这是大平囊给不出的「搂拢」而非「顶压」。</figcaption>
+    </figure>
+
+    <h3 class="prose">表 7 · 条囊规格</h3>
+    <div class="tablewrap"><table>
+      <tr><th>带</th><th class="n">通道数</th><th class="n">通道宽 / 充气厚 mm</th><th>径向占位 mm</th><th class="n">通道长 mm</th><th class="n">单带气量</th><th class="n">压力</th></tr>
+      <tr><td>A（臂缘—下摆）</td><td class="n">3</td><td class="n">30 / 15</td><td>r 410–524</td><td class="n">1450–1710</td><td class="n">≈1.17 L</td><td class="n">27 mmHg 静态</td></tr>
+      <tr><td>B（肩背）</td><td class="n">3</td><td class="n">30 / 15</td><td>r 286–400</td><td class="n">1030–1290</td><td class="n">≈0.86 L</td><td class="n">27±4 mmHg</td></tr>
+      <tr><td>C（领下）</td><td class="n">2</td><td class="n">30 / 15</td><td>r 200–276</td><td class="n">740–870</td><td class="n">≈0.40 L</td><td class="n">16±2 mmHg</td></tr>
+      <tr class="total"><td>合计</td><td class="n">8</td><td></td><td></td><td></td><td class="n">≈2.44 L</td><td class="n">入怀 ≈97 s ✓</td></tr>
+    </table></div>
+    <p class="prose">条囊版相对五大囊的得与失，写明供决策：<strong>得</strong>——贴合双曲率肩部、压力均匀无「块感」、填充波从 3 级细化到 8 级（更接近连续的「一只手臂滑拢」）、泄气后仍有绗缝的羽绒服外观（把设备彻底藏进服装语言，绗缝线就是焊缝线）、充气横向微缩带来真正的环身收拢。<strong>失</strong>——带内波速由流阻决定、不可逐通道编程（所以<strong>实验一的 SOA 扫描仍用五大囊平台做</strong>，结论迁移到条囊的通道间距设计）；单条穿孔失一带（三带隔离兜底）；血压袖带不可复用，V0.5 需自制——TPU 膜双层 + 脉冲封口机（约 ¥100）画线热合即可打样，或直接找充气制品厂开模。<strong>V0（五大囊）→ V0.5（自制条囊）→ V1（工厂条囊）</strong>是建议的迭代路径。</p>
   </section>
 
   <section>
