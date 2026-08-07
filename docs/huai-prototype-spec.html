@@ -981,6 +981,59 @@
       <tr><td>翻身过渡</td><td>—</td><td>30 s 交叉渐变，泄先于充</td><td>—</td><td>怀抱跟着翻身；判定滞回 10 s 防抖</td></tr>
     </table></div>
     <p class="prose">硬件增量：供气阀 3 → 6（前/后 × A/B/C，失电全泄逻辑不变）、IMU ×1、后身囊体 ≈4.85 L。互斥激活意味着<strong>单侧最大气量 ≈4.9 L，泵配置不变</strong>（双 370 并联，入怀 87–98 s）。制造上后身与前身共用同一套直线焊工艺，仅脊柱留白处多两道纵向焊缝。</p>
+
+    <h3 class="prose">图 13 · 环抱翼：把「环」找回来</h3>
+    <p class="prose"><strong>设计治理：环抱是本产品的不可谈判需求。</strong>比甲平面囊只有法向压力（加重毯力学），拥抱的签名——侧向环压——在形态改版中丢失。恢复方案：<strong>环抱翼</strong>。仰卧时床垫即「后手」，前身囊给前压，缺的只是两侧——沿后身左右侧缘各接一片 280×550 mm 的翼，内含 4 条纵向通道、<strong>宽度梯度 34→22 mm</strong>：充气时宽通道胀得多、窄通道胀得少，差动使翼<strong>主动向体侧卷曲 90–120°</strong>（软体机器人 pouch motor 的标准原理），从两侧掖进肋腰与上臂——两条手臂收进来，连你的手臂一起轻轻箍住。前压 + 床垫 + 双翼侧收 = <strong>三面合围</strong>。翼相对面板的卷向不变，故仰卧（翼上卷过体侧）与趴卧（翼下掖入体侧）通用；坐姿关闭。入怀序列成为完整的「被安置」：<strong>腿 → 髋 → 腰 → 胸 → 肩 → 双翼收拢</strong>——先被掖好被子，再被搂住。</p>
+    <figure>
+      <div class="frame">
+        <svg viewBox="0 0 860 360" width="860" height="360" role="img" aria-label="环抱翼剖面示意与焊接原理">
+          <rect x="60" y="280" width="480" height="14" fill="var(--muted)" opacity=".3"/>
+          <text x="530" y="308" text-anchor="end" class="sm">床垫 =「后手」</text>
+          <rect x="140" y="266" width="320" height="12" rx="4" fill="var(--dusk-soft)" stroke="var(--dusk)" stroke-width="1.3"/>
+          <ellipse cx="300" cy="200" rx="130" ry="66" fill="var(--bg)" stroke="var(--ink)" stroke-width="1.6"/>
+          <text x="300" y="206" text-anchor="middle" class="sm">躯干截面（仰卧）</text>
+
+          <path d="M180,205 Q230,120 293,112" fill="none" stroke="var(--dusk)" stroke-width="11" opacity=".75" stroke-linecap="round"/>
+          <path d="M420,205 Q370,120 307,112" fill="none" stroke="var(--dusk)" stroke-width="11" opacity=".75" stroke-linecap="round"/>
+          <text x="300" y="92" text-anchor="middle" class="sm">前身囊 · 前压（胸骨正中留白）</text>
+
+          <path d="M142,268 C 92,240 92,172 150,142 C 172,130 200,122 226,117" fill="none" stroke="var(--warm)" stroke-width="11" stroke-linecap="round" marker-end="url(#arr9)"/>
+          <path d="M458,268 C 508,240 508,172 450,142 C 428,130 400,122 374,117" fill="none" stroke="var(--warm)" stroke-width="11" stroke-linecap="round" marker-end="url(#arr9)"/>
+          <defs>
+            <marker id="arr9" markerWidth="8" markerHeight="8" refX="5" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" fill="var(--warm)"/>
+            </marker>
+          </defs>
+          <text x="78" y="150" class="sm" fill="var(--warm)">环抱翼</text>
+          <text x="62" y="168" class="sm">侧收 10–15 mmHg</text>
+          <text x="482" y="150" class="sm" fill="var(--warm)">卷曲 90–120°</text>
+
+          <text x="690" y="70" text-anchor="middle" class="lbl">翼焊接原理（宽度梯度）</text>
+          <rect x="570" y="90" width="220" height="150" rx="8" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.5"/>
+          <rect x="582" y="102" width="48" height="126" rx="6" fill="var(--dusk-soft)" stroke="var(--dusk)" stroke-width="1"/>
+          <rect x="640" y="102" width="42" height="126" rx="6" fill="var(--dusk-soft)" stroke="var(--dusk)" stroke-width="1"/>
+          <rect x="692" y="102" width="36" height="126" rx="6" fill="var(--dusk-soft)" stroke="var(--dusk)" stroke-width="1"/>
+          <rect x="738" y="102" width="30" height="126" rx="6" fill="var(--dusk-soft)" stroke="var(--dusk)" stroke-width="1"/>
+          <text x="690" y="258" text-anchor="middle" class="sm">通道宽 34 → 30 → 26 → 22（体侧朝宽端）</text>
+          <path d="M600,286 Q690,330 780,286" fill="none" stroke="var(--warm)" stroke-width="1.8" marker-end="url(#arr9)"/>
+          <text x="690" y="322" text-anchor="middle" class="sm" fill="var(--warm)">充气差动 → 向体侧卷曲</text>
+        </svg>
+      </div>
+      <figcaption><b>图 13 · 环抱翼。</b>翼接在后身侧缘（d 100–650，覆肋、腰与上臂段），仰卧时人躺在后身上，翼从身体两侧向上卷入——被自己躺着的那层「抱住」。单翼 ≈508 mL，双翼 ≈1.02 L；侧向目标压 10–15 mmHg（低于前压——真实拥抱的侧箍也轻于正压）。</figcaption>
+    </figure>
+
+    <h3 class="prose">表 11 · 环抱翼规格与回退门槛</h3>
+    <div class="tablewrap"><table>
+      <tr><th>项</th><th class="n">数值</th><th>说明</th></tr>
+      <tr><td>翼尺寸</td><td class="n">280 × 550 mm ×2</td><td>接后身侧缘 d 100–650；覆肋腰 + 上臂</td></tr>
+      <tr><td>通道</td><td class="n">4 纵向 · 宽 34/30/26/22 · 厚 15</td><td>差动比 1.55 → 卷角 90–120°；宽端朝体侧</td></tr>
+      <tr><td>侧向压 / 气量</td><td class="n">10–15 mmHg · 双翼 1.02 L</td><td>仰卧总激活 5.37 L → 入怀 ≈107 s（仍 &lt;2 min）</td></tr>
+      <tr><td>时序 / 阀</td><td class="n">C 之后 25 s 内卷合 · 阀 +1（W）</td><td>序列：A→B→C→翼；坐姿模式翼关闭</td></tr>
+      <tr><td>台架验证（V0.5w）</td><td class="n">一个下午 · ≈¥60</td><td>TPU 膜 + 脉冲封口机，单翼样件，假人/自测</td></tr>
+    </table></div>
+    <div class="callout">
+      <p><strong>回退门槛（写死，不恋战）：</strong>台架样件必须同时通过——① 卷曲角 ≥90°；② 肋侧实测侧压 ≥10 mmHg；③ 卷合 ≤60 s；④ 500 次充泄循环无脱焊。<strong>任一不达标，产品形态退回披肩条囊版（图 9）</strong>——披肩的环抱收拢是几何自带、零风险的。环抱可以换实现方式，不能没有。</p>
+    </div>
   </section>
 
   <section>
