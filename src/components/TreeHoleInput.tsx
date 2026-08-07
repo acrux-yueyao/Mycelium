@@ -45,6 +45,21 @@ function MicIcon({ listening }: { listening: boolean }) {
   );
 }
 
+function SendIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 20 20" aria-hidden>
+      <path
+        d="M10 16 V4 M10 4 L4.5 9.5 M10 4 L15.5 9.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function TreeHoleInput({ onSubmit, disabled, loading, immediate }: TreeHoleInputProps) {
   const [text, setText] = useState('');
   const [focused, setFocused] = useState(false);
@@ -108,6 +123,9 @@ export function TreeHoleInput({ onSubmit, disabled, loading, immediate }: TreeHo
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // IME composition (Chinese/Japanese keyboards) uses Enter to confirm
+    // the candidate word — never treat that as a submit.
+    if (e.nativeEvent.isComposing) return;
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       commit();
@@ -149,6 +167,7 @@ export function TreeHoleInput({ onSubmit, disabled, loading, immediate }: TreeHo
                 maxLength={240}
                 disabled={disabled}
                 spellCheck={false}
+                enterKeyHint="send"
               />
               {speech.supported && (
                 <button
@@ -164,6 +183,16 @@ export function TreeHoleInput({ onSubmit, disabled, loading, immediate }: TreeHo
                   <MicIcon listening={speech.listening} />
                 </button>
               )}
+              <button
+                type="button"
+                className={`send-button ${text.trim() ? 'ready' : ''}`}
+                onClick={commit}
+                disabled={disabled || !text.trim()}
+                aria-label="whisper it into the field"
+                title="whisper it"
+              >
+                <SendIcon />
+              </button>
             </div>
             <AnimatePresence>
               {speech.listening && (
