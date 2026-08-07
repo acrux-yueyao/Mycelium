@@ -1,22 +1,24 @@
 /**
- * spore3d — turn a whispered sentence into a printable LEGO-style
- * brick spore.
+ * spore3d — turn a whispered sentence into a printable brick spore.
  *
- * Pipeline: the 2D mosaic engine's per-row silhouette (mask) is revolved
- * into a fine voxel solid, then chunked into big bricks (--chunk cells
- * per brick, default 2 → a body ~5-8 bricks wide). Every exposed brick
- * top grows a round stud; a light brick-level erosion keeps the
- * openwork; eyes are white bricks with a raised black tile. Colours are
- * the engine's palette bands. Same sentence → same spore, print after
- * print.
+ * Default mode is EXTRUDE: the engine's actual 2D mosaic cells (position,
+ * colour, translucency, dither and all) become physical blocks, extruded
+ * 1–3 blocks deep — solid core deepest, edges thinner, wispy translucent
+ * cells thinnest — so the piece keeps the exact likeness of the on-screen
+ * creature, like a brick-built sprite. Eyes come from the engine spec:
+ * white blocks with black pupil blocks.
  *
- * Outputs:
- *   out/<name>.stl   binary STL, millimetres  (single-colour printing)
- *   out/<name>.ply   per-vertex-coloured mesh (full-colour preview/print)
- *   out/<name>.json  brick dump (renderers / debugging)
+ * Styles:
+ *   --style pixel  clean cubes (3D-pixel / acrylic look)   [default]
+ *   --style lego   adds round studs on every exposed top face
+ * Legacy: --mode revolve keeps the volumetric solid-of-revolution body.
+ *
+ * Outputs: out/<name>.stl (mm, single colour) · out/<name>.ply (per-face
+ * colour) · out/<name>.json (block dump). Deterministic: same sentence,
+ * same spore.
  *
  *   npx tsx scripts/spore3d.mts --text "..." [--family dreamy]
- *       [--chunk 2] [--cell 12] [--density 0.7] [--solid]
+ *       [--style pixel|lego] [--cell 8] [--depth 3]
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -38,9 +40,9 @@ if (charId < 0) throw new Error(`--family must be one of ${FAMS.join('|')}`);
 const intensity = Number(arg('intensity', '0.65'));
 const density = Number(arg('density', '0.7'));
 const tintHue = Number(arg('tint', String(h0 % 360)));
-const G = Math.max(1, Number(arg('chunk', '2')));   // engine cells per brick
-const cellMM = Number(arg('cell', '12'));           // printed size of one brick
-const solid = process.argv.includes('--solid');
+const cellMM = Number(arg('cell', '8'));      // printed size of one block
+const DEPTH = Number(arg('depth', '3'));      // max extrusion depth, blocks
+const style = arg('style', 'pixel');          // pixel | lego
 const id = `w:${h0.toString(16)}`;
 const name = arg('name') ?? `spore_${FAMS[charId]}_${h0.toString(16).slice(0, 6)}`;
 
@@ -51,75 +53,91 @@ const spec = buildMosaic({
   morphology: { density, agitation: 0.4, tendrilCount: 5, glow: 0.5, tintHue, particles: false },
   intensity,
 });
-const { cols, rows, palette, eyes, mask } = spec;
-const center = (cols - 1) / 2;
+const { cols, rows, cells, eyes } = spec;
 
-// per-row silhouette half-width, straight from the engine's mask
-const hw: number[] = [];
-for (let r = 0; r < rows; r++) {
-  let m = -1;
-  for (let c = 0; c < cols; c++) if (mask[r * cols + c]) m = Math.max(m, Math.abs(c - center));
-  hw.push(m < 0 ? 0 : m + 0.5);
-}
+const hsl = /hsl\((-?\d+),(\d+)%,(\d+)%\)/;
+const hsl2rgb = (h: number, s: number, l: number): [number, number, number] => {
+  h = ((h % 360) + 360) % 360;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12;
+    return l - a * Math.max(-1, Math.min(k - 3, Math.min(9 - k, 1)));
+  };
+  return [f(0), f(8), f(4)].map((v) => Math.round(v * 255)) as [number, number, number];
+};
+const parse = (c: string): [number, number, number] => {
+  const m = c.match(hsl);
+  return m ? hsl2rgb(+m[1], +m[2] / 100, +m[3] / 100) : [200, 200, 200];
+};
 
-// ---------- 2) revolve straight at brick resolution ----------
-const X = Math.ceil(cols / G), Y = Math.ceil(rows / G), Z = Math.ceil(cols / G);
+// ---------- 2) extrude the 2D cells into blocks ----------
+// depth by how "core" a cell is: interior solid cells go deepest, edge
+// cells thinner, translucent dither cells a single block.
+const X = cols, Y = rows, Z = DEPTH;
 const grid = new Uint8Array(X * Y * Z);
 const at = (x: number, y: number, z: number) => x + X * (y + Y * z);
 const inb = (x: number, y: number, z: number) =>
   x >= 0 && y >= 0 && z >= 0 && x < X && y < Y && z < Z;
-// brick row (bottom-up) → representative engine row (engine row 0 = top)
-const rowOf = (y: number) =>
-  Math.max(0, Math.min(rows - 1, rows - 1 - (y * G + Math.floor(G / 2))));
-const radiusOf = (y: number) => {
-  // widest engine row covered by this brick row, in brick units
-  let m = 0;
-  for (let g = 0; g < G; g++) {
-    const r = rows - 1 - (y * G + g);
-    if (r >= 0 && r < rows) m = Math.max(m, hw[r]);
+const colors = new Map<number, [number, number, number]>();
+const alpha = new Map<number, number>();
+
+const cellMapIdx = new Map<string, (typeof cells)[number]>();
+for (const c of cells) cellMapIdx.set(`${c.col},${c.row}`, c);
+const filled2D = (c: number, r: number) =>
+  c >= 0 && r >= 0 && c < cols && r < rows && cellMapIdx.has(`${c},${r}`);
+
+for (const cell of cells) {
+  const solid2D =
+    filled2D(cell.col - 1, cell.row) && filled2D(cell.col + 1, cell.row) &&
+    filled2D(cell.col, cell.row - 1) && filled2D(cell.col, cell.row + 1);
+  let d = cell.alpha < 0.9 ? 1 : solid2D ? DEPTH : Math.max(1, DEPTH - 1);
+  const rgb = parse(cell.color);
+  const y = rows - 1 - cell.row;                 // engine row 0 = top
+  const z0 = Math.floor((DEPTH - d) / 2);        // centred in depth
+  for (let dz = 0; dz < d; dz++) {
+    const i = at(cell.col, y, z0 + dz);
+    grid[i] = 1;
+    colors.set(i, rgb);
+    alpha.set(i, cell.alpha);
   }
-  return m / G;
-};
-for (let y = 0; y < Y; y++) {
-  const radius = radiusOf(y);
-  if (radius <= 0) continue;
-  for (let x = 0; x < X; x++)
-    for (let z = 0; z < Z; z++) {
-      const u = x + 0.5 - X / 2;
-      const w = z + 0.5 - Z / 2;
-      if (u * u + w * w <= (radius + 0.3) * (radius + 0.3)) grid[at(x, y, z)] = 1;
-    }
 }
 
-// ---------- 2b) brick-level openwork: a few missing bricks, a few hanging ones ----------
-if (!solid) {
-  const rng3 = new Rng(xmur3(`${id}:carve${G}`)());
-  const removeP = 0.16 + (1 - density) * 0.22; // sparse creatures lose more bricks
-  for (let y = 0; y < Y; y++) {
-    const radius = radiusOf(y);
-    if (radius <= 0) continue;
-    for (let z = 0; z < Z; z++)
-      for (let x = 0; x < X; x++) {
+// ---------- 3) the face, straight from the engine spec ----------
+const WHITE: [number, number, number] = [246, 246, 241];
+const BLACK: [number, number, number] = [18, 18, 18];
+const eyeY = rows - 1 - eyes.row;
+for (const [c, col] of [
+  [eyes.L0, WHITE], [eyes.L0 + 1, BLACK], [eyes.R0, BLACK], [eyes.R0 + 1, WHITE],
+] as Array<[number, [number, number, number]]>) {
+  // ensure the eye block exists even if dither skipped the cell
+  let zf = -1;
+  for (let z = Z - 1; z >= 0; z--) if (grid[at(c, eyeY, z)]) { zf = z; break; }
+  if (zf < 0) {
+    zf = Math.floor(DEPTH / 2);
+    grid[at(c, eyeY, zf)] = 1;
+  }
+  colors.set(at(c, eyeY, zf), col);
+  alpha.set(at(c, eyeY, zf), 1);
+}
+
+// --hollow: carve strictly-interior blocks into a module bay (ESP32,
+// battery, OLED behind the eyes — the robot build's inner cavity).
+if (process.argv.includes('--hollow')) {
+  const toDrop: number[] = [];
+  for (let y = 1; y < Y - 1; y++)
+    for (let z = 1; z < Z - 1; z++)
+      for (let x = 1; x < X - 1; x++) {
         const i = at(x, y, z);
         if (!grid[i]) continue;
-        const u = x + 0.5 - X / 2;
-        const w = z + 0.5 - Z / 2;
-        const dist = Math.sqrt(u * u + w * w);
-        if (dist > radius - 1 && rng3.next() < removeP) grid[i] = 0;
+        let buried = true;
+        for (const [dx, dy, dz] of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]])
+          if (!grid[at(x + dx, y + dy, z + dz)]) { buried = false; break; }
+        if (buried) toDrop.push(i);
       }
-  }
-  // bottom row dissolves: outer bricks hang on only sometimes
-  for (let z = 0; z < Z; z++)
-    for (let x = 0; x < X; x++) {
-      const i = at(x, 0, z);
-      if (!grid[i]) continue;
-      const u = x + 0.5 - X / 2;
-      const w = z + 0.5 - Z / 2;
-      if (Math.sqrt(u * u + w * w) > radiusOf(0) * 0.5 && rng3.next() < 0.45) grid[i] = 0;
-    }
+  for (const i of toDrop) { grid[i] = 0; colors.delete(i); alpha.delete(i); }
 }
 
-// keep the largest connected component
+// keep the largest connected component (dither can strand blocks)
 {
   const seen = new Uint8Array(X * Y * Z);
   let best: number[] = [];
@@ -142,60 +160,77 @@ if (!solid) {
   for (const j of best) grid[j] = 1;
 }
 
-// ---------- 3) colour: engine palette bands per brick ----------
-const rng = new Rng(xmur3(`${id}:3d`)());
-const N = palette.stops.length;
-const hsl2rgb = (h: number, s: number, l: number): [number, number, number] => {
-  h = ((h % 360) + 360) % 360;
-  const a = s * Math.min(l, 1 - l);
-  const f = (n: number) => {
-    const k = (n + h / 30) % 12;
-    return l - a * Math.max(-1, Math.min(k - 3, Math.min(9 - k, 1)));
-  };
-  return [f(0), f(8), f(4)].map((v) => Math.round(v * 255)) as [number, number, number];
-};
-const colors = new Map<number, [number, number, number]>();
-for (let y = 0; y < Y; y++)
-  for (let z = 0; z < Z; z++)
-    for (let x = 0; x < X; x++) {
-      const i = at(x, y, z);
-      if (!grid[i]) continue;
-      const r = rowOf(y);
-      const v = rows > 1 ? r / (rows - 1) : 0.5;
-      let band = Math.floor(v * N);
-      if (rng.next() < 0.12 + intensity * 0.18) band += rng.next() < 0.5 ? -1 : 1;
-      band = Math.max(0, Math.min(N - 1, band));
-      const st = palette.stops[band];
-      const u = x + 0.5 - X / 2, w = z + 0.5 - Z / 2;
-      const d = Math.sqrt(u * u + w * w) / (radiusOf(y) || 1);
-      const L = Math.max(0.12, Math.min(0.9, st.l - 0.08 * d + rng.range(-0.03, 0.03)));
-      if (palette.sparkle && rng.next() < 0.05) { colors.set(i, hsl2rgb(st.h, 0.6, 0.92)); continue; }
-      colors.set(i, hsl2rgb(st.h, st.s, L));
-    }
-
-// ---------- 4) the face: white eye bricks + raised black tiles ----------
-const WHITE: [number, number, number] = [246, 246, 241];
-const BLACK: [number, number, number] = [18, 18, 18];
-const eyeY = Math.max(0, Math.min(Y - 1, Math.floor((rows - 1 - eyes.row) / G)));
-let exL = Math.floor((eyes.L0 + 0.5) / G);
-let exR = Math.floor((eyes.R0 + 1) / G);
-if (exL === exR) { exL = Math.max(0, exL - 1); }
-const pupils: Array<{ x: number; y: number; z: number }> = [];
-for (const ex of [exL, exR]) {
-  if (ex < 0 || ex >= X) continue;
-  // front-most brick in this column; force one if erosion ate it
-  let zf = -1;
-  for (let z = Z - 1; z >= 0; z--) if (grid[at(ex, eyeY, z)]) { zf = z; break; }
-  if (zf < 0) continue;
-  colors.set(at(ex, eyeY, zf), WHITE);
-  pupils.push({ x: ex, y: eyeY, z: zf });
-}
-
-// ---------- 5) meshing: bricks + studs + pupil tiles ----------
+// ---------- 4) meshing: blocks (+ studs in lego style) ----------
 const mm = cellMM;
 type V = [number, number, number];
-const tris: Array<{ a: V; b: V; c: V; col: [number, number, number] }> = [];
+const tris: Array<{ a: V; b: V; c: V; col: [number, number, number]; al: number }> = [];
 const P = (x: number, y: number, z: number): V => [x * mm, z * mm, y * mm]; // print z-up
+
+// ---------- ROBOT SHELL MODE ----------
+// Hardware-first architecture (cavity drives the form): 20 mm pixel
+// module; the face is thin relief tiles (10 mm plate + 0/8/16 mm
+// stepped protrusion) so the head stays ~55-65 mm; a unified equipment
+// bay hides behind the torso (outer 7×6×3 blocks → ≥100×80×60 mm clear
+// inside); a ballast/speaker base sits under the stem (100×80×70 mm).
+// Electronics split: eyes/sensors in the head, mainboard in the bay,
+// battery + speaker in the base.
+if (process.argv.includes('--robot')) {
+  const DARK: [number, number, number] = [56, 54, 52];
+  const box = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, col: [number, number, number]) => {
+    const c = [
+      P(x0, y0, z0), P(x1, y0, z0), P(x1, y1, z0), P(x0, y1, z0),
+      P(x0, y0, z1), P(x1, y0, z1), P(x1, y1, z1), P(x0, y1, z1),
+    ];
+    const Q: Array<[number, number, number, number]> = [
+      [0, 3, 2, 1], [4, 5, 6, 7], [0, 1, 5, 4], [2, 3, 7, 6], [1, 2, 6, 5], [3, 0, 4, 7],
+    ];
+    for (const [a, b, cc, d] of Q) {
+      tris.push({ a: c[a], b: c[b], c: c[cc], col, al: 1 });
+      tris.push({ a: c[a], b: c[cc], c: c[d], col, al: 1 });
+    }
+  };
+  const PLATE_Z = 3;      // bay depth in blocks behind the face plate
+  const PLATE_T = 0.5;    // 10 mm structural plate
+  const TILE_T = 0.5;     // 10 mm visual tile
+  const rngR = new Rng(xmur3(`${id}:relief`)());
+  // relief tiles — the exact 2D sprite, stepped 0 / 8 / 16 mm
+  for (const cell of cells) {
+    const y = rows - 1 - cell.row;
+    const rgb = parse(cell.color);
+    const relief = cell.alpha < 0.9 ? 0.8 : rngR.next() < 0.62 ? 0 : rngR.next() < 0.75 ? 0.4 : 0.8;
+    box(cell.col, y, PLATE_Z, cell.col + 1, y + 1, PLATE_Z + PLATE_T, rgb);                 // plate
+    box(cell.col + 0.02, y + 0.02, PLATE_Z + PLATE_T, cell.col + 0.98, y + 0.98,
+        PLATE_Z + PLATE_T + TILE_T + relief, rgb);                                          // tile
+  }
+  // eyes flat + white/black (OLED sits behind the pupil tiles)
+  const eyeYr = rows - 1 - eyes.row;
+  for (const [c, col] of [
+    [eyes.L0, WHITE], [eyes.L0 + 1, BLACK], [eyes.R0, BLACK], [eyes.R0 + 1, WHITE],
+  ] as Array<[number, [number, number, number]]>) {
+    box(c, eyeYr, PLATE_Z, c + 1, eyeYr + 1, PLATE_Z + PLATE_T, col);
+    box(c + 0.02, eyeYr + 0.02, PLATE_Z + PLATE_T, c + 0.98, eyeYr + 0.98, PLATE_Z + PLATE_T + TILE_T, col);
+  }
+  // equipment bay: outer 7×6 blocks × PLATE_Z deep, walls 1 block,
+  // open at the back → clear interior 5×4 blocks (100×80) × 60 mm
+  const bw = 7, bh = 6;
+  const bx0 = Math.floor((cols - bw) / 2), by0 = Math.max(0, Math.floor(rows * 0.12));
+  box(bx0, by0, 0, bx0 + 1, by0 + bh, PLATE_Z, DARK);                    // left wall
+  box(bx0 + bw - 1, by0, 0, bx0 + bw, by0 + bh, PLATE_Z, DARK);          // right wall
+  box(bx0 + 1, by0 + bh - 1, 0, bx0 + bw - 1, by0 + bh, PLATE_Z, DARK);  // top wall
+  box(bx0 + 1, by0, 0, bx0 + bw - 1, by0 + 1, PLATE_Z, DARK);            // bottom wall
+  // base: 5×4 blocks footprint × 3.5 high, open top (battery / speaker / ballast)
+  const gw = 5, gd = 4, gh = 3.5;
+  const gx0 = (cols - gw) / 2, gz0 = PLATE_Z + PLATE_T - gd * 0.5 - 1;
+  box(gx0, -gh, gz0, gx0 + 0.5, 0.02, gz0 + gd, DARK);
+  box(gx0 + gw - 0.5, -gh, gz0, gx0 + gw, 0.02, gz0 + gd, DARK);
+  box(gx0 + 0.5, -gh, gz0, gx0 + gw - 0.5, 0.02, gz0 + 0.5, DARK);
+  box(gx0 + 0.5, -gh, gz0 + gd - 0.5, gx0 + gw - 0.5, 0.02, gz0 + gd, DARK);
+  box(gx0, -gh, gz0, gx0 + gw, -gh + 0.5, gz0 + gd, DARK);               // floor
+  console.log(`robot shell: module=${mm}mm · overall ≈ ${cols * mm}mm wide × ${(rows + 3.5) * mm}mm tall`
+    + ` · head depth ${(PLATE_T + TILE_T + 0.8) * mm + PLATE_Z * mm}mm (incl. bay)`
+    + ` · bay interior ${(bw - 2) * mm}×${(bh - 2) * mm}×${PLATE_Z * mm}mm · base ${gw * mm}×${gd * mm}×${gh * mm}mm`);
+}
+const ROBOT = process.argv.includes('--robot');
 const FACES: Array<{ d: V; q: [V, V, V, V] }> = [
   { d: [1, 0, 0],  q: [[1,0,0],[1,1,0],[1,1,1],[1,0,1]] },
   { d: [-1, 0, 0], q: [[0,0,1],[0,1,1],[0,1,0],[0,0,0]] },
@@ -205,59 +240,45 @@ const FACES: Array<{ d: V; q: [V, V, V, V] }> = [
   { d: [0, 0, -1], q: [[0,0,0],[0,1,0],[1,1,0],[1,0,0]] },
 ];
 const STUD_R = 0.3, STUD_H = 0.18, STUD_N = 16, SINK = 0.02;
-const prism = (cx: number, cz: number, y0: number, y1: number, r: number, col: [number, number, number]) => {
-  const ring0: V[] = [], ring1: V[] = [];
-  for (let k = 0; k < STUD_N; k++) {
-    const a = (k / STUD_N) * Math.PI * 2;
-    ring0.push(P(cx + Math.cos(a) * r, y0, cz + Math.sin(a) * r));
-    ring1.push(P(cx + Math.cos(a) * r, y1, cz + Math.sin(a) * r));
-  }
-  const c0 = P(cx, y0, cz), c1 = P(cx, y1, cz);
-  for (let k = 0; k < STUD_N; k++) {
-    const k2 = (k + 1) % STUD_N;
-    tris.push({ a: ring0[k], b: ring1[k], c: ring1[k2], col });
-    tris.push({ a: ring0[k], b: ring1[k2], c: ring0[k2], col });
-    tris.push({ a: c1, b: ring1[k], c: ring1[k2], col });
-    tris.push({ a: c0, b: ring0[k2], c: ring0[k], col });
-  }
-};
+if (!ROBOT)
 for (let y = 0; y < Y; y++)
   for (let z = 0; z < Z; z++)
     for (let x = 0; x < X; x++) {
       const i = at(x, y, z);
       if (!grid[i]) continue;
       const col = colors.get(i) ?? [200, 200, 200];
+      const al = alpha.get(i) ?? 1;
       for (const { d, q } of FACES) {
         const nx = x + d[0], ny = y + d[1], nz = z + d[2];
         if (inb(nx, ny, nz) && grid[at(nx, ny, nz)]) continue;
         const [q0, q1, q2, q3] = q.map((o) => P(x + o[0], y + o[1], z + o[2])) as [V, V, V, V];
-        tris.push({ a: q0, b: q1, c: q2, col });
-        tris.push({ a: q0, b: q2, c: q3, col });
+        tris.push({ a: q0, b: q1, c: q2, col, al });
+        tris.push({ a: q0, b: q2, c: q3, col, al });
       }
-      const above = inb(x, y + 1, z) && grid[at(x, y + 1, z)];
-      if (!above) prism(x + 0.5, z + 0.5, y + 1 - SINK, y + 1 + STUD_H, STUD_R, col);
+      if (style === 'lego') {
+        const above = inb(x, y + 1, z) && grid[at(x, y + 1, z)];
+        if (!above) {
+          const cx = x + 0.5, cz = z + 0.5;
+          const y0 = y + 1 - SINK, y1 = y + 1 + STUD_H;
+          const ring0: V[] = [], ring1: V[] = [];
+          for (let k = 0; k < STUD_N; k++) {
+            const a = (k / STUD_N) * Math.PI * 2;
+            ring0.push(P(cx + Math.cos(a) * STUD_R, y0, cz + Math.sin(a) * STUD_R));
+            ring1.push(P(cx + Math.cos(a) * STUD_R, y1, cz + Math.sin(a) * STUD_R));
+          }
+          const c0 = P(cx, y0, cz), c1 = P(cx, y1, cz);
+          for (let k = 0; k < STUD_N; k++) {
+            const k2 = (k + 1) % STUD_N;
+            tris.push({ a: ring0[k], b: ring1[k], c: ring1[k2], col, al });
+            tris.push({ a: ring0[k], b: ring1[k2], c: ring0[k2], col, al });
+            tris.push({ a: c1, b: ring1[k], c: ring1[k2], col, al });
+            tris.push({ a: c0, b: ring0[k2], c: ring0[k], col, al });
+          }
+        }
+      }
     }
-// pupils: a raised black square tile on the front face of each eye brick
-for (const { x, y, z } of pupils) {
-  const s = 0.46, t = 0.09; // tile size / proudness, in bricks
-  const x0 = x + (1 - s) / 2, x1 = x + (1 + s) / 2;
-  const y0 = y + (1 - s) / 2, y1 = y + (1 + s) / 2;
-  const zf = z + 1 - SINK, zt = z + 1 + t;
-  const c: Array<[number, number]> = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
-  const F0 = c.map(([px, py]) => P(px, py, zf));
-  const F1 = c.map(([px, py]) => P(px, py, zt));
-  tris.push({ a: F1[0], b: F1[1], c: F1[2], col: BLACK });
-  tris.push({ a: F1[0], b: F1[2], c: F1[3], col: BLACK });
-  tris.push({ a: F0[2], b: F0[1], c: F0[0], col: BLACK });
-  tris.push({ a: F0[3], b: F0[2], c: F0[0], col: BLACK });
-  for (let k = 0; k < 4; k++) {
-    const k2 = (k + 1) % 4;
-    tris.push({ a: F0[k], b: F1[k], c: F1[k2], col: BLACK });
-    tris.push({ a: F0[k], b: F1[k2], c: F0[k2], col: BLACK });
-  }
-}
 
-// ---------- 6) writers ----------
+// ---------- 5) writers ----------
 const outDir = arg('out', 'out')!;
 fs.mkdirSync(outDir, { recursive: true });
 
@@ -279,33 +300,35 @@ fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(path.join(outDir, `${name}.stl`), buf);
 }
 
-// vertex-coloured PLY
+// vertex-coloured PLY (alpha channel included for acrylic previews)
 {
   const L: string[] = [];
   L.push('ply', 'format ascii 1.0',
     `element vertex ${tris.length * 3}`,
     'property float x', 'property float y', 'property float z',
-    'property uchar red', 'property uchar green', 'property uchar blue',
+    'property uchar red', 'property uchar green', 'property uchar blue', 'property uchar alpha',
     `element face ${tris.length}`, 'property list uchar int vertex_indices', 'end_header');
-  for (const t of tris)
+  for (const t of tris) {
+    const a8 = Math.round(t.al * 255);
     for (const v of [t.a, t.b, t.c])
-      L.push(`${v[0].toFixed(2)} ${v[1].toFixed(2)} ${v[2].toFixed(2)} ${t.col[0]} ${t.col[1]} ${t.col[2]}`);
+      L.push(`${v[0].toFixed(2)} ${v[1].toFixed(2)} ${v[2].toFixed(2)} ${t.col[0]} ${t.col[1]} ${t.col[2]} ${a8}`);
+  }
   for (let i = 0; i < tris.length; i++) L.push(`3 ${i*3} ${i*3+1} ${i*3+2}`);
   fs.writeFileSync(path.join(outDir, `${name}.ply`), L.join('\n'));
 }
 
-// brick dump
+// block dump
 {
-  const vox: Array<[number, number, number, string]> = [];
-  for (const [i, c] of colors) {
+  const vox: Array<[number, number, number, string, number]> = [];
+  for (let i = 0; i < grid.length; i++) {
     if (!grid[i]) continue;
     const x = i % X, y = ((i / X) | 0) % Y, z = (i / (X * Y)) | 0;
-    vox.push([x, y, z, `#${c.map((n) => n.toString(16).padStart(2, '0')).join('')}`]);
+    const c = colors.get(i) ?? [200, 200, 200];
+    vox.push([x, y, z, `#${c.map((n) => n.toString(16).padStart(2, '0')).join('')}`, alpha.get(i) ?? 1]);
   }
   fs.writeFileSync(path.join(outDir, `${name}.json`),
     JSON.stringify({ name, text, family: FAMS[charId], dims: [X, Y, Z], mm, voxels: vox }));
 }
 
-const size = `${(X*mm).toFixed(0)}×${(Z*mm).toFixed(0)}×${(Y*mm).toFixed(0)}mm`;
-let bricks = 0; for (let i = 0; i < grid.length; i++) if (grid[i]) bricks++;
-console.log(`${name}: family=${FAMS[charId]} bricks=${bricks} grid=${X}×${Y}×${Z} tris=${tris.length} print=${size}`);
+let blocks = 0; for (let i = 0; i < grid.length; i++) if (grid[i]) blocks++;
+console.log(`${name}: family=${FAMS[charId]} blocks=${blocks} grid=${X}×${Y}×${Z} tris=${tris.length} print=${(X*mm).toFixed(0)}×${(Z*mm).toFixed(0)}×${(Y*mm).toFixed(0)}mm`);
