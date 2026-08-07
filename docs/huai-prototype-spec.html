@@ -348,7 +348,29 @@
     </ol>
 
     <h3 class="prose">制作清单（购买 + 打印 · 总汇）</h3>
-    <p class="prose">汇总全文档的采购与打印项，按「现在就办 / 验证后再办」分批。此表为唯一执行清单，取代上方分散条目。</p>
+    <p class="prose">汇总全文档的采购与打印项，按「现在就办 / 验证后再办」分批。此表为唯一执行清单，取代上方分散条目。<strong>下方人民币价为国内淘宝参考；在美采购以紧随其后的 Amazon/USD 对照表为准。</strong></p>
+
+    <div class="tablewrap"><table>
+      <tr><th colspan="3">🇺🇸 美国采购对照（Amazon · 以此为准）</th></tr>
+      <tr><th>物料</th><th>Amazon 对应品 / 搜索词</th><th class="n">参考价</th></tr>
+      <tr><td>五掌气囊（V0 手动）</td><td>Manual blood pressure cuff, single-tube with inflation bulb（LotFancy / Primacare 类）×3；备用 bulb+valve 单买约 $10</td><td class="n">$15–20 /套</td></tr>
+      <tr><td>外罩面料</td><td>Minky plush fabric（最接近戒指绒手感的易购项）1.5–2 yd；讲究的话 Mood Fabrics / Etsy 搜 cashmere jersey</td><td class="n">$13–18/yd</td></tr>
+      <tr><td>贴肤内衬</td><td>Bamboo / modal jersey knit 1 yd</td><td class="n">$12–16</td></tr>
+      <tr><td>USB 加热片</td><td>USB heating pad 5V 3-level（20×10 cm 级）</td><td class="n">$12–18</td></tr>
+      <tr><td>磁扣 / 织带 / 日字扣 / 按扣</td><td>Magnetic purse snaps · 1&quot; webbing + tri-glide · KAM snaps kit</td><td class="n">$25–35 合计</td></tr>
+      <tr><td>硅胶管 + 三通</td><td>Silicone tubing 1/8&quot; ID ×10 ft + barbed tee</td><td class="n">$12–15</td></tr>
+      <tr><td>慢回弹薄垫</td><td>Memory foam sheet 1/4&quot;</td><td class="n">$12–15</td></tr>
+      <tr><td>TPU 耗材</td><td>Overture / SainSmart TPU 95A 1 kg；柔一点的 NinjaFlex 85A 可选</td><td class="n">$20–25/卷</td></tr>
+      <tr class="total"><td>V0 第一批小计</td><td></td><td class="n">≈$130–170</td></tr>
+    </table></div>
+
+    <div class="callout dusk">
+      <p><strong>「交互气泵」的三条正路（V1 电控阶段，美国语境）：</strong>手捏球只是 V0 的零电子台架方案；到可编程阶段，HCI/软体机器人社区的标准做法是——
+      ① <strong>Programmable-Air</strong>（开源 Arduino 气动套件，泵+阀+传感一体，Crowd Supply 约 $150）：省两周调试，社区文档全；
+      ② <strong>FlowIO</strong>（MIT Media Lab 的「气动树莓派」，5 通道、蓝牙/JS/Arduino 全栈，softrobotics.io 申请/购买）：最贴 HCI 原型语境；
+      ③ <strong>拆机方案</strong>——Amazon 的臂用空气波按摩仪（Comfytemp 类，$50–70，FSA 可报销）本身就是「泵+阀+多腔袖箍」的完整供体，拆机改造既得控制器又得 A 区袖箍的现成腔体。
+      预算优先选 ③，进度优先选 ①，论文语境优先选 ②；自购散件（12V 泵 $10–15 + 电磁阀 $8–12/只）最便宜但调试成本最高，不再作为首选。</p>
+    </div>
 
     <div class="tablewrap"><table>
       <tr><th colspan="3">🛒 第一批采购 · V0 必买（下单即开工）</th></tr>
