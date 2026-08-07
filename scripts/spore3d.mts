@@ -84,7 +84,46 @@ for (let y = 0; y < Y; y++) {
   }
 }
 
-// keep the largest connected component (paranoia — revolution is connected)
+const preCarve = grid.slice(); // pristine solid, for repairing the face patch
+
+// ---------- 2b) wispiness — the openwork that defines the creatures ----------
+// The 2D engine drops cells probabilistically (fillProb, edge-thinned) and
+// lets the bottom fringe dissolve into strands. Reapply that in 3D on the
+// outer shell only: the core stays solid so the piece prints and stands.
+const solid = process.argv.includes('--solid');
+if (!solid) {
+  const rng3 = new Rng(xmur3(`${id}:carve`)());
+  // per-column strand length for the dripping bottom fringe
+  const strand = new Float32Array(X * Z);
+  for (let z = 0; z < Z; z++) for (let x = 0; x < X; x++) strand[x + X * z] = rng3.next();
+  const fadeH = Math.max(2, Math.round(Y * 0.2)); // bottom drip zone
+  for (let y = 0; y < Y; y++) {
+    const r = Math.min(rows - 1, rows - 1 - Math.floor(y / S));
+    const radius = hw[r];
+    if (radius <= 0) continue;
+    for (let z = 0; z < Z; z++) {
+      for (let x = 0; x < X; x++) {
+        const i = at(x, y, z);
+        if (!grid[i]) continue;
+        const u = (x + 0.5) / S - cols / 2;
+        const w = (z + 0.5) / S - cols / 2;
+        const dist = Math.sqrt(u * u + w * w);
+        // engine fill rule on the outer 1-cell shell; occasional deeper pits
+        if (dist > radius - 1) {
+          const p = 0.55 + density * 0.5 - 0.35 * (1 - density);
+          if (rng3.next() > p) { grid[i] = 0; continue; }
+        } else if (dist > radius - 1.8 && rng3.next() < 0.14) { grid[i] = 0; continue; }
+        // bottom fringe dissolves into hanging strands (core keeps standing)
+        if (y < fadeH && dist > radius * 0.45) {
+          const t = 1 - y / fadeH;
+          if (t > strand[x + X * z]) grid[i] = 0;
+        }
+      }
+    }
+  }
+}
+
+// keep the largest connected component (erosion can orphan flakes)
 {
   const seen = new Uint8Array(X * Y * Z);
   let best: number[] = [];
@@ -152,6 +191,20 @@ const eyeCells: Array<{ col: number; pupil: boolean }> = [
   { col: eyes.R0, pupil: true },
   { col: eyes.R0 + 1, pupil: false },
 ];
+// the erosion must not chew the face: restore the eye columns to their
+// pristine surface first so whites and pupils sit on one clean plane.
+for (const { col } of eyeCells) {
+  for (let sx = 0; sx < S; sx++) {
+    for (let sy = 0; sy < S; sy++) {
+      const x = col * S + sx;
+      const y = (rows - 1 - eyes.row) * S + sy;
+      for (let z = 0; z < Z; z++) {
+        const i = at(x, y, z);
+        if (preCarve[i]) { grid[i] = 1; if (!colors.has(i)) colors.set(i, colorAt(x, y, z)); }
+      }
+    }
+  }
+}
 for (const { col, pupil } of eyeCells) {
   for (let sx = 0; sx < S; sx++) {
     for (let sy = 0; sy < S; sy++) {
