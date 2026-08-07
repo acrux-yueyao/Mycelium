@@ -346,6 +346,55 @@
       <li><strong>节律有效性</strong>——跟随充泄节律 15 分钟后，被试呼吸是否真的被带慢？（数呼吸即可，前后各测 1 分钟）</li>
       <li><strong>温度与面料</strong>——36 °C 后颈加热 + 戒指绒贴肤，主观上是「体温」还是「电热毯」？（这是产品成立与否的分水岭）</li>
     </ol>
+
+    <h3 class="prose">制作清单（购买 + 打印 · 总汇）</h3>
+    <p class="prose">汇总全文档的采购与打印项，按「现在就办 / 验证后再办」分批。此表为唯一执行清单，取代上方分散条目。</p>
+
+    <div class="tablewrap"><table>
+      <tr><th colspan="3">🛒 第一批采购 · V0 必买（下单即开工）</th></tr>
+      <tr><th>物料</th><th>规格</th><th class="n">参考价</th></tr>
+      <tr><td>仿羊绒戒指绒面料</td><td>幅宽 150 · 1.5 m（外罩，参数定型后再换真羊绒）</td><td class="n">¥60–120</td></tr>
+      <tr><td>莫代尔针织内衬</td><td>1 m 贴肤层</td><td class="n">¥25</td></tr>
+      <tr><td>慢回弹海绵</td><td>5 mm 薄片 0.5 m²</td><td class="n">¥20</td></tr>
+      <tr><td>血压计袖带气囊 + 手捏球 + 放气阀</td><td>成人款 ×3 套（B/C 平掌囊 + A 袖箍直接用）</td><td class="n">¥45</td></tr>
+      <tr><td>USB 石墨烯加热片</td><td>5V 三档温控 · 约 20×10 cm</td><td class="n">¥30</td></tr>
+      <tr><td>强磁对扣</td><td>×2 对（前襟启动/逃脱开关）</td><td class="n">¥15</td></tr>
+      <tr><td>织带 + 日字扣 + 弹性带</td><td>25 mm 织带 2 m · 日字扣 ×4 · 弹性段料 ×4（袖箍扣带）</td><td class="n">¥20</td></tr>
+      <tr><td>按扣</td><td>×8（袖箍底座挂点）</td><td class="n">¥8</td></tr>
+      <tr><td>硅胶管 + 三通</td><td>ID4/OD6 ×2 m · 三通 ×2</td><td class="n">¥15</td></tr>
+      <tr><td>缝纫耗材</td><td>线 / 别针 / 划粉 / 加固衬芯</td><td class="n">¥20</td></tr>
+      <tr class="total"><td>第一批小计</td><td>充电宝、打印机已有</td><td class="n">≈¥260–320</td></tr>
+    </table></div>
+
+    <div class="tablewrap"><table>
+      <tr><th colspan="3">🖨️ 打印清单 · 与快递同步进行（按优先级）</th></tr>
+      <tr><th>打印件</th><th>材料 · 设置</th><th>备注</th></tr>
+      <tr><td>① 掌形传压板 ×3</td><td>TPU 85–90A · 2–3 mm · 15% 填充</td><td><strong>今晚就打</strong>——五指分叉掌形，B/C 的「手感」来源</td></tr>
+      <tr><td>② 手动滑夹 ×5</td><td>PETG</td><td>同意开关，每路供气管一枚</td></tr>
+      <tr><td>③ 节流孔插件套件</td><td>PETG · ∅0.5 / 0.6 / 0.8 / 1.0 各 2</td><td>调「揉」速与泄气时长的旋钮</td></tr>
+      <tr><td>④ 快插接头 ×2 + 磁扣锁头座 ×4</td><td>PETG + TPU 密封圈</td><td>袖箍拆装与扣带锁头</td></tr>
+      <tr><td>⑤ 三腔袖箍囊试验件 ×1</td><td>TPU 95A · 0.5 喷嘴 · ≥3 壁 · 层高 ≤0.2</td><td>V0.5 用；泡水打气检漏，工作压仅 5.3 kPa</td></tr>
+      <tr><td>⑥ 指腹凸点垫 ×2（可选）</td><td>TPU 85A</td><td>袖箍贴臂面的指尖颗粒感</td></tr>
+      <tr class="total"><td>耗材</td><td>TPU 95A ×1 卷 · TPU 85A ×1 卷 · PETG 少量</td><td>若无 ≈¥60–120</td></tr>
+    </table></div>
+
+    <div class="tablewrap"><table>
+      <tr><th colspan="3">⏳ 第二批采购 · V1 电控（V0 参数验证通过后再买）</th></tr>
+      <tr><th>物料</th><th>规格</th><th class="n">参考价</th></tr>
+      <tr><td>主控 + 传感</td><td>Arduino Nano · XGZP6847A 气压传感器（0–10 kPa）· NTC ×2</td><td class="n">¥55</td></tr>
+      <tr><td>气动</td><td>370 静音隔膜泵 · 3/2 电磁阀 ×3（失电=泄）· 单向阀 · 泄压阀 40/25 mmHg</td><td class="n">¥95</td></tr>
+      <tr><td>电控</td><td>MOSFET 模块 ×2 · 41 °C 热熔断 ×1 · 12V 电源 + 降压</td><td class="n">¥45</td></tr>
+      <tr><td>结构</td><td>储气室（PET 瓶可代）· 消音棉 · 泵盒 · 紧度旋钮电位器</td><td class="n">¥35</td></tr>
+      <tr class="total"><td>第二批小计</td><td>针阀由打印件③替代</td><td class="n">≈¥230</td></tr>
+    </table></div>
+
+    <div class="tablewrap"><table>
+      <tr><th colspan="2">🔍 可选调研件</th></tr>
+      <tr><td>空气波按摩仪（臂用）</td><td>≈¥100–200 · 拆机研究多腔袖箍的腔体与走管，可退可闲鱼</td></tr>
+      <tr><td>真羊绒戒指绒</td><td>面料实验通过、版型定型后替换外罩时再买</td></tr>
+    </table></div>
+
+    <p class="prose"><strong>执行顺序</strong>：今晚打印①② → 快递到货裁剪缝纫（一晚，见上方制作步骤） → 装气路热路 + 掌形板入袋 → 自测校准 → 实验一（顺序盲测）→ 数据决定第二批采购。<strong>第一批 + 耗材合计 ≈¥320–440，就能走到实验一结束。</strong></p>
   </section>
 
   <section>
