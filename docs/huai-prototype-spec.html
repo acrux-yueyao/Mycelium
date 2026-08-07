@@ -256,7 +256,7 @@
       <tr><th>通道</th><th>参数</th><th class="n">数值</th><th>依据 / 备注</th></tr>
       <tr><td rowspan="2"><strong>深压</strong></td><td>分区目标压（可调）</td><td class="n">15–30 mmHg</td><td>充气深压马甲文献常用舒适区间；「紧度」旋钮调上限</td></tr>
       <tr><td>硬件泄压阀上限</td><td class="n">40 mmHg</td><td>机械泄压，不依赖软件；安全红线</td></tr>
-      <tr><td rowspan="2"><strong>节律</strong></td><td>呼吸引导频率</td><td class="n">12 → 6 次/分</td><td>从常人静息呼吸频率起，15 分钟内缓降；充气=环抱收紧对应吸气相，占周期约 40%，泄气占 60%</td></tr>
+      <tr><td rowspan="2"><strong>节律</strong></td><td>呼吸引导频率</td><td class="n">12 → 6 次/分</td><td>Tsai et al. 2015：6 次/分 × 20 分钟对失眠者直接有效，12 次/分无效；充气相:泄气相 ≈ 3:7（对应吸:呼的有效参数）；节律永不快于用户当前呼吸</td></tr>
       <tr><td>心跳模块</td><td class="n">58 → 50 bpm</td><td>锁骨处低频微搏动（微型气囊或 LRA 线性马达），幅度以「贴着胸口才察觉」为准</td></tr>
       <tr><td rowspan="3"><strong>温度</strong></td><td>初始接触温度</td><td class="n">36 °C</td><td>「刚被抱住」的体温感；NTC 测皮肤接触面实际温度</td></tr>
       <tr><td>入睡温度曲线</td><td class="n">36 → 33 °C</td><td>约 12 分钟后开始缓降，顺应核心体温下降的入睡节律，不与之对抗</td></tr>
@@ -291,7 +291,7 @@
           <text x="600" y="230" class="sm" fill="var(--warm)">33 °C · 接触温度</text>
         </svg>
       </div>
-      <figcaption><b>图 3 · 30 分钟入睡序列。</b>三个阶段：<b>入怀</b>（顺序充气到目标压 + 升温到 36 °C）、<b>同步</b>（节律从 12 缓降到 6 次/分，把呼吸带下来）、<b>沉入</b>（压力幅度渐弱、温度缓降到 33 °C，30 分钟后静默停机，只留织物余温）。合上磁扣后延迟 30 秒启动，给人躺好的时间。</figcaption>
+      <figcaption><b>图 3 · 30 分钟入睡序列。</b>三个阶段：<b>入怀</b>（60–90 秒顺序充气到目标压 + 升温到 36 °C；每区充气 ≥5 秒）、<b>同步</b>（节律从 12 缓降到 6 次/分，把呼吸带下来）、<b>沉入</b>（压力幅度渐弱、温度缓降到 33 °C，30 分钟后静默停机，只留织物余温）。合上磁扣后延迟 30 秒启动，给人躺好的时间。</figcaption>
     </figure>
 
     <div class="callout dusk">
@@ -401,6 +401,17 @@
 
   <section class="prose">
     <h2>七、验证实验</h2>
+
+    <h3>实验一 · 充气顺序盲测（V0 日间，检验 H1 / H2）</h3>
+    <p>手动原型的优势是捏球顺序随便换，这个实验直接决定 V1 的硬件复杂度。被试戴眼罩坐卧，三个条件各体验 2 次（拉丁方平衡顺序），每次 90 秒序列后评「被拥抱感」1–10，全部结束后强迫选择「哪一种最像被人抱住」：</p>
+    <ul>
+      <li><strong>条件 A</strong>：外缘 → 中心（设计假设，H1）</li>
+      <li><strong>条件 B</strong>：全区同时充气（对照，等价于普通深压马甲）</li>
+      <li><strong>条件 C</strong>：中心 → 外缘（反向对照）</li>
+    </ul>
+    <p>附加环节：对条件 A 再比较两种泄气——对称速度 vs 慢一倍（H2）。<strong>判定规则：若 A 未胜出，V1 砍掉三路阀门改单路充气，成本减半；若 A 胜出，「拥抱方向可被气动时序编码」即为可发表的原创发现。</strong></p>
+
+    <h3>实验二 · 七晚 ABA 睡眠试用</h3>
     <p>被试 5 人（含至少 2 名自述肌肤饥渴/入睡困难者），单人 7 晚 ABA 设计：<code>2 晚基线 → 3 晚使用 → 2 晚撤除</code>。撤除段与基线段对比，用于排除新奇效应。</p>
     <div class="tablewrap"><table>
       <tr><th>指标</th><th>测量方式</th><th>判断标准</th></tr>
@@ -424,8 +435,48 @@
     </ul>
   </section>
 
+  <section>
+    <h2 class="prose">九、理论依据与证据分级</h2>
+    <p class="prose">每一条设计决策标注证据等级：<strong>A</strong> = 直接实证（同场景或同类刺激的对照研究）；<strong>B</strong> = 邻域实证（机制或先例成立，但场景/刺激不同，移植含假设）；<strong>C</strong> = 设计推断（有观察与逻辑支撑，无文献，必须进实验清单）。</p>
+
+    <div class="tablewrap"><table>
+      <tr><th>设计决策</th><th>依据</th><th class="n">等级</th><th>要点</th></tr>
+      <tr><td>深压改善失眠</td><td>Ekholm et al. 2020（RCT）</td><td class="n">A</td><td>8kg 链毯 4 周：59.4% 被试失眠严重度减半，对照组仅 5.4%；缓解率 42.2% vs 3.6%</td></tr>
+      <tr><td>节律 6 次/分 · 吸呼 3:7 · 20 分钟</td><td>Tsai et al. 2015</td><td class="n">A</td><td>失眠者睡前 20 分钟 6 次/分引导呼吸：入睡潜伏期缩短、觉醒减少；12 次/分无效——频率本身是有效成分</td></tr>
+      <tr><td>皮肤微加温缩短入睡</td><td>Kräuchi et al. 1999；Raymann et al. 2007</td><td class="n">A</td><td>远-近端皮温梯度（DPG）是入睡速度最佳生理预测子；热中性范围内 +0.4 °C 微加温即缩短潜伏期</td></tr>
+      <tr><td>分区压上浮 ~20%、充气需数十秒</td><td>IPC 临床工程文献</td><td class="n">A</td><td>组织实际压力约低于囊压 20%；充气 5–20 秒不足以建立稳定组织压，50 秒级才够；顺序加压无回流</td></tr>
+      <tr><td>顺序离散刺激 → 连续动作错觉</td><td>Geldard &amp; Sherrick 1972；Tactile Brush 2011</td><td class="n">B</td><td>振动觉下 SOA ≈ 0.32×刺激时长 + 47.3 ms 产生连续似动；慢速气压的外推区间待自测（H3）</td></tr>
+      <tr><td>气囊时序可合成「拥抱」</td><td>Force Jacket（CHI 2018）</td><td class="n">B</td><td>26 气囊时序编排合成含「被拥抱」在内的 14 种可辨识体验</td></tr>
+      <tr><td>压力+温度顺序带引呼吸</td><td>Affective Sleeve 2019；aSpire 2021</td><td class="n">B</td><td>腕→肘顺序温压袖套：节律慢于呼吸 → 平静上升；快 25% → 平静下降。「永不快于用户」由此而来</td></tr>
+      <tr><td>拥抱 ≥5 秒才愉悦</td><td>Dueren et al. 2021</td><td class="n">B</td><td>1 秒拥抱显著更不愉悦，5 秒与 10 秒无差——入怀阶段每区充气 ≥5 秒</td></tr>
+      <tr><td>释放时机高度敏感</td><td>HuggieBot（THRI 2022）</td><td class="n">B</td><td>过早或过晚释放都不悦；机器主动的拥抱中手势被正面评价（支持「它先动你被动」）</td></tr>
+      <tr><td>心跳搏动安抚</td><td>EmotionCheck（UbiComp 2016）</td><td class="n">B</td><td>腕部慢于真实心率的伪心跳振动降低焦虑</td></tr>
+      <tr><td>外缘 → 中心的充气方向</td><td>拥抱接触序列的动力学观察</td><td class="n">C</td><td>真实拥抱先触臂后收胸，方向=「外→内」；无文献直接检验，实验一主检验项（H1）</td></tr>
+    </table></div>
+
+    <div class="prose">
+      <h3>研究倒逼的三处设计修正</h3>
+      <ol>
+        <li><strong>入怀序列从「快速充到位」改为 60–90 秒。</strong>IPC 文献表明短于数十秒的充气建立不起稳定的组织压力（隔着绒层与内衬更是如此），Dueren 的拥抱时长研究又给出每区 ≥5 秒的下限——「入怀」本身就该是慢的。</li>
+        <li><strong>吸呼比从 40:60 改为 3:7。</strong>Tsai et al. 的有效参数是 6 次/分、吸:呼=3:7、共 20 分钟——与我们的序列时长恰好吻合，直接照搬，不自创。</li>
+        <li><strong>节律起点「略慢于用户，且永不快于用户」。</strong>Affective Sleeve 发现比呼吸快 25% 的节律反而降低平静感——带引只能从下方牵引。V1 若无呼吸传感，起点固定 12 次/分（低于绝大多数人的静息呼吸）即安全。</li>
+      </ol>
+
+      <h3>待验证假设清单</h3>
+      <ul>
+        <li><strong>H1</strong> 方向：外→中 的「被拥抱感」&gt; 同时充气 &gt; 中→外（实验一）</li>
+        <li><strong>H2</strong> 释放：泄气时长 ≥ 2× 充气时长优于对称泄气（实验一附加环节）</li>
+        <li><strong>H3</strong> 外推：似动错觉在 0.1 Hz 级慢速气压刺激上仍成立，SOA 有效区间自测（V0 顺带记录）</li>
+        <li><strong>H4</strong> 心跳：锁骨处 50–58 bpm 微搏动提高晨起描述中「人」的隐喻出现率（实验二定性数据）</li>
+      </ul>
+      <div class="callout">
+        <p>诚实的边界：A 级证据支撑的是「深压、慢节律、微加温各自有效」；「把三者按拥抱的时空结构编排在一件披肩里会更有效」是本设计的核心假设，整个验证章节都在检验它。</p>
+      </div>
+    </div>
+  </section>
+
   <section class="prose">
-    <h2>九、参考</h2>
+    <h2>十、参考</h2>
     <ul class="refs">
       <li>Huggy Pajama（气囊+加热远程拥抱睡衣）— <a href="https://link.springer.com/chapter/10.1007/978-1-84996-137-0_7">Springer</a></li>
       <li>Hugging Suit: Pneumatic System for Remote Haptic Experiences — <a href="https://dl.acm.org/doi/full/10.1145/3764687.3764723">OzCHI 2025</a></li>
@@ -433,6 +484,18 @@
       <li>A calming hug: 气动「呼吸」抱枕缓解焦虑（效果≈引导冥想）— <a href="https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0259838">PLOS One</a></li>
       <li>Active hugging vest for deep touch pressure therapy — <a href="https://dl.acm.org/doi/10.1145/2968219.2971344">UbiComp 2016</a></li>
       <li>市场对照：Hug Sleep Sleep Pod（被动弹力包裹助眠，Shark Tank）— <a href="https://hugsleep.com/">hugsleep.com</a></li>
+      <li>Ekholm et al. 2020, 加重链毯治疗精神科失眠 RCT — <a href="https://jcsm.aasm.org/doi/full/10.5664/jcsm.8636">J Clin Sleep Med</a></li>
+      <li>Tsai et al. 2015, 睡前 6 次/分引导呼吸对失眠的效果 — <a href="https://onlinelibrary.wiley.com/doi/abs/10.1111/psyp.12333">Psychophysiology</a></li>
+      <li>Kräuchi et al. 1999, Warm feet promote the rapid onset of sleep — <a href="https://www.nature.com/articles/43366">Nature</a></li>
+      <li>Raymann et al., 皮温与入睡潜伏期（年龄与失眠差异）— <a href="https://www.sciencedirect.com/science/article/abs/pii/S0031938406003933">Physiology &amp; Behavior</a></li>
+      <li>Israr &amp; Poupyrev 2011, Tactile Brush: Drawing on Skin with a Tactile Grid Display — <a href="https://la.disneyresearch.com/wp-content/uploads/Tactile-Brush-Drawing-on-Skin-with-a-Tactile-Grid-Display-Paper.pdf">CHI 2011 (PDF)</a></li>
+      <li>Delazio et al. 2018, Force Jacket（26 气囊时序合成拥抱等体验）— <a href="https://eandt.theiet.org/2018/04/27/disney-force-jacket-creates-sensation-being-hugged-punched-or-swole">CHI 2018 报道</a></li>
+      <li>Dueren et al. 2021, 拥抱时长/交叉方式与愉悦度 — <a href="https://pubmed.ncbi.nlm.nih.gov/34739902/">Acta Psychologica</a></li>
+      <li>Block et al. 2022, In the Arms of a Robot（HuggieBot 拥抱中手势与释放时机）— <a href="https://dl.acm.org/doi/10.1145/3526110">ACM THRI</a></li>
+      <li>Papadopoulou et al. 2019, Affective Sleeve（顺序温压带引呼吸促平静）— <a href="https://link.springer.com/chapter/10.1007/978-3-030-21935-2_23">HCII 2019</a></li>
+      <li>Kim et al. 2021, aSpire（气动触觉呼吸调节）— <a href="https://dl.acm.org/doi/10.1145/3411763.3451602">CHI EA 2021</a></li>
+      <li>Olszewski et al., IPC 腔压/时序与组织液压力关系 — <a href="https://pubmed.ncbi.nlm.nih.gov/24364846/">PubMed</a></li>
+      <li>Costa et al. 2016, EmotionCheck（伪心跳振动降低焦虑）— UbiComp 2016</li>
       <li>需求原声：某社交平台拥抱疗法视频评论区（2026-08 截图存档）——价格锚点 500–1000+ 元/次；「不好意思说」「感觉是营销」等原话见研究章节。</li>
     </ul>
   </section>
