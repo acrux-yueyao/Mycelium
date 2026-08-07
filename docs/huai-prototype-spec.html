@@ -271,7 +271,7 @@
       <tr><td rowspan="3"><strong>温度</strong></td><td>初始接触温度</td><td class="n">36 °C</td><td>「刚被抱住」的体温感；NTC 测皮肤接触面实际温度</td></tr>
       <tr><td>入睡温度曲线</td><td class="n">36 → 33 °C</td><td>约 12 分钟后开始缓降，顺应核心体温下降的入睡节律，不与之对抗</td></tr>
       <tr><td>双重温度保护</td><td class="n">38 / 41 °C</td><td>软件限温 38 °C；硬件热熔断 41 °C，独立于主控</td></tr>
-      <tr><td><strong>抚摸</strong></td><td>CT 纤维最优速度</td><td class="n">3–10 cm/s</td><td>V0/V1 不做机械抚摸；保留给引导音轨或后续版本</td></tr>
+      <tr><td><strong>抚摸</strong></td><td>CT 纤维最优速度</td><td class="n">3–10 cm/s</td><td>V2 细胞矩阵沿带逐列接力充放实现抚摸波（图 10），1.5–4.8 s/格恰落此区间</td></tr>
     </table></div>
 
     <figure>
@@ -774,7 +774,77 @@
       <tr><td>C（领下）</td><td class="n">2</td><td class="n">30 / 15</td><td>r 200–276</td><td class="n">740–870</td><td class="n">≈0.40 L</td><td class="n">16±2 mmHg</td></tr>
       <tr class="total"><td>合计</td><td class="n">8</td><td></td><td></td><td></td><td class="n">≈2.44 L</td><td class="n">入怀 ≈97 s ✓</td></tr>
     </table></div>
-    <p class="prose">条囊版相对五大囊的得与失，写明供决策：<strong>得</strong>——贴合双曲率肩部、压力均匀无「块感」、填充波从 3 级细化到 8 级（更接近连续的「一只手臂滑拢」）、泄气后仍有绗缝的羽绒服外观（把设备彻底藏进服装语言，绗缝线就是焊缝线）、充气横向微缩带来真正的环身收拢。<strong>失</strong>——带内波速由流阻决定、不可逐通道编程（所以<strong>实验一的 SOA 扫描仍用五大囊平台做</strong>，结论迁移到条囊的通道间距设计）；单条穿孔失一带（三带隔离兜底）；血压袖带不可复用，V0.5 需自制——TPU 膜双层 + 脉冲封口机（约 ¥100）画线热合即可打样，或直接找充气制品厂开模。<strong>V0（五大囊）→ V0.5（自制条囊）→ V1（工厂条囊）</strong>是建议的迭代路径。</p>
+    <p class="prose">条囊版相对五大囊的得与失，写明供决策：<strong>得</strong>——贴合双曲率肩部、压力均匀无「块感」、填充波从 3 级细化到 8 级（更接近连续的「一只手臂滑拢」）、泄气后仍有绗缝的羽绒服外观（把设备彻底藏进服装语言，绗缝线就是焊缝线）、充气横向微缩带来真正的环身收拢。<strong>失</strong>——带内波速由流阻决定、不可逐通道编程（所以<strong>实验一的 SOA 扫描仍用五大囊平台做</strong>，结论迁移到条囊的通道间距设计）；单条穿孔失一带（三带隔离兜底）；血压袖带不可复用，V0.5 需自制——TPU 膜双层 + 脉冲封口机（约 ¥100）画线热合即可打样，或直接找充气制品厂开模。<strong>V0（五大囊）→ V0.5（自制条囊）→ V1（工厂条囊）→ V2（细胞矩阵）</strong>是建议的迭代路径。</p>
+
+    <h3 class="prose">图 10 · 细胞矩阵与门阀（V2）</h3>
+    <p class="prose">在条囊基础上再切一刀：每条通道按角向分成 8 段，全幅成为 <strong>3 带 × 8 列 = 24 个细胞</strong>的矩阵，相邻细胞间的窄颈上设「门」——门开则气流通过、门关则到此为止。<strong>哪里膨胀，第一次变成了可以逐区决定的事。</strong>门分三级实现，成本与能力逐级换：</p>
+    <ul class="prose">
+      <li><strong>一级 · 手动滑夹（V1 即可加装，零电子）</strong>——每个细胞颈上一个滑动夹。用户在试穿时把不想被压的区域永久关掉，形成个人化的<em>同意地图</em>：评论区那位「有人摸一下我头发丝儿都能炸」的用户，可以直接关掉领下两格。「哪里可以碰」的协商从服务话术变成物理界面，这是拥抱疗法给不了的控制权。</li>
+      <li><strong>二级 · 列门阀（V2 主方案）</strong>——行列复用：3 路带供气 × 7 个列间微型夹管阀（5V，在衣，只走线不走管）= <strong>10 路控制 24 细胞</strong>，对比全寻址的 48 阀。能做的事：让「拥抱」有了手——单列充气 = 一只手按在肩上；相邻列 1.5–4.8 秒逐格接力 = 沿肩背的<strong>抚摸波，速度正落在 CT 纤维最优的 3–10 cm/s</strong>（B 带格距 145 mm）。搁置至今的第四通道在这里解锁。</li>
+      <li><strong>三级 · 全寻址（不做）</strong>——每格独立进出气需 48 阀，重量、噪音、成本全面失控；Force Jacket 用 26 组独立阀证明了感知价值，也证明了它只能活在实验室。列门阀方案保留了 80% 的表达力和 20% 的复杂度。</li>
+    </ul>
+    <figure>
+      <div class="frame">
+        <svg viewBox="0 0 860 440" width="860" height="440" role="img" aria-label="细胞矩阵排布：3带×8列，列间门阀，示例抚摸波">
+          <path d="M 484.1 125.5 L 646.4 82 A 224 224 0 1 1 213.6 82 L 375.9 125.5 A 56 56 0 1 0 484.1 125.5 Z"
+                fill="var(--surface)" stroke="var(--ink)" stroke-width="1.8"/>
+          <path d="M 638.0 114.5 A 209.6 209.6 0 1 1 222.0 114.5 L 267.2 120.0 A 164 164 0 1 0 592.8 120.0 Z"
+                fill="var(--dusk-soft)" opacity=".55" stroke="var(--dusk)" stroke-width="1.2"/>
+          <path d="M 588.8 120.5 A 160 160 0 1 1 271.2 120.5 L 316.5 126.1 A 114.4 114.4 0 1 0 543.5 126.1 Z"
+                fill="var(--dusk-soft)" opacity=".38" stroke="var(--dusk)" stroke-width="1.2"/>
+          <path d="M 539.6 126.5 A 110.4 110.4 0 1 1 320.4 126.5 L 350.6 130.2 A 80 80 0 1 0 509.4 130.2 Z"
+                fill="var(--warm-soft)" opacity=".7" stroke="var(--warm)" stroke-width="1.2"/>
+
+          <path d="M 582.8 187.4 A 160 160 0 0 1 430 300 L 430 254.4 A 114.4 114.4 0 0 0 539.2 173.9 Z"
+                fill="var(--dusk)" opacity=".38"/>
+          <path d="M 554.3 198.0 A 137.2 137.2 0 0 1 442.0 276.7" fill="none" stroke="var(--dusk)" stroke-width="2.4" marker-end="url(#arr6)"/>
+          <defs>
+            <marker id="arr6" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto">
+              <path d="M0,0 L7,3.5 L0,7 Z" fill="var(--dusk)"/>
+            </marker>
+          </defs>
+
+          <g stroke="var(--ink)" stroke-width="1" stroke-dasharray="4 4" opacity=".55">
+            <line x1="506.4" y1="163.7" x2="630.2" y2="202.2"/>
+            <line x1="489.9" y1="193.0" x2="587.0" y2="278.9"/>
+            <line x1="462.9" y1="212.9" x2="516.1" y2="331.1"/>
+            <line x1="430"   y1="220"   x2="430"   y2="349.6"/>
+            <line x1="397.1" y1="212.9" x2="343.9" y2="331.1"/>
+            <line x1="370.1" y1="193.0" x2="273.0" y2="278.9"/>
+            <line x1="353.6" y1="163.7" x2="229.8" y2="202.2"/>
+          </g>
+
+          <g fill="var(--surface)" stroke="var(--ink)" stroke-width="1.1">
+            <rect x="516.9" y="164.2" width="8" height="8"/><rect x="557.0" y="176.7" width="8" height="8"/><rect x="604.4" y="191.4" width="8" height="8"/>
+            <rect x="497.3" y="199.1" width="8" height="8"/><rect x="528.8" y="226.9" width="8" height="8"/><rect x="565.9" y="259.8" width="8" height="8"/>
+            <rect x="465.1" y="222.8" width="8" height="8"/><rect x="482.3" y="261.1" width="8" height="8"/><rect x="502.7" y="306.3" width="8" height="8"/>
+            <rect x="426"   y="231.2" width="8" height="8"/><rect x="426"   y="273.2" width="8" height="8"/><rect x="426"   y="322.8" width="8" height="8"/>
+            <rect x="386.9" y="222.8" width="8" height="8"/><rect x="369.7" y="261.1" width="8" height="8"/><rect x="349.3" y="306.3" width="8" height="8"/>
+            <rect x="354.7" y="199.1" width="8" height="8"/><rect x="323.2" y="226.9" width="8" height="8"/><rect x="286.1" y="259.8" width="8" height="8"/>
+            <rect x="335.1" y="164.2" width="8" height="8"/><rect x="295.0" y="176.7" width="8" height="8"/><rect x="247.6" y="191.4" width="8" height="8"/>
+          </g>
+
+          <text x="612" y="238" class="lbl" fill="var(--dusk)">抚摸波 →</text>
+          <text x="612" y="256" class="sm">相邻列接力充放</text>
+          <text x="612" y="272" class="sm">1.5–4.8 s/格 = 3–10 cm/s</text>
+          <text x="430" y="50" text-anchor="middle" class="sm">3 带 × 8 列 = 24 细胞 · 虚线 = 列界（细胞颈位）· □ = 门（21 处）</text>
+          <text x="430" y="380" text-anchor="middle" class="sm">列弧长：C 101 · B 145 · A 198 mm；细胞充气厚 11–16 mm</text>
+          <text x="430" y="404" text-anchor="middle" class="sm">一级：门 = 手动滑夹（同意地图）· 二级：7 个列门阀行列复用，10 路控制 24 细胞</text>
+        </svg>
+      </div>
+      <figcaption><b>图 10 · 细胞矩阵。</b>深色示例：B 带右肩三格充气 + 逐列接力 = 一只手从肩头缓缓抚过。门位于细胞间窄颈（颈宽 8 mm，夹管阀或滑夹作用于此）；带内基础时序仍由流阻保证，门只做「允许/禁止」与「接力节拍」，控制逻辑保持简单。</figcaption>
+    </figure>
+
+    <h3 class="prose">表 8 · 细胞矩阵规格与代价</h3>
+    <div class="tablewrap"><table>
+      <tr><th>项</th><th class="n">数值</th><th>说明</th></tr>
+      <tr><td>矩阵</td><td class="n">3 × 8 = 24 格</td><td>带 = 压力/供气行，列 = 门阀控制列</td></tr>
+      <tr><td>细胞尺寸（弧长×径向）</td><td class="n">C 101×76 · B 145×114 · A 198×114 mm</td><td>充气厚 11–16 mm（约为短边 1/7）</td></tr>
+      <tr><td>抚摸波</td><td class="n">1.5–4.8 s/格</td><td>= 3–10 cm/s @ B 带格距，命中 CT 纤维最优区间</td></tr>
+      <tr><td>控制路数</td><td class="n">一级 3 · 二级 10 · 全寻址 48</td><td>二级 = 3 供气电磁阀 + 7 列微型夹管阀（5V 在衣，走线不走管）</td></tr>
+      <tr><td>焊缝损失</td><td class="n">充气面积 −约 12%</td><td>列界窄颈增加焊缝；接触压按面积补偿 +2 mmHg</td></tr>
+      <tr><td>失效模式</td><td class="n">单格穿孔失一带尾段</td><td>门关闭可隔离破损格下游——门同时是维修隔离阀</td></tr>
+    </table></div>
   </section>
 
   <section>
