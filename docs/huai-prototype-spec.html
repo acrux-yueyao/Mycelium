@@ -442,7 +442,7 @@
       <li><strong>温度</strong>：软件 38 °C 限温 + 硬件 41 °C 热熔断，两条链路互不依赖。</li>
       <li><strong>电气</strong>：全程 ≤ 12V 低压；披肩内无电池、无泵，只有气管与低压线缆。</li>
       <li><strong>逃脱</strong>：拉开前襟在断电、死机、任何故障状态下都物理有效——磁扣断开即泄气路常开。</li>
-      <li><strong>体位</strong>：仰卧位胸腹加压从最低档起步；孕期、呼吸/循环系统疾病患者禁用（说明书标注）。</li>
+      <li><strong>体位</strong>：仰卧位胸腹加压从最低档起步；<strong>趴卧判定下前身充气为硬互锁禁止</strong>（IMU + 模式逻辑双重拦截）；孕期、呼吸/循环系统疾病患者禁用（说明书标注）。</li>
       <li><strong>伦理</strong>：说明书写明「补充而非替代」，附真实触摸资源（拥抱疗法、心理咨询）的指引。</li>
     </ul>
   </section>
@@ -848,7 +848,7 @@
     </table></div>
 
     <h3 class="prose">图 11 · 形态改版：比甲式全身版</h3>
-    <p class="prose">形态从 210° 扇形披肩改为<strong>大长方形 + 深 U 前开</strong>——传统比甲的平面逻辑放大：总长 2000 mm 沿肩线对折，前后各 1000 mm，深 U 从前襟下摆直通肩线，U 底弧即领口。覆盖从肩、臂、胸一路到腰、髋、大腿。这个改版改变的不只是轮廓，是<strong>使用姿态</strong>：从「坐着披」变成「躺着盖」——正面气囊借重力向下压，几何上与加重毯一致，Ekholm 的深压证据迁移得更直接；<strong>后身完全无囊</strong>，仰卧既不硌背也不压气路。矩形直排通道让制造大幅简化——没有曲率排布，焊缝全是直线。方向语义随之升级：入怀波「腿 → 髋 → 腰 → 胸 → 肩」，正是<strong>掖被子</strong>的方向。</p>
+    <p class="prose">形态从 210° 扇形披肩改为<strong>大长方形 + 深 U 前开</strong>——传统比甲的平面逻辑放大：总长 2000 mm 沿肩线对折，前后各 1000 mm，深 U 从前襟下摆直通肩线，U 底弧即领口。覆盖从肩、臂、胸一路到腰、髋、大腿。这个改版改变的不只是轮廓，是<strong>使用姿态</strong>：从「坐着披」变成「躺着盖」——正面气囊借重力向下压，几何上与加重毯一致，Ekholm 的深压证据迁移得更直接；<strong>仰卧时后身不参与充气</strong>（姿态互斥，见图 12），既不硌背也不压气路。矩形直排通道让制造大幅简化——没有曲率排布，焊缝全是直线。方向语义随之升级：入怀波「腿 → 髋 → 腰 → 胸 → 肩」，正是<strong>掖被子</strong>的方向。</p>
     <figure>
       <div class="frame">
         <svg viewBox="0 0 860 500" width="860" height="500" role="img" aria-label="比甲式全身版展开裁剪图">
@@ -892,7 +892,7 @@
 
           <text x="410" y="60" text-anchor="middle" class="sm">肩线（对折）· C 肩鞍跨线延入后身 100</text>
           <text x="150" y="104" class="sm">前襟 ×2（左右对称）</text>
-          <text x="580" y="240" text-anchor="middle" class="sm">后身 · 无气囊（仰卧不压气路）· 仅绗缝 + 外罩坞</text>
+          <text x="580" y="240" text-anchor="middle" class="sm">后身 · 气囊分区见图 12（与前身姿态互斥激活）</text>
           <text x="138"  y="340" text-anchor="middle" class="num" fill="var(--dusk)">A 髋腿 27</text>
           <text x="243"  y="340" text-anchor="middle" class="num" fill="var(--dusk)">B 腰腹 27±4</text>
           <text x="366"  y="360" text-anchor="middle" class="num" fill="var(--warm)">C 肩胸 16±2</text>
@@ -922,6 +922,65 @@
       <tr><td>面料用量</td><td class="n">2.1 m × 幅宽 150 ×2 层</td><td>外罩坞与戒指绒逻辑不变，后身是阿贝贝的主展面</td></tr>
     </table></div>
     <p class="prose">随形态一并更新的三件事：<strong>①</strong> 实验一的方向条件改为「下→上 / 同时 / 上→下」，H1 语义不变；<strong>②</strong> 细胞矩阵在矩形上反而更简单——行（横向通道）与列（左右襟及襟内纵剖）天然正交，门阀原理原样适用；<strong>③</strong> V0 平台也建议改矩形裁剪——没有曲线版型，缝纫工作量更小，袖带气囊分置胸/腹/大腿三位即可开测。注意浮动的一点：节律调制从肩背移到了<strong>腹部</strong>，与腹式呼吸同位，带引的体感假设上更顺（吸气时腹部随气囊同起）——但这是新形态引入的新假设，进实验二观察项。</p>
+
+    <h3 class="prose">图 12 · 后身气囊与三姿态系统</h3>
+    <p class="prose">后身不再空置——它要同时服务三个真实场景：<strong>仰卧</strong>（前身压，掖被子）、<strong>趴卧</strong>（后身压，像一只手掌贴在背上——「拍背哄睡」的成人版）、<strong>伏案 ✍️</strong>（肩鞍轻按 + 腰背成为腰靠——从背后被环住的坐姿拥抱）。三姿态由后领内一颗 IMU（MPU6050，约 ¥10）按重力方向判定，前/后身<strong>互斥激活</strong>：这既是舒适设计，更是安全设计——<strong>趴卧时胸前充气会限制呼吸，前身在趴卧判定下被硬互锁禁止</strong>。翻身时不是切换而是跟随：30 秒交叉渐变，泄气先行于充气——<em>怀抱跟着你翻身</em>。</p>
+    <figure>
+      <div class="frame">
+        <svg viewBox="0 0 860 470" width="860" height="470" role="img" aria-label="后身气囊分区图：三带，脊柱留白，IMU位置">
+          <rect x="255" y="70" width="350" height="336" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.8"/>
+          <line x1="255" y1="70" x2="255" y2="406" stroke="var(--ink)" stroke-width="1.2" stroke-dasharray="8 5"/>
+          <line x1="255" y1="231" x2="605" y2="231" stroke="var(--muted)" stroke-width="1" stroke-dasharray="5 4"/>
+          <line x1="255" y1="245" x2="605" y2="245" stroke="var(--muted)" stroke-width="1" stroke-dasharray="5 4"/>
+
+          <rect x="290" y="84"  width="87.5" height="147" fill="var(--warm-soft)" opacity=".85" stroke="var(--warm)" stroke-width="1.2"/>
+          <rect x="290" y="245" width="87.5" height="147" fill="var(--warm-soft)" opacity=".85" stroke="var(--warm)" stroke-width="1.2"/>
+          <rect x="377.5" y="84"  width="105" height="147" fill="var(--dusk-soft)" opacity=".85" stroke="var(--dusk)" stroke-width="1.2"/>
+          <rect x="377.5" y="245" width="105" height="147" fill="var(--dusk-soft)" opacity=".85" stroke="var(--dusk)" stroke-width="1.2"/>
+          <rect x="482.5" y="84"  width="105" height="147" fill="var(--dusk-soft)" opacity=".5"  stroke="var(--dusk)" stroke-width="1.2"/>
+          <rect x="482.5" y="245" width="105" height="147" fill="var(--dusk-soft)" opacity=".5"  stroke="var(--dusk)" stroke-width="1.2"/>
+
+          <g stroke="var(--muted)" stroke-width="1" stroke-dasharray="4 3" opacity=".7">
+            <line x1="310" y1="84" x2="310" y2="231"/><line x1="330" y1="84" x2="330" y2="231"/><line x1="350" y1="84" x2="350" y2="231"/>
+            <line x1="310" y1="245" x2="310" y2="392"/><line x1="330" y1="245" x2="330" y2="392"/><line x1="350" y1="245" x2="350" y2="392"/>
+            <line x1="398" y1="84" x2="398" y2="231"/><line x1="418" y1="84" x2="418" y2="231"/><line x1="438" y1="84" x2="438" y2="231"/><line x1="458" y1="84" x2="458" y2="231"/>
+            <line x1="398" y1="245" x2="398" y2="392"/><line x1="418" y1="245" x2="418" y2="392"/><line x1="438" y1="245" x2="438" y2="392"/><line x1="458" y1="245" x2="458" y2="392"/>
+            <line x1="503" y1="84" x2="503" y2="231"/><line x1="523" y1="84" x2="523" y2="231"/><line x1="543" y1="84" x2="543" y2="231"/><line x1="563" y1="84" x2="563" y2="231"/>
+            <line x1="503" y1="245" x2="503" y2="392"/><line x1="523" y1="245" x2="523" y2="392"/><line x1="543" y1="245" x2="543" y2="392"/><line x1="563" y1="245" x2="563" y2="392"/>
+          </g>
+
+          <circle cx="268" cy="100" r="5" fill="var(--dusk)"/>
+          <text x="280" y="96" class="sm">IMU（后领内 · 姿态判定）</text>
+
+          <text x="333"  y="330" text-anchor="middle" class="num" fill="var(--warm)">后C 肩胛 16±2</text>
+          <text x="430"  y="330" text-anchor="middle" class="num" fill="var(--dusk)">后B 腰背 27±4</text>
+          <text x="535"  y="330" text-anchor="middle" class="num" fill="var(--dusk)">后A 臀腿 27</text>
+          <text x="430" y="240" text-anchor="middle" class="sm" opacity=".9">脊柱正中留白 40</text>
+          <text x="255" y="60" class="sm">肩线（对折处）</text>
+          <text x="640" y="240" class="sm">→ 后襟下摆</text>
+
+          <line x1="560" y1="428" x2="310" y2="428" stroke="var(--warm)" stroke-width="1.6" stroke-dasharray="7 5" marker-end="url(#arr8)"/>
+          <defs>
+            <marker id="arr8" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto">
+              <path d="M0,0 L7,3.5 L0,7 Z" fill="var(--warm)"/>
+            </marker>
+          </defs>
+          <text x="430" y="450" text-anchor="middle" class="sm">趴卧入怀波：臀腿 → 腰背 → 肩胛（同为「掖被子」方向）· 通道左右分半，各长 420</text>
+        </svg>
+      </div>
+      <figcaption><b>图 12 · 后身分区。</b>通道在脊柱正中断开留白 40 mm——脊柱不受直接压迫，左右两半各自蛇形串联。后 B 腰背带的节律在趴卧模式下就是「拍背」的缓奏；伏案模式下它顶着椅背成为动态腰靠。后身同时是外罩坞的主展面，阿贝贝盖在会呼吸的背上。</figcaption>
+    </figure>
+
+    <h3 class="prose">表 10 · 三姿态模式</h3>
+    <div class="tablewrap"><table>
+      <tr><th>姿态（IMU 判定）</th><th>激活组</th><th>压力 / 节律</th><th>加热</th><th>说明</th></tr>
+      <tr><td>仰卧</td><td>前 A + 前 B + 前 C</td><td>前 B 腹部 27±4，掖被子波</td><td>锁骨下 36→33 °C 曲线</td><td>后身全泄；标准 30 分钟入睡序列</td></tr>
+      <tr><td>趴卧</td><td>后 A + 后 B + 后 C</td><td>后 B 腰背 27±4「拍背缓奏」</td><td>保温档 ≤33 °C（加热片被压，热堆积保护）</td><td><strong>前身硬互锁禁止</strong>；入怀波 98 s</td></tr>
+      <tr><td>坐姿 / 伏案 ✍️</td><td>C 肩鞍 + 后 B 腰靠（可选前 A 膝腿）</td><td>恒定轻压 + 6 次/分缓节律持续</td><td>恒温 33–34 °C</td><td>不执行入睡曲线；肩上有手、背后有怀、腿上有猫</td></tr>
+      <tr><td>侧卧</td><td>仅 C 肩鞍</td><td>16 mmHg 静态</td><td>保温档</td><td>安全默认档；实验二观察项</td></tr>
+      <tr><td>翻身过渡</td><td>—</td><td>30 s 交叉渐变，泄先于充</td><td>—</td><td>怀抱跟着翻身；判定滞回 10 s 防抖</td></tr>
+    </table></div>
+    <p class="prose">硬件增量：供气阀 3 → 6（前/后 × A/B/C，失电全泄逻辑不变）、IMU ×1、后身囊体 ≈4.85 L。互斥激活意味着<strong>单侧最大气量 ≈4.9 L，泵配置不变</strong>（双 370 并联，入怀 87–98 s）。制造上后身与前身共用同一套直线焊工艺，仅脊柱留白处多两道纵向焊缝。</p>
   </section>
 
   <section>
