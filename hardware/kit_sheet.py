@@ -58,7 +58,7 @@ def main(base):
     # core void: 6 cols from anchor, 7 engine rows around the eyes, back 3 depth
     vc0 = a.get('voidC0', a['coreC0'] + 1)             # void leaves a 1-cube side wall
     vr0, vr1 = a['eyeRow'] - 2, a['eyeRow'] + 4        # inclusive engine rows
-    void = lambda x, r, z: (vc0 <= x < vc0 + 6) and (vr0 <= r <= vr1) and z < Z - 1
+    void = lambda x, r, z: (vc0 <= x < vc0 + 6) and (vr0 <= r <= vr1) and 0 < z < Z - 1
 
     kit, removed = [], 0
     for x, y, z, hexcol, *_ in vox:
@@ -72,6 +72,17 @@ def main(base):
 
     counts = np.bincount(lab, minlength=len(centers))
     total = len(kit)
+
+    # functional cubes: W window (eyes/ToF), M mic hole, V back vents
+    zf = Z - 1
+    special = {}
+    for c0 in (a['L0'], a['L0'] + 1, a['R0'], a['R0'] + 1):
+        special[(c0, a['eyeRow'], zf)] = 'W'
+    tcx = vc0 + 3
+    special[(tcx, a['eyeRow'] - 2, zf)] = 'W'
+    special[(tcx, a['eyeRow'] + 2, zf)] = 'M'
+    for dx in (-1, 1):
+        special[(tcx + dx, a['eyeRow'] + 4, 0)] = 'V'
 
     with PdfPages(base + '_kit.pdf') as pdf:
         # ---- cover: front view + stats ----
@@ -92,7 +103,8 @@ def main(base):
                  f"cubes     {total}",
                  f"magnets   {total * 3}  (O4x2 N35)",
                  f"discs     {total * 3}  (O5x0.5 steel)",
-                 f"core void 6x7x3 cells, insert from back",
+                 f"core void 6x7x3 centred; ALL 6 faces are cubes",
+                 f"function cubes: W window x5 / M mic x1 / V vent x2",
                  "", "colour bill:"]
         for i, c in enumerate(counts):
             lines.append(f"  [{i + 1}]  {chex[i]}   x {c}")
@@ -145,9 +157,9 @@ def main(base):
         axS.set_title('右视图 SIDE', fontsize=10, family='monospace')
         # core void dashed on side view (front face at u=0)
         vy0 = rows - 1 - vr1
-        axS.add_patch(Rectangle((1, vy0), Z - 1, vr1 - vr0 + 1, fill=False,
+        axS.add_patch(Rectangle((1, vy0), Z - 2, vr1 - vr0 + 1, fill=False,
                                 ec='#5b4fd0', ls='--', lw=1.3))
-        axS.text(1 + (Z - 1)/2, vy0 + (vr1 - vr0 + 1)/2, 'CORE', rotation=90,
+        axS.text(1 + (Z - 2)/2, vy0 + (vr1 - vr0 + 1)/2, 'CORE', rotation=90,
                  ha='center', va='center', fontsize=8, color='#5b4fd0',
                  family='monospace')
         # dimensions (mm)
@@ -175,10 +187,14 @@ def main(base):
                 for (x, y, z, _), li in zip(kit, lab):
                     if y != ly:
                         continue
-                    ax.add_patch(Rectangle((x, z), 1, 1, fc=chex[li],
-                                           ec='#1c1c1a', lw=0.5))
-                    ax.text(x + 0.5, z + 0.5, str(li + 1), ha='center',
-                            va='center', fontsize=6.5, family='monospace')
+                    tag = special.get((x, rows - 1 - y, z))
+                    ax.add_patch(Rectangle((x, z), 1, 1,
+                                           fc='#ffffff' if tag else chex[li],
+                                           ec='#5b4fd0' if tag else '#1c1c1a',
+                                           lw=1.2 if tag else 0.5))
+                    ax.text(x + 0.5, z + 0.5, tag or str(li + 1), ha='center',
+                            va='center', fontsize=6.5, family='monospace',
+                            color='#5b4fd0' if tag else '#1c1c1a')
                 if vr0 <= r <= vr1:
                     ax.add_patch(Rectangle((vc0, 0), 6, Z - 1, fill=False,
                                            ec='#5b4fd0', ls='--', lw=1.4))

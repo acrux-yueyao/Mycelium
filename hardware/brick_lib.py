@@ -141,10 +141,44 @@ def mosaic_cube(pitch=P):
     return c
 
 
+def window_cube(pitch=P):
+    """Hollow through-cube for eye/ToF cells: open front-to-back (y axis),
+    magnets/steel + nubs on the four side faces only. The cartridge's
+    riser-mounted OLED glass sits 1-2 mm behind its front plane."""
+    c = B(0, 0, 0, pitch, pitch, pitch)
+    c = D(c, B(1.6, -1, 1.6, pitch-1.6, pitch+1, pitch-1.6))
+    h = pitch/2
+    MAG_R, MAG_D = 2.15, 1.3      # shallower pockets: walls are 1.6
+    STL_R, STL_D = 2.65, 0.7
+    for axis in (0, 2):           # x and z faces keep the coupling
+        for positive, r, d_ in ((True, MAG_R, MAG_D), (False, STL_R, STL_D)):
+            cyl = cylinder(radius=r, height=d_+2, sections=32)
+            if axis == 0:
+                cyl.apply_transform(trimesh.transformations.rotation_matrix(math.pi/2, [0, 1, 0]))
+                cyl.apply_transform(TM([(pitch - d_/2 + 1) if positive else (d_/2 - 1), h, h]))
+            else:
+                cyl.apply_transform(TM([h, h, (pitch - d_/2 + 1) if positive else (d_/2 - 1)]))
+            c = D(c, cyl)
+    c.fix_normals()
+    return c
+
+
+def hole_cube(pitch=P, hole=2.5):
+    """Standard mosaic cube with a through-hole (mic / vent / USB access)."""
+    c = mosaic_cube(pitch)
+    drill = cylinder(radius=hole/2, height=pitch+4, sections=24)
+    drill.apply_transform(trimesh.transformations.rotation_matrix(math.pi/2, [1, 0, 0]))
+    drill.apply_transform(TM([pitch/2, pitch/2, pitch/2]))
+    c = D(c, drill)
+    c.fix_normals()
+    return c
+
+
 if __name__ == '__main__':
     out = sys.argv[1] if len(sys.argv) > 1 else '.'
     coupons = {'coupon_2x2': brick(2, 2), 'coupon_1x4': brick(1, 4),
-               'coupon_2x4': brick(2, 4), 'mosaic_cube': mosaic_cube()}
+               'coupon_2x4': brick(2, 4), 'mosaic_cube': mosaic_cube(),
+               'window_cube': window_cube(), 'hole_cube': hole_cube()}
     for name, m in coupons.items():
         print(name, 'watertight', m.is_watertight, 'tris', len(m.faces))
         m.export(f'{out}/{name}.stl')
