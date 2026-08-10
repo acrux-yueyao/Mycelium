@@ -768,10 +768,10 @@ body,
  * quiet row of the newest residents, no scrolling, overflow simply
  * dissolves off the right edge. */
 @media (min-aspect-ratio: 2/1) and (max-height: 560px) {
-  body.kiosk-mode .scene.archive { padding: 22px 28px; overflow: hidden; height: 100vh; }
-  body.kiosk-mode .archive-head { margin-bottom: 14px; display: flex; align-items: baseline; gap: 18px; }
-  body.kiosk-mode .archive-head h2 { font-size: 12px; }
-  body.kiosk-mode .archive-head p { font-size: 10px; }
+  body.kiosk-mode .scene.archive { padding: 16px 28px; overflow: hidden; height: 100vh; }
+  body.kiosk-mode .archive-head { margin-bottom: 10px; display: flex; align-items: baseline; gap: 18px; }
+  body.kiosk-mode .archive-head h2 { font-size: 16px; }
+  body.kiosk-mode .archive-head p { font-size: 12px; }
   body.kiosk-mode .archive-grid {
     display: flex;
     flex-wrap: nowrap;
@@ -785,7 +785,10 @@ body,
     mask-image: linear-gradient(to right, transparent, #000 3%, #000 94%, transparent);
   }
   body.kiosk-mode .archive-grid::-webkit-scrollbar { display: none; }
-  body.kiosk-mode .archive-card { flex: 0 0 188px; scroll-snap-align: start; }
+  body.kiosk-mode .archive-card { flex: 0 0 300px; padding: 16px; scroll-snap-align: start; }
+  body.kiosk-mode .archive-thumb { height: 238px; }
+  body.kiosk-mode .archive-thumb canvas { height: 228px !important; width: auto !important; }
+  body.kiosk-mode .archive-meta { font-size: 14px; line-height: 1.55; margin-top: 10px; }
 }
 
 /* The tower's 7" low panel (800x480): shrink the microscope to fit. */

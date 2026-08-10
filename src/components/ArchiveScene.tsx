@@ -17,20 +17,40 @@ interface Props {
 }
 
 export function ArchiveScene({ creatures }: Props) {
-  // On the tower's touch strip the grid scrolls sideways under a finger.
-  // Exhibition etiquette: 45s after the last touch, drift home to the
-  // newest resident so the next visitor never inherits a stale page.
+  // On the tower's touch strip the archive flows like a slow river:
+  // a gentle auto-scroll ping-pongs through the whole catalogue. A touch
+  // pauses the river so a visitor can browse by hand; ten idle seconds
+  // later it resumes drifting from wherever they left it.
   const gridRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const el = gridRef.current;
     if (!el || !document.body.classList.contains('kiosk-mode')) return;
-    let timer: number | undefined;
-    const arm = () => {
-      window.clearTimeout(timer);
-      timer = window.setTimeout(() => el.scrollTo({ left: 0, behavior: 'smooth' }), 45000);
+    let raf = 0;
+    let dir = 1;
+    let last = performance.now();
+    let lastTouch = -Infinity;
+    const touched = () => { lastTouch = performance.now(); };
+    const step = (t: number) => {
+      raf = requestAnimationFrame(step);
+      const dt = Math.min(t - last, 100);
+      last = t;
+      if (t - lastTouch < 10000) return;       // visitor is (or just was) browsing
+      const max = el.scrollWidth - el.clientWidth;
+      if (max <= 0) return;
+      el.scrollLeft += dir * 0.022 * dt;       // ~22px/s — river pace
+      if (el.scrollLeft >= max - 1) dir = -1;
+      if (el.scrollLeft <= 1) dir = 1;
     };
-    el.addEventListener('scroll', arm, { passive: true });
-    return () => { window.clearTimeout(timer); el.removeEventListener('scroll', arm); };
+    el.addEventListener('pointerdown', touched, { passive: true });
+    el.addEventListener('touchstart', touched, { passive: true });
+    el.addEventListener('wheel', touched, { passive: true });
+    raf = requestAnimationFrame(step);
+    return () => {
+      cancelAnimationFrame(raf);
+      el.removeEventListener('pointerdown', touched);
+      el.removeEventListener('touchstart', touched);
+      el.removeEventListener('wheel', touched);
+    };
   }, []);
   return (
     <motion.div
