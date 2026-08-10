@@ -61,7 +61,10 @@ def build_frame():
     f = D(f, B(24, 64, -1, 36, 72, 2.5))                  # ToF window
     for i in range(5):                                    # mic holes
         f = D(f, CYL_Z(24+i*3, 30, -1, 2.5, 0.8, 16))
-    f = D(f, B(37.75, 8.25, -1, 47.25, 11.75, 2.5))       # USB-C window
+    # USB-C window for the TP4057 board (21x14, C port centred on the 21
+    # edge): board lies flat on the bay floor (y=2) on ~1mm velcro, pcb
+    # 1.6, receptacle centre ≈ y6.2. Window 10x5.5 absorbs stack variance.
+    f = D(f, B(37.5, 3.6, -1, 47.5, 9.1, 2.5))
     # v1.5: rebated back door — lid drops in flush onto a 2 mm ledge
     f = D(f, B(2.5, 26, 20.5, 57.5, 73.5, 26))            # through opening flush with shelf
     f = D(f, B(1.5, 25.5, 23, 58.5, 74.5, 26))            # rebate ledge

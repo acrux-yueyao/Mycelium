@@ -2,14 +2,14 @@
 """
 MC-01 soldering & wiring sheet — carrier-board construction drawing.
 
-Layer allocation (v1.5.1, corrected so the TP4056's USB-C meets the frame
-window in the D bay):
+Layer allocation (v1.5.4, TP4057 21×14 measured — USB-C window moved
+to y3.6–9.1, board flat on the bay floor):
   A  sensing carrier 55×48 : VL53L0X (window-aligned) + INMP441 (mic holes)
                              + OLED ribbon pass zone + I2C/I2S stubs
   B  logic carrier  55×48  : XIAO ESP32-S3 · MAX98357A · MPU6050 · MPR121
                              + bus rail (3V3/GND/SDA/SCL) + harness headers
   C  energy slot           : 603040 battery (velcro) + spare TCA9548A zone
-  D  bay                   : TP4056-C at the USB window + 2030 speaker
+  D  bay                   : TP4057-C 21×14 flat on velcro + 3020 speaker
 
 Perfboard: 2.54 mm pitch, cut to 55×48 (21×18 holes). Wires 28 AWG silicone.
 Output: hardware/mc01_solder_sheet.pdf
@@ -119,15 +119,15 @@ with PdfPages('/home/user/Mycelium/hardware/mc01_solder_sheet.pdf') as pdf:
     axC.add_patch(Rectangle((38, 12), 15, 24, fill=False, ec=SOFT, ls='--', lw=1.2))
     axC.text(45.5, 24, 'TCA9548A\n备用位', ha='center', va='center',
              fontsize=7, color=SOFT)
-    axC.text(27.5, -5, '电池线沿右侧壁下行 → D 舱 TP4056 B+/B−',
+    axC.text(27.5, -5, '电池线沿右侧壁下行 → D 舱 TP4057 B+/B−',
              ha='center', fontsize=7, color=SOFT)
 
     axD.add_patch(Rectangle((0, 0), 56, 22, fill=False, ec=INK, lw=2))
     axD.add_patch(Circle((16, 11), 9.5, fill=False, ec=INK, lw=1.8))
     axD.text(16, 11, '2030 喇叭\n朝下', ha='center', va='center', fontsize=8)
-    axD.add_patch(Rectangle((34, 2), 20, 17.5, fill=False, ec=INK, lw=1.8))
-    axD.text(44, 12, 'TP4056-C', ha='center', fontsize=8, weight='bold')
-    axD.text(44, 7, 'USB口↓对准前窗', ha='center', fontsize=6.5, color=SOFT)
+    axD.add_patch(Rectangle((32, 2), 21, 14, fill=False, ec=INK, lw=1.8))
+    axD.text(42.5, 11, 'TP4057-C 21×14', ha='center', fontsize=8, weight='bold')
+    axD.text(42.5, 6.5, '平贴魔术贴 · USB口↓对准前窗', ha='center', fontsize=6.5, color=SOFT)
     axD.set_xlim(-3, 59); axD.set_ylim(-5, 26)
     axD.set_aspect('equal'); axD.axis('off'); axD.set_facecolor(BG)
     axD.set_title('D 底舱平面 56×22', fontsize=11, family='monospace')
@@ -137,8 +137,8 @@ with PdfPages('/home/user/Mycelium/hardware/mc01_solder_sheet.pdf') as pdf:
         ('H1 I2C 干线', 'B·J1 → A·J1', '4:3V3 GND SDA SCL', '70mm'),
         ('H2 麦克风', 'B·J2 → A·J2', '3:SCK WS SD', '70mm'),
         ('H3 双屏', 'B 母线 → 升高柱×2', '4×2:并联 0x3C/0x3D', '110mm'),
-        ('H4 电池', 'C 电池 → D·TP4056 B±', '2:红+黑−(验极性!)', '90mm'),
-        ('H5 系统电', 'D·TP4056 OUT± → B·J3', '2', '80mm'),
+        ('H4 电池', 'C 电池 → D·TP4057 B±', '2:红+黑−(验极性!)', '90mm'),
+        ('H5 系统电', 'D·TP4057 OUT± → B·J3', '2', '80mm'),
         ('H6 喇叭', 'B·J4 → D 喇叭', '2', '80mm'),
         ('H7 外设', 'B·J5 → 顶槽出舱', '3:5V GND DIN + 铜箔', '150mm'),
     ]
