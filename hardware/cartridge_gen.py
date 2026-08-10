@@ -54,10 +54,10 @@ def build_frame():
     f = U(f, B(2, 24, 1.5, 58, 26, 20.5))                 # shelf over D bay
     # v1.5: risers replace fixed screen windows — one wire slot across the
     # eye band plus two rows of M2 rail holes (riser slides to any spacing)
-    f = D(f, B(12, 43, -1, 48, 49, 2.5))                  # wire slot 36×6
+    f = D(f, B(8, 43, -1, 52, 49, 2.5))                   # wire slot 44×6
     for yy in (40, 52):
-        for k in range(9):
-            f = D(f, CYL_Z(12 + k*4.5, yy, -1, 2.5, 0.9, 16))
+        for k in range(12):                               # full-width rail: x5..54.5
+            f = D(f, CYL_Z(5 + k*4.5, yy, -1, 2.5, 0.9, 16))
     f = D(f, B(24, 64, -1, 36, 72, 2.5))                  # ToF window
     for i in range(5):                                    # mic holes
         f = D(f, CYL_Z(24+i*3, 30, -1, 2.5, 0.8, 16))
