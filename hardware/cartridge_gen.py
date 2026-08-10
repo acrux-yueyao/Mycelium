@@ -40,10 +40,17 @@ D = lambda a, b: trimesh.boolean.difference([a, b])
 
 def build_frame():
     f = B(0, 0, 0, 60, 80, 25)
-    f = D(f, B(2, 2, 1.5, 58, 78, 23))                    # cavity
+    f = D(f, B(2, 2, 1.5, 58, 73.5, 23))                  # cavity flush with door top
     for zr0, zr1 in [(6.5, 7.0), (13.0, 13.5)]:           # card-slot ribs
         f = U(f, B(2, 26, zr0, 4.5, 74, zr1))
         f = U(f, B(55.5, 26, zr0, 58, 74, zr1))
+        # 45-degree diamond spines under/over each rib: self-supporting
+        # face-down, carriers get 3x3 corner clips to clear them
+        for wx in (2, 58):
+            dia = box(extents=[3.6, 48, 3.6],
+                      transform=TM([wx, 50, (zr0 + zr1) / 2]))
+            dia.apply_transform(RM(math.pi/4, [0, 1, 0], point=[wx, 50, (zr0 + zr1) / 2]))
+            f = U(f, dia)
     f = U(f, B(2, 24, 1.5, 58, 26, 20.5))                 # shelf over D bay
     # v1.5: risers replace fixed screen windows — one wire slot across the
     # eye band plus two rows of M2 rail holes (riser slides to any spacing)
@@ -56,9 +63,9 @@ def build_frame():
         f = D(f, CYL_Z(24+i*3, 30, -1, 2.5, 0.8, 16))
     f = D(f, B(37.75, 8.25, -1, 47.25, 11.75, 2.5))       # USB-C window
     # v1.5: rebated back door — lid drops in flush onto a 2 mm ledge
-    f = D(f, B(2.5, 26.5, 20.5, 57.5, 73.5, 26))          # through opening
+    f = D(f, B(2.5, 26, 20.5, 57.5, 73.5, 26))            # through opening flush with shelf
     f = D(f, B(1.5, 25.5, 23, 58.5, 74.5, 26))            # rebate ledge
-    f = D(f, B(15, 4, 22, 45, 22, 26))                    # D-bay service opening
+    f = D(f, B(2.5, 3, 22, 57.5, 25.5, 26))               # D-bay opening runs up to the door rebate
     f = D(f, B(26, 77, 20, 34, 81, 24))                   # top wire slot
     f = D(f, CYL_Y(17, 12.5, -1, 3, 1.25, 20))            # speaker grille
     for k in range(8):
@@ -73,6 +80,8 @@ def build_frame():
                   transform=TM([mx, 1.6, mz + 2.65]))
         dia.apply_transform(RM(math.pi/4, [0, 1, 0], point=[mx, 1.6, mz + 2.65]))
         f = D(f, dia)
+    # clip everything back to the outer envelope (rib spines poke 0.55)
+    f = trimesh.boolean.intersection([f, B(0, 0, 0, 60, 80, 25)])
     f.fix_normals()
     return f
 
