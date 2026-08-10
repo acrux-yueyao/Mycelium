@@ -271,29 +271,27 @@ def eye_module(win_col=1, pitch=P):
 def eye_patch_kit(eye_cells=((1, 1), (1, 2)), pitch=P, pocket_d=8.0):
     """The 3x3 eye module as NINE single-cell pieces — deep-pocket edition.
 
-    The shared screen pocket now reaches pocket_d (8mm) into the pieces,
-    so the OLED glass sits only ~4mm behind the mosaic surface. Because
-    the pocket eats the face centres, the INTERNAL seam couplings
-    (magnet/steel + nubs) move forward into the 4mm front band (centre
-    y=10); all patch-EXTERNAL faces keep the standard centre coupling so
-    the patch mates normally with the surrounding wall. Front and back
-    faces carry no coupling (exterior / open). Bottom-centre piece has
-    the pigtail channel. Returns {name: mesh}.
+    The shared screen pocket reaches pocket_d (8mm) into the pieces, so
+    the OLED glass sits ~4mm behind the mosaic surface. Because the
+    pocket eats the face centres, the INTERNAL seam couplings move
+    forward into the 4mm front band (centre y=10): a SMALL O2.3x1.1
+    magnet pocket (O2x1 magnet — the band cannot take the O4) plus one
+    full pin high in the band and one HALF pin whose flat side sits on
+    the pocket line (uniform O2.4 pin diameter). All patch-EXTERNAL
+    faces keep the standard centre O4x2 coupling — the 4mm full-depth
+    rim carries it — so the patch mates normally with the surrounding
+    wall. Front and back faces carry no coupling (exterior / open).
+    Bottom-centre piece has the pigtail channel. Returns {name: mesh}.
     """
     W = 3 * pitch
-    MAG_R, MAG_D = 2.15, 2.1
-    STL_R, STL_D = 2.65, 0.7
-    NUB_R, NUB_H = 1.2, 0.5
-    DIM_R, DIM_D = 1.45, 0.65
-    OFF = 3.5
-    ySEAM = pitch - (pitch - pocket_d) / 2 - 0.0  # centre of front band
+    SMAG_R, SMAG_D = 1.15, 1.1    # O2.3 x 1.1 pocket for O2x1 magnet
     ySEAM = pocket_d + (pitch - pocket_d) / 2     # = 10 for pocket 8
 
     def face_kit(m, axis, positive, internal, ox, oy, oz):
         """couplings on one side face of a cube at origin (ox,oy,oz).
         axis 0=x, 2=z; y offset of pocket centres: 6 external, ySEAM internal."""
         yc = ySEAM if internal else pitch / 2
-        r, d_ = MAG_R, MAG_D          # dual-magnet everywhere
+        r, d_ = (SMAG_R, SMAG_D) if internal else (MAG_R, MAG_D)
         def cyl(rr, dep, c1, c2, add=False):
             hgt = dep + (0.02 if add else 2)
             if add:
@@ -313,7 +311,7 @@ def eye_patch_kit(eye_cells=((1, 1), (1, 2)), pitch=P, pocket_d=8.0):
 
         def fk_cyl(r, depth, u, v, add=False, half=None):
             """u = y coord in face, v = other in-plane coord; half='low'
-            clips to a half-cylinder with the flat side on the y=8 line."""
+            clips to a half-cylinder, flat side on the pocket line."""
             if add:
                 hgt = depth + 0.02
                 pos = pitch + depth/2 if positive else -depth/2
@@ -328,24 +326,26 @@ def eye_patch_kit(eye_cells=((1, 1), (1, 2)), pitch=P, pocket_d=8.0):
                 cc.apply_transform(TM([org[0]+v, org[1]+u, org[2]+pos]))
             if half == 'low':
                 cc = trimesh.boolean.intersection(
-                    [cc, B(org[0]-20, org[1]+8, org[2]-20, org[0]+40, org[1]+40, org[2]+40)])
+                    [cc, B(org[0]-20, org[1]+pocket_d, org[2]-20,
+                           org[0]+40, org[1]+40, org[2]+40)])
             return cc
 
         if internal:
-            # full pin/dimple high in the band + half (flat side on y=8) low
+            # full pin/dimple high in the band + half pin whose flat side
+            # sits exactly on the pocket line (rule ②: cut at the diameter)
             if positive:
-                m = U([m, fk_cyl(1.2, 0.5, 9.5, 9.5, add=True)])
-                m = U([m, fk_cyl(1.2, 0.5, 8.0, 2.5, add=True, half='low')])
+                m = U([m, fk_cyl(NUB_R, NUB_H, 9.5, 9.5, add=True)])
+                m = U([m, fk_cyl(NUB_R, NUB_H, pocket_d, 2.5, add=True, half='low')])
             else:
-                m = D(m, fk_cyl(1.45, 0.65, 9.5, 9.5))
-                m = D(m, fk_cyl(1.45, 0.65, 8.0, 2.5, half='low'))
+                m = D(m, fk_cyl(DIM_R, DIM_D, 9.5, 9.5))
+                m = D(m, fk_cyl(DIM_R, DIM_D, pocket_d, 2.5, half='low'))
         else:
             if positive:
-                m = U([m, fk_cyl(1.2, 0.5, 2.5, 2.5, add=True)])
-                m = U([m, fk_cyl(1.2, 0.5, 9.5, 9.5, add=True)])
+                m = U([m, fk_cyl(NUB_R, NUB_H, 2.5, 2.5, add=True)])
+                m = U([m, fk_cyl(NUB_R, NUB_H, 9.5, 9.5, add=True)])
             else:
-                m = D(m, fk_cyl(1.45, 0.65, 2.5, 2.5))
-                m = D(m, fk_cyl(1.45, 0.65, 9.5, 9.5))
+                m = D(m, fk_cyl(DIM_R, DIM_D, 2.5, 2.5))
+                m = D(m, fk_cyl(DIM_R, DIM_D, 9.5, 9.5))
         return m
 
     pocket = B((W - 28) / 2, -1, (W - 28) / 2, (W + 28) / 2, pocket_d, (W + 28) / 2)

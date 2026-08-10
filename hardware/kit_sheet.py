@@ -102,6 +102,7 @@ def main(base):
                  f"family    {meta['family']}",
                  f"cubes     {total}",
                  f"magnets   {total * 6}  (O4x2 N35 · dual-magnet)",
+                 f"          + 24 O2x1 (eye-patch seams)",
                  f"core void 6x7x3 centred; ALL 6 faces are cubes",
                  f"function cubes: W window x5 / M mic x1 / V vent x2",
                  "", "colour bill:"]
