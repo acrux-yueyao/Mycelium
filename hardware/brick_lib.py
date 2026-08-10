@@ -134,10 +134,6 @@ def mosaic_cube(pitch=P):
     for axis in range(3):
         c = D(c, face_cyl(axis, True, MAG_R, MAG_D))
         c = D(c, face_cyl(axis, False, MAG_R, MAG_D))
-        # shear lock: nubs on + faces, dimples on - faces, same global offsets
-        for s_ in (+OFF, -OFF):
-            c = U([c, face_cyl(axis, True, NUB_R, NUB_H, s_, s_, add=True)])
-            c = D(c, face_cyl(axis, False, DIM_R, DIM_D, s_, s_))
     c.fix_normals()
     return c
 
@@ -266,12 +262,6 @@ def eye_patch_kit(eye_cells=((1, 1), (1, 2)), pitch=P, pocket_d=8.0):
                 cy.apply_transform(TM([ox + c2, oy + c1, oz + pos]))
             return cy
         m = D(m, cyl(r, d_, yc, pitch / 2))
-        for s_ in (+OFF, -OFF):
-            nubpos = (yc + s_ * 0.6, pitch / 2 + s_) if internal else (yc + s_, pitch / 2 + s_)
-            if positive:
-                m = U([m, cyl(NUB_R, NUB_H, nubpos[0], nubpos[1], add=True)])
-            else:
-                m = D(m, cyl(DIM_R, DIM_D, nubpos[0], nubpos[1]))
         return m
 
     pocket = B((W - 28) / 2, -1, (W - 28) / 2, (W + 28) / 2, pocket_d, (W + 28) / 2)
