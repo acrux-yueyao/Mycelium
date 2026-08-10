@@ -94,6 +94,40 @@ def brick(L, W, height=H):
     return m
 
 
+def _dome(face_axis, positive, cx, cy, pitch, dome=True):
+    """Spherical-cap shear lock, interference-free.
+
+    dome=True : cap 0.5 proud, base O3.4 — built as sphere INTERSECTED
+                with the outside half-space, so no underground body ever
+                touches neighbouring faces or the magnet pocket.
+    dome=False: dimple 0.9 deep — sphere centred OUTSIDE the face, only
+                a shallow lens (lateral r2.3) enters the material.
+    Diagonal offsets (cx, cy) of +-3.5 keep both clear of edges (2.5mm)
+    and of the centre pocket (4.95mm > 4.45 needed)."""
+    h = pitch / 2
+    if dome:
+        sp = trimesh.creation.icosphere(subdivisions=2, radius=3.2)
+        along = (pitch - 2.7) if positive else 2.7
+        slab_lo = pitch if positive else -2
+        slab_hi = pitch + 2 if positive else 0
+    else:
+        sp = trimesh.creation.icosphere(subdivisions=2, radius=3.4)
+        along = (pitch + 2.5) if positive else -2.5
+    if face_axis == 0:
+        sp.apply_transform(TM([along, h + cx, h + cy]))
+        if dome:
+            sp = trimesh.boolean.intersection([sp, B(slab_lo, -20, -20, slab_hi, 40, 40)])
+    elif face_axis == 1:
+        sp.apply_transform(TM([h + cx, along, h + cy]))
+        if dome:
+            sp = trimesh.boolean.intersection([sp, B(-20, slab_lo, -20, 40, slab_hi, 40)])
+    else:
+        sp.apply_transform(TM([h + cx, h + cy, along]))
+        if dome:
+            sp = trimesh.boolean.intersection([sp, B(-20, -20, slab_lo, 40, 40, slab_hi)])
+    return sp
+
+
 def mosaic_cube(pitch=P):
     """Flat-faced mosaic voxel, 12 mm: magnets on +x/+y/+z faces, steel
     discs on -x/-y/-z (polarity-free: magnet always meets steel), diagonal
@@ -134,6 +168,9 @@ def mosaic_cube(pitch=P):
     for axis in range(3):
         c = D(c, face_cyl(axis, True, MAG_R, MAG_D))
         c = D(c, face_cyl(axis, False, MAG_R, MAG_D))
+        for s_ in (+OFF, -OFF):
+            c = U([c, _dome(axis, True, s_, s_, pitch, dome=True)])
+            c = D(c, _dome(axis, False, s_, s_, pitch, dome=False))
     c.fix_normals()
     return c
 
@@ -262,6 +299,13 @@ def eye_patch_kit(eye_cells=((1, 1), (1, 2)), pitch=P, pocket_d=8.0):
                 cy.apply_transform(TM([ox + c2, oy + c1, oz + pos]))
             return cy
         m = D(m, cyl(r, d_, yc, pitch / 2))
+        for s_ in (+3.5, -3.5):
+            if positive:
+                m = U([m, _dome(0 if axis == 0 else 2, positive,
+                                yc - pitch/2 + s_ * 0.4, s_, pitch, dome=True)])
+            else:
+                m = D(m, _dome(0 if axis == 0 else 2, positive,
+                               yc - pitch/2 + s_ * 0.4, s_, pitch, dome=False))
         return m
 
     pocket = B((W - 28) / 2, -1, (W - 28) / 2, (W + 28) / 2, pocket_d, (W + 28) / 2)
