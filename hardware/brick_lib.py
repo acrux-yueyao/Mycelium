@@ -160,22 +160,28 @@ def _ridge(face_axis, positive, along_axis, cu, cv, pitch, ridge=True,
     return cy
 
 
-def mosaic_cube(pitch=P):
-    """Flat-faced mosaic voxel, 12 mm: magnets on +x/+y/+z faces, steel
-    discs on -x/-y/-z (polarity-free: magnet always meets steel), diagonal
-    nub/dimple pairs lock shear. All cubes assemble in ONE orientation —
-    the voxel grid's own logic. Pockets are face-open; glue inserts flush.
+def mosaic_cube(pitch=P, faces=None):
+    """Flat-faced mosaic voxel, 12 mm: magnet pocket + diagonal nub/dimple
+    pairs per face. All cubes assemble in ONE orientation — the voxel
+    grid's own logic. Pockets are face-open; glue inserts flush.
+
+    faces: iterable of (axis, positive) that RECEIVE couplings; None → all
+    six. Rule ③: a face with no neighbour stays completely flat — pass
+    only the neighbour-facing keys and every exposed face prints clean.
     """
     c = B(0, 0, 0, pitch, pitch, pitch)
+    if faces is None:
+        faces = [(a, s) for a in range(3) for s in (True, False)]
 
-    # DUAL-MAGNET: every face gets a magnet pocket. Polarity convention:
+    # DUAL-MAGNET: coupled faces get a magnet pocket. Polarity convention:
     # +faces glued N-out, -faces glued S-out (load from opposite stack ends).
-    for axis in range(3):
-        c = D(c, face_cyl(axis, True, MAG_R, MAG_D, pitch=pitch))
-        c = D(c, face_cyl(axis, False, MAG_R, MAG_D, pitch=pitch))
+    for axis, pos in faces:
+        c = D(c, face_cyl(axis, pos, MAG_R, MAG_D, pitch=pitch))
         for s_ in (+OFF, -OFF):
-            c = U([c, face_cyl(axis, True, NUB_R, NUB_H, s_, s_, add=True, pitch=pitch)])
-            c = D(c, face_cyl(axis, False, DIM_R, DIM_D, s_, s_, pitch=pitch))
+            if pos:
+                c = U([c, face_cyl(axis, True, NUB_R, NUB_H, s_, s_, add=True, pitch=pitch)])
+            else:
+                c = D(c, face_cyl(axis, False, DIM_R, DIM_D, s_, s_, pitch=pitch))
     c.fix_normals()
     return c
 
