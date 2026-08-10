@@ -94,10 +94,57 @@ def brick(L, W, height=H):
     return m
 
 
+def mosaic_cube(pitch=P):
+    """Flat-faced mosaic voxel, 12 mm: magnets on +x/+y/+z faces, steel
+    discs on -x/-y/-z (polarity-free: magnet always meets steel), diagonal
+    nub/dimple pairs lock shear. All cubes assemble in ONE orientation —
+    the voxel grid's own logic. Pockets are face-open; glue inserts flush.
+    """
+    c = B(0, 0, 0, pitch, pitch, pitch)
+    h = pitch/2
+    MAG_R, MAG_D = 2.15, 2.1     # O4.3 x 2.1 pocket for O4x2 magnet
+    STL_R, STL_D = 2.65, 0.7     # O5.3 x 0.7 pocket for O5x0.5 steel disc
+    NUB_R, NUB_H = 1.2, 0.5
+    DIM_R, DIM_D = 1.45, 0.65
+    OFF = 3.5                     # diagonal nub offset
+
+    def face_cyl(axis, positive, r, depth, cx=0.0, cy=0.0, add=False):
+        """cylinder on a face: axis 0/1/2; (cx,cy) offsets in the face plane.
+        add=True → protruding nub; add=False → pocket cut exactly `depth`
+        into the face (overshoots outward for a clean boolean)."""
+        if add:
+            hgt = depth + 0.02
+            pos = pitch + depth/2 if positive else -depth/2
+        else:
+            hgt = depth + 2
+            pos = (pitch - depth/2 + 1) if positive else (depth/2 - 1)
+        cyl = cylinder(radius=r, height=hgt, sections=32)
+        if axis == 0:
+            cyl.apply_transform(trimesh.transformations.rotation_matrix(math.pi/2, [0, 1, 0]))
+            cyl.apply_transform(TM([pos, h+cx, h+cy]))
+        elif axis == 1:
+            cyl.apply_transform(trimesh.transformations.rotation_matrix(math.pi/2, [1, 0, 0]))
+            cyl.apply_transform(TM([h+cx, pos, h+cy]))
+        else:
+            cyl.apply_transform(TM([h+cx, h+cy, pos]))
+        return cyl
+
+    # magnet pockets on + faces, steel pockets on - faces
+    for axis in range(3):
+        c = D(c, face_cyl(axis, True, MAG_R, MAG_D))
+        c = D(c, face_cyl(axis, False, STL_R, STL_D))
+        # shear lock: nubs on + faces, dimples on - faces, same global offsets
+        for s_ in (+OFF, -OFF):
+            c = U([c, face_cyl(axis, True, NUB_R, NUB_H, s_, s_, add=True)])
+            c = D(c, face_cyl(axis, False, DIM_R, DIM_D, s_, s_))
+    c.fix_normals()
+    return c
+
+
 if __name__ == '__main__':
     out = sys.argv[1] if len(sys.argv) > 1 else '.'
     coupons = {'coupon_2x2': brick(2, 2), 'coupon_1x4': brick(1, 4),
-               'coupon_2x4': brick(2, 4)}
+               'coupon_2x4': brick(2, 4), 'mosaic_cube': mosaic_cube()}
     for name, m in coupons.items():
         print(name, 'watertight', m.is_watertight, 'tris', len(m.faces))
         m.export(f'{out}/{name}.stl')
