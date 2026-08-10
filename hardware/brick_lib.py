@@ -94,35 +94,41 @@ def brick(L, W, height=H):
     return m
 
 
-def _dome(face_axis, positive, cx, cy, pitch, dome=True, origin=(0, 0, 0)):
-    """Spherical-cap shear lock. dome: cap 0.5 proud, base sunk 0.05 into
-    the face for a robust union. dimple: 0.9-deep lens. (cx, cy) are the
-    two in-face offsets from the face centre; origin shifts the whole
-    feature for pieces modelled away from (0,0,0)."""
+def _ridge(face_axis, positive, along_axis, cu, cv, pitch, ridge=True,
+           origin=(0, 0, 0)):
+    """Half-cylinder shear lock (semicircle profile, extruded).
+
+    ridge=True : D-ridge r1.05 × L5, proud 1.05, flat side sunk 0.05 into
+                 the face for a robust union.
+    ridge=False: matching groove r1.25 × L5.8, cut 1.25 deep.
+    (cu, cv) place the ridge centre in the face plane; along_axis picks
+    the extrusion direction (must differ from face_axis)."""
+    r = 1.05 if ridge else 1.25
+    L = 5.0 if ridge else 5.8
+    cy = cylinder(radius=r, height=L, sections=28)
+    # cylinder axis starts along z; rotate to along_axis
+    if along_axis == 0:
+        cy.apply_transform(trimesh.transformations.rotation_matrix(math.pi/2, [0, 1, 0]))
+    elif along_axis == 1:
+        cy.apply_transform(trimesh.transformations.rotation_matrix(math.pi/2, [1, 0, 0]))
+    # position: axis centre sits ON the face plane (sunk 0.05 for ridges)
+    face_pos = (pitch - 0.05 if ridge else pitch) if positive else (0.05 if ridge else 0)
     h = pitch / 2
-    if dome:
-        sp = trimesh.creation.icosphere(subdivisions=2, radius=3.2)
-        along = (pitch - 2.7) if positive else 2.7
-    else:
-        sp = trimesh.creation.icosphere(subdivisions=2, radius=3.4)
-        along = (pitch + 2.5) if positive else -2.5
-    if face_axis == 0:
-        pos = [along, h + cx, h + cy]
-    elif face_axis == 1:
-        pos = [h + cx, along, h + cy]
-    else:
-        pos = [h + cx, h + cy, along]
-    sp.apply_transform(TM([pos[0] + origin[0], pos[1] + origin[1], pos[2] + origin[2]]))
-    if dome:
+    pos = [0.0, 0.0, 0.0]
+    pos[face_axis] = face_pos
+    inplane = [a for a in range(3) if a != face_axis]
+    # cu applies to the first in-plane axis, cv to the second
+    pos[inplane[0]] = h + cu
+    pos[inplane[1]] = h + cv
+    cy.apply_transform(TM([pos[0] + origin[0], pos[1] + origin[1], pos[2] + origin[2]]))
+    if ridge:
         lo = [-1e3] * 3; hi = [1e3] * 3
         if positive:
             lo[face_axis] = origin[face_axis] + pitch - 0.05
-            hi[face_axis] = origin[face_axis] + pitch + 2
         else:
-            lo[face_axis] = origin[face_axis] - 2
             hi[face_axis] = origin[face_axis] + 0.05
-        sp = trimesh.boolean.intersection([sp, B(lo[0], lo[1], lo[2], hi[0], hi[1], hi[2])])
-    return sp
+        cy = trimesh.boolean.intersection([cy, B(lo[0], lo[1], lo[2], hi[0], hi[1], hi[2])])
+    return cy
 
 
 def mosaic_cube(pitch=P):
@@ -165,9 +171,11 @@ def mosaic_cube(pitch=P):
     for axis in range(3):
         c = D(c, face_cyl(axis, True, MAG_R, MAG_D))
         c = D(c, face_cyl(axis, False, MAG_R, MAG_D))
-        for s_ in (+OFF, -OFF):
-            c = U([c, _dome(axis, True, s_, s_, pitch, dome=True)])
-            c = D(c, _dome(axis, False, s_, s_, pitch, dome=False))
+        ip = [a for a in range(3) if a != axis]
+        c = U([c, _ridge(axis, True, ip[0], 0, 3.5, pitch, ridge=True)])
+        c = U([c, _ridge(axis, True, ip[1], 3.5, 0, pitch, ridge=True)])
+        c = D(c, _ridge(axis, False, ip[0], 0, 3.5, pitch, ridge=False))
+        c = D(c, _ridge(axis, False, ip[1], 3.5, 0, pitch, ridge=False))
     c.fix_normals()
     return c
 
@@ -185,10 +193,10 @@ def window_cube(pitch=P):
         for positive in (True, False):
             # boss behind the pocket
             if axis == 0:
-                bx = (pitch-3.0, pitch-1.6) if positive else (1.6, 3.0)
+                bx = (pitch-3.0, pitch-1.59) if positive else (1.59, 3.0)
                 c = U([c, B(bx[0], h-3, h-3, bx[1], h+3, h+3)])
             else:
-                bz = (pitch-3.0, pitch-1.6) if positive else (1.6, 3.0)
+                bz = (pitch-3.0, pitch-1.59) if positive else (1.59, 3.0)
                 c = U([c, B(h-3, h-3, bz[0], h+3, h+3, bz[1])])
             cyl = cylinder(radius=MAG_R, height=MAG_D+2, sections=32)
             pos = (pitch - MAG_D/2 + 1) if positive else (MAG_D/2 - 1)
@@ -199,9 +207,11 @@ def window_cube(pitch=P):
                 cyl.apply_transform(TM([h, h, pos]))
             c = D(c, cyl)
     for axis in (0, 2):
-        for s_ in (+3.5, -3.5):
-            c = U([c, _dome(axis, True, s_, s_, pitch, dome=True)])
-            c = D(c, _dome(axis, False, s_, s_, pitch, dome=False))
+        ip = [a for a in range(3) if a != axis]
+        c = U([c, _ridge(axis, True, ip[0], 0, 3.5, pitch, ridge=True)])
+        c = U([c, _ridge(axis, True, ip[1], 3.5, 0, pitch, ridge=True)])
+        c = D(c, _ridge(axis, False, ip[0], 0, 3.5, pitch, ridge=False))
+        c = D(c, _ridge(axis, False, ip[1], 3.5, 0, pitch, ridge=False))
     c.fix_normals()
     return c
 
@@ -302,15 +312,22 @@ def eye_patch_kit(eye_cells=((1, 1), (1, 2)), pitch=P, pocket_d=8.0):
         m = D(m, cyl(r, d_, yc, pitch / 2))
         fa = 0 if axis == 0 else 2
         org = (ox, oy, oz)
-        for s_ in (+3.5, -3.5):
-            if internal:
-                off = (3.5, s_) if fa == 0 else (s_, 3.5)   # y pinned to the 9.5 band
-            else:
-                off = (s_, s_)                              # standard diagonal
+        ip = [a for a in range(3) if a != fa]
+        if internal:
+            # single ridge running across the seam inside the y=8..12 band
+            along = ip[1] if ip[0] == 1 else ip[0]      # the non-y in-plane axis
+            cu, cv = (4.0, 0) if ip[0] == 1 else (0, 4.0)  # y offset +4 → y=10
             if positive:
-                m = U([m, _dome(fa, True, off[0], off[1], pitch, dome=True, origin=org)])
+                m = U([m, _ridge(fa, True, along, cu, cv, pitch, ridge=True, origin=org)])
             else:
-                m = D(m, _dome(fa, False, off[0], off[1], pitch, dome=False, origin=org))
+                m = D(m, _ridge(fa, False, along, cu, cv, pitch, ridge=False, origin=org))
+        else:
+            if positive:
+                m = U([m, _ridge(fa, True, ip[0], 0, 3.5, pitch, ridge=True, origin=org)])
+                m = U([m, _ridge(fa, True, ip[1], 3.5, 0, pitch, ridge=True, origin=org)])
+            else:
+                m = D(m, _ridge(fa, False, ip[0], 0, 3.5, pitch, ridge=False, origin=org))
+                m = D(m, _ridge(fa, False, ip[1], 3.5, 0, pitch, ridge=False, origin=org))
         return m
 
     pocket = B((W - 28) / 2, -1, (W - 28) / 2, (W + 28) / 2, pocket_d, (W + 28) / 2)
