@@ -68,13 +68,11 @@ def build_frame():
         f = D(f, CYL_Y(px, 6, -1, 3, 1.1, 20))
     for mx, mz in ((5, 5), (5, 20), (55, 5), (55, 20)):   # blind magnet pockets
         f = D(f, CYL_Y(mx, mz, 0.6, 2.6, 2.65, 24))
-    # v1.5: shallow steel-disc pockets on the exterior sides/top so the
-    # surrounding mosaic cubes' magnets lock the cartridge into the shell
-    for (cy, cz) in ((40, 12.5), (60, 12.5)):
-        f = D(f, CYL_X(0.7/2 - 0.0, cy, cz, 2.65))        # left face
-        f = D(f, CYL_X(60 - 0.7/2, cy, cz, 2.65))         # right face
-    for cx in (20, 40):
-        f = D(f, CYL_Y(cx, 12.5, 80 - 0.7, 80.1, 2.65, 24))  # top face
+        # teardrop cap: 45-degree diamond prism toward +z (print-up)
+        dia = box(extents=[3.75, 2.0, 3.75],
+                  transform=TM([mx, 1.6, mz + 2.65]))
+        dia.apply_transform(RM(math.pi/4, [0, 1, 0], point=[mx, 1.6, mz + 2.65]))
+        f = D(f, dia)
     f.fix_normals()
     return f
 
