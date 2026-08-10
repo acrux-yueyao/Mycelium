@@ -217,34 +217,75 @@ def eye_module(win_col=1, pitch=P):
     return m
 
 
-def eye_patch_kit(eye_cells=((1, 1), (1, 2)), pitch=P):
-    """The 3x3 eye module, decomposed into NINE single-cell mosaic pieces.
+def eye_patch_kit(eye_cells=((1, 1), (1, 2)), pitch=P, pocket_d=8.0):
+    """The 3x3 eye module as NINE single-cell pieces — deep-pocket edition.
 
-    Every piece is a standard 12mm cube outside (full magnet/steel/nub
-    coupling — assembles exactly like the rest of the wall). The only
-    difference is on the BACK: each carries its cell's share of a shared
-    28x28x3.6 screen pocket, so the assembled 3x3 patch nests a 0.96"
-    SSD1306 flush behind it (glass against the window cubes). The
-    bottom-centre piece adds a pigtail channel. eye_cells = (row, col)
-    of the two window cells, row 0 = top.
-    Returns {name: mesh} for the 9 pieces.
+    The shared screen pocket now reaches pocket_d (8mm) into the pieces,
+    so the OLED glass sits only ~4mm behind the mosaic surface. Because
+    the pocket eats the face centres, the INTERNAL seam couplings
+    (magnet/steel + nubs) move forward into the 4mm front band (centre
+    y=10); all patch-EXTERNAL faces keep the standard centre coupling so
+    the patch mates normally with the surrounding wall. Front and back
+    faces carry no coupling (exterior / open). Bottom-centre piece has
+    the pigtail channel. Returns {name: mesh}.
     """
     W = 3 * pitch
-    pocket = B((W - 28) / 2, -1, (W - 28) / 2, (W + 28) / 2, 3.6, (W + 28) / 2)
-    chan = B(W/2 - 4, -1, -1, W/2 + 4, 3.6, 6)
+    MAG_R, MAG_D = 2.15, 2.1
+    STL_R, STL_D = 2.65, 0.7
+    NUB_R, NUB_H = 1.2, 0.5
+    DIM_R, DIM_D = 1.45, 0.65
+    OFF = 3.5
+    ySEAM = pitch - (pitch - pocket_d) / 2 - 0.0  # centre of front band
+    ySEAM = pocket_d + (pitch - pocket_d) / 2     # = 10 for pocket 8
+
+    def face_kit(m, axis, positive, internal, ox, oy, oz):
+        """couplings on one side face of a cube at origin (ox,oy,oz).
+        axis 0=x, 2=z; y offset of pocket centres: 6 external, ySEAM internal."""
+        yc = ySEAM if internal else pitch / 2
+        mag = positive
+        r, d_ = (MAG_R, MAG_D) if mag else (STL_R, STL_D)
+        def cyl(rr, dep, c1, c2, add=False):
+            hgt = dep + (0.02 if add else 2)
+            if add:
+                pos = pitch + dep/2 if positive else -dep/2
+            else:
+                pos = (pitch - dep/2 + 1) if positive else (dep/2 - 1)
+            cy = cylinder(radius=rr, height=hgt, sections=24)
+            if axis == 0:
+                cy.apply_transform(trimesh.transformations.rotation_matrix(math.pi/2, [0, 1, 0]))
+                cy.apply_transform(TM([ox + pos, oy + c1, oz + c2]))
+            else:
+                cy.apply_transform(TM([ox + c2, oy + c1, oz + pos]))
+            return cy
+        m = D(m, cyl(r, d_, yc, pitch / 2))
+        for s_ in (+OFF, -OFF):
+            nubpos = (yc + s_ * 0.6, pitch / 2 + s_) if internal else (yc + s_, pitch / 2 + s_)
+            if positive:
+                m = U([m, cyl(NUB_R, NUB_H, nubpos[0], nubpos[1], add=True)])
+            else:
+                m = D(m, cyl(DIM_R, DIM_D, nubpos[0], nubpos[1]))
+        return m
+
+    pocket = B((W - 28) / 2, -1, (W - 28) / 2, (W + 28) / 2, pocket_d, (W + 28) / 2)
+    chan = B(W/2 - 4, -1, -1, W/2 + 4, pocket_d, 6)
     out = {}
     for r in range(3):
         for c in range(3):
-            base = window_cube() if (r, c) in eye_cells else mosaic_cube()
-            # place: x = col, z = height (row 0 on top), y = depth (front +y)
-            piece = base.copy()
-            piece.apply_transform(TM([c * pitch, 0, (2 - r) * pitch]))
-            piece = D(piece, pocket)
+            ox, oz = c * pitch, (2 - r) * pitch
+            m = B(ox, 0, oz, ox + pitch, pitch, oz + pitch)
+            if (r, c) in eye_cells:                     # window: open through
+                m = D(m, B(ox + 1.6, -1, oz + 1.6, ox + pitch - 1.6, pitch + 1, oz + pitch - 1.6))
+            m = D(m, pocket)
             if (r, c) == (2, 1):
-                piece = D(piece, chan)
-            piece.apply_transform(TM([-c * pitch, 0, -(2 - r) * pitch]))
-            piece.fix_normals()
-            out[f'eyepatch_r{r}c{c}'] = piece
+                m = D(m, chan)
+            # side couplings: internal seams vs patch-external faces
+            m = face_kit(m, 0, True,  c < 2, ox, 0, oz)   # +x
+            m = face_kit(m, 0, False, c > 0, ox, 0, oz)   # -x
+            m = face_kit(m, 2, True,  r > 0, ox, 0, oz)   # +z (up): internal if a row above
+            m = face_kit(m, 2, False, r < 2, ox, 0, oz)   # -z (down)
+            m.apply_transform(TM([-ox, 0, -oz]))
+            m.fix_normals()
+            out[f'eyepatch_r{r}c{c}'] = m
     return out
 
 
