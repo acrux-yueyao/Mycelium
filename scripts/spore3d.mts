@@ -88,6 +88,33 @@ const inb = (x: number, y: number, z: number) =>
 const colors = new Map<number, [number, number, number]>();
 const alpha = new Map<number, number>();
 
+// --companion: shell for the desk robot (12 mm module). The core box
+// (62×82×26 at the eye anchor) must hide completely: force-fill every
+// cell in the core footprint, widen thin rows to 6 cells, and keep the
+// column solid all the way down so the cartridge can slide in from the
+// bottom. Colours for added cells come from the row's palette band.
+const COMPANION = process.argv.includes('--companion');
+const CORE_COLS = 6, CORE_UP = 3, CORE_DOWN = 4; // rows above/below eye line
+let coreC0 = 0, coreRowTop = 0;
+if (COMPANION) {
+  const ecx = (eyes.L0 + 1 + eyes.R0) / 2;
+  coreC0 = Math.max(0, Math.min(cols - CORE_COLS, Math.round(ecx - CORE_COLS / 2)));
+  coreRowTop = Math.max(0, eyes.row - CORE_UP);
+  const N = palette.stops.length;
+  const have = new Set(cells.map((c) => `${c.col},${c.row}`));
+  for (let r = coreRowTop; r < rows; r++) {          // …down to the very bottom
+    for (let c = coreC0; c < coreC0 + CORE_COLS; c++) {
+      if (have.has(`${c},${r}`)) continue;
+      const v = rows > 1 ? r / (rows - 1) : 0.5;
+      const st = palette.stops[Math.max(0, Math.min(N - 1, Math.floor(v * N)))];
+      cells.push({
+        col: c, row: r, alpha: 1, dyeBase: 0.5,
+        color: `hsl(${((st.h % 360) + 360) % 360 | 0},${Math.round(st.s * 100)}%,${Math.round(st.l * 100)}%)`,
+      } as (typeof cells)[number]);
+    }
+  }
+}
+
 const cellMapIdx = new Map<string, (typeof cells)[number]>();
 for (const c of cells) cellMapIdx.set(`${c.col},${c.row}`, c);
 const filled2D = (c: number, r: number) =>
@@ -105,7 +132,11 @@ for (const cell of cells) {
     filled2D(cell.col - 1, cell.row) && filled2D(cell.col + 1, cell.row) &&
     filled2D(cell.col, cell.row - 1) && filled2D(cell.col, cell.row + 1);
   let d: number;
-  if (ROBOT) {
+  const inCore = COMPANION &&
+    cell.col >= coreC0 && cell.col < coreC0 + CORE_COLS && cell.row >= coreRowTop;
+  if (inCore) {
+    d = DEPTH;                                  // core footprint: full depth, no gaps
+  } else if (ROBOT) {
     const coreZone = Math.abs(cell.col - cx) <= 3.2 && cell.row >= eyes.row - 1;
     d = cell.alpha < 0.9 ? 1 : coreZone ? CORE_D : solid2D ? 3 : 2;
   } else {
@@ -336,7 +367,13 @@ fs.mkdirSync(outDir, { recursive: true });
     vox.push([x, y, z, `#${c.map((n) => n.toString(16).padStart(2, '0')).join('')}`, alpha.get(i) ?? 1]);
   }
   fs.writeFileSync(path.join(outDir, `${name}.json`),
-    JSON.stringify({ name, text, family: FAMS[charId], dims: [X, Y, Z], mm, voxels: vox }));
+    JSON.stringify({
+      name, text, family: FAMS[charId], dims: [X, Y, Z], mm, voxels: vox,
+      anchor: COMPANION ? {
+        coreC0, coreRowTop, coreCols: CORE_COLS,
+        eyeRow: eyes.row, L0: eyes.L0, R0: eyes.R0, rows, cols,
+      } : undefined,
+    }));
 }
 
 let blocks = 0; for (let i = 0; i < grid.length; i++) if (grid[i]) blocks++;
