@@ -194,10 +194,10 @@ def window_cube(pitch=P):
             # boss behind the pocket
             if axis == 0:
                 bx = (pitch-3.0, pitch-1.59) if positive else (1.59, 3.0)
-                c = U([c, B(bx[0], h-3, h-3, bx[1], h+3, h+3)])
+                c = U([c, B(bx[0], h-3.2, h-3.2, bx[1], h+3.2, h+3.2)])
             else:
                 bz = (pitch-3.0, pitch-1.59) if positive else (1.59, 3.0)
-                c = U([c, B(h-3, h-3, bz[0], h+3, h+3, bz[1])])
+                c = U([c, B(h-3.2, h-3.2, bz[0], h+3.2, h+3.2, bz[1])])
             cyl = cylinder(radius=MAG_R, height=MAG_D+2, sections=32)
             pos = (pitch - MAG_D/2 + 1) if positive else (MAG_D/2 - 1)
             if axis == 0:
