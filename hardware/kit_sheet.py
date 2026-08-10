@@ -56,7 +56,7 @@ def main(base):
     vox = meta['voxels']
 
     # core void: 6 cols from anchor, 7 engine rows around the eyes, back 3 depth
-    vc0 = a['coreC0']
+    vc0 = a.get('voidC0', a['coreC0'] + 1)             # void leaves a 1-cube side wall
     vr0, vr1 = a['eyeRow'] - 2, a['eyeRow'] + 4        # inclusive engine rows
     void = lambda x, r, z: (vc0 <= x < vc0 + 6) and (vr0 <= r <= vr1) and z < Z - 1
 
