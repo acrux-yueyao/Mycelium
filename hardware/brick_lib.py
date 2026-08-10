@@ -129,10 +129,11 @@ def mosaic_cube(pitch=P):
             cyl.apply_transform(TM([h+cx, h+cy, pos]))
         return cyl
 
-    # magnet pockets on + faces, steel pockets on - faces
+    # DUAL-MAGNET: every face gets a magnet pocket. Polarity convention:
+    # +faces glued N-out, -faces glued S-out (load from opposite stack ends).
     for axis in range(3):
         c = D(c, face_cyl(axis, True, MAG_R, MAG_D))
-        c = D(c, face_cyl(axis, False, STL_R, STL_D))
+        c = D(c, face_cyl(axis, False, MAG_R, MAG_D))
         # shear lock: nubs on + faces, dimples on - faces, same global offsets
         for s_ in (+OFF, -OFF):
             c = U([c, face_cyl(axis, True, NUB_R, NUB_H, s_, s_, add=True)])
@@ -146,12 +147,11 @@ def window_cube(pitch=P):
     magnets/steel + nubs on the four side faces only. The cartridge's
     riser-mounted OLED glass sits 1-2 mm behind its front plane."""
     c = B(0, 0, 0, pitch, pitch, pitch)
-    c = D(c, B(1.6, -1, 1.6, pitch-1.6, pitch+1, pitch-1.6))
+    c = D(c, B(2.8, -1, 2.8, pitch-2.8, pitch+1, pitch-2.8))
     h = pitch/2
-    MAG_R, MAG_D = 2.15, 1.3      # shallower pockets: walls are 1.6
-    STL_R, STL_D = 2.65, 0.7
+    MAG_R, MAG_D = 2.15, 2.1      # dual-magnet: walls 2.8 take full pockets
     for axis in (0, 2):           # x and z faces keep the coupling
-        for positive, r, d_ in ((True, MAG_R, MAG_D), (False, STL_R, STL_D)):
+        for positive, r, d_ in ((True, MAG_R, MAG_D), (False, MAG_R, MAG_D)):
             cyl = cylinder(radius=r, height=d_+2, sections=32)
             if axis == 0:
                 cyl.apply_transform(trimesh.transformations.rotation_matrix(math.pi/2, [0, 1, 0]))
@@ -242,8 +242,7 @@ def eye_patch_kit(eye_cells=((1, 1), (1, 2)), pitch=P, pocket_d=8.0):
         """couplings on one side face of a cube at origin (ox,oy,oz).
         axis 0=x, 2=z; y offset of pocket centres: 6 external, ySEAM internal."""
         yc = ySEAM if internal else pitch / 2
-        mag = positive
-        r, d_ = (MAG_R, MAG_D) if mag else (STL_R, STL_D)
+        r, d_ = MAG_R, MAG_D          # dual-magnet everywhere
         def cyl(rr, dep, c1, c2, add=False):
             hgt = dep + (0.02 if add else 2)
             if add:
