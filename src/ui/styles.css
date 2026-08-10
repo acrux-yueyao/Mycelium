@@ -779,13 +779,12 @@ body,
     overflow-y: hidden;
     gap: 16px;
     padding-bottom: 6px;
-    scroll-snap-type: x proximity;
     scrollbar-width: none;
     -webkit-mask-image: linear-gradient(to right, transparent, #000 3%, #000 94%, transparent);
     mask-image: linear-gradient(to right, transparent, #000 3%, #000 94%, transparent);
   }
   body.kiosk-mode .archive-grid::-webkit-scrollbar { display: none; }
-  body.kiosk-mode .archive-card { flex: 0 0 300px; padding: 16px; scroll-snap-align: start; }
+  body.kiosk-mode .archive-card { flex: 0 0 300px; padding: 16px; }
   body.kiosk-mode .archive-thumb { height: 238px; }
   body.kiosk-mode .archive-thumb canvas { height: 228px !important; width: auto !important; }
   body.kiosk-mode .archive-meta { font-size: 14px; line-height: 1.55; margin-top: 10px; }
