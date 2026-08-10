@@ -23,7 +23,8 @@ import sys
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
-matplotlib.rcParams['font.family'] = ['Noto Sans CJK SC', 'DejaVu Sans Mono', 'monospace']
+matplotlib.rcParams['font.family'] = 'monospace'
+matplotlib.rcParams['font.monospace'] = ['Noto Sans Mono CJK SC', 'DejaVu Sans Mono']
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.patches import Rectangle
@@ -100,6 +101,67 @@ def main(base):
         for i in range(len(centers)):
             ax2.add_patch(Rectangle((0.62, 0.95 - 0.264 - i * 0.0337), 0.05, 0.024,
                                     transform=ax2.transAxes, fc=chex[i], ec='#1c1c1a'))
+        pdf.savefig(fig); plt.close(fig)
+
+        # ---- orthographic three-view page (third angle) ----
+        fig = plt.figure(figsize=(11, 8.2), facecolor='#f6f5f0')
+        gs = fig.add_gridspec(2, 2, width_ratios=[cols, Z], height_ratios=[Z, rows],
+                              hspace=0.12, wspace=0.08, left=0.09, right=0.93,
+                              top=0.9, bottom=0.09)
+        axT = fig.add_subplot(gs[0, 0])   # top view
+        axF = fig.add_subplot(gs[1, 0])   # front view
+        axS = fig.add_subplot(gs[1, 1])   # right-side view
+        P = 12
+
+        def draw(ax, cellmap, w, h):
+            for (u, v), li in cellmap.items():
+                ax.add_patch(Rectangle((u, v), 1, 1, fc=chex[li], ec='#1c1c1a', lw=0.45))
+            ax.set_xlim(-0.6, w + 0.6); ax.set_ylim(-0.6, h + 0.6)
+            ax.set_aspect('equal'); ax.set_xticks([]); ax.set_yticks([])
+            ax.set_facecolor('#f6f5f0')
+            for sp in ax.spines.values():
+                sp.set_visible(False)
+
+        # front: max z per (x,y) — viewer at +z
+        fmap = {}
+        for (x, y, z, _), li in zip(kit, lab):
+            if (x, y) not in fmap or z > fmap[(x, y)][0]:
+                fmap[(x, y)] = (z, li)
+        draw(axF, {k: v[1] for k, v in fmap.items()}, cols, rows)
+        axF.set_title('正视图 FRONT', fontsize=10, family='monospace')
+        # top: max y per (x,z) — z runs toward viewer bottom (third angle)
+        tmap = {}
+        for (x, y, z, _), li in zip(kit, lab):
+            if (x, z) not in tmap or y > tmap[(x, z)][0]:
+                tmap[(x, z)] = (y, li)
+        draw(axT, {(x, Z - 1 - z): li for (x, z), (yy, li) in tmap.items()}, cols, Z)
+        axT.set_title('俯视图 TOP', fontsize=10, family='monospace')
+        # right side: max x per (z,y), front edge on the left
+        smap = {}
+        for (x, y, z, _), li in zip(kit, lab):
+            if (z, y) not in smap or x > smap[(z, y)][0]:
+                smap[(z, y)] = (x, li)
+        draw(axS, {(Z - 1 - z, y): li for (z, y), (xx, li) in smap.items()}, Z, rows)
+        axS.set_title('右视图 SIDE', fontsize=10, family='monospace')
+        # core void dashed on side view (front face at u=0)
+        vy0 = rows - 1 - vr1
+        axS.add_patch(Rectangle((1, vy0), Z - 1, vr1 - vr0 + 1, fill=False,
+                                ec='#5b4fd0', ls='--', lw=1.3))
+        axS.text(1 + (Z - 1)/2, vy0 + (vr1 - vr0 + 1)/2, 'CORE', rotation=90,
+                 ha='center', va='center', fontsize=8, color='#5b4fd0',
+                 family='monospace')
+        # dimensions (mm)
+        axF.annotate('', xy=(0, -0.45), xytext=(cols, -0.45),
+                     arrowprops=dict(arrowstyle='<->', lw=1, color='#1c1c1a'))
+        axF.text(cols/2, -1.35, f'{cols*P} mm', ha='center', fontsize=9, family='monospace')
+        axF.annotate('', xy=(-0.45, 0), xytext=(-0.45, rows),
+                     arrowprops=dict(arrowstyle='<->', lw=1, color='#1c1c1a'))
+        axF.text(-1.6, rows/2, f'{rows*P} mm', va='center', rotation=90, fontsize=9, family='monospace')
+        axS.annotate('', xy=(0, -0.45), xytext=(Z, -0.45),
+                     arrowprops=dict(arrowstyle='<->', lw=1, color='#1c1c1a'))
+        axS.text(Z/2, -1.35, f'{Z*P} mm', ha='center', fontsize=9, family='monospace')
+        fig.suptitle(f"{meta['name']} · 三视图(第三角 · 单位 mm · 格 12)",
+                     fontsize=12, family='monospace')
         pdf.savefig(fig); plt.close(fig)
 
         # ---- layer plans, bottom-up, 4 per page ----
