@@ -217,12 +217,43 @@ def eye_module(win_col=1, pitch=P):
     return m
 
 
+def eye_patch_kit(eye_cells=((1, 1), (1, 2)), pitch=P):
+    """The 3x3 eye module, decomposed into NINE single-cell mosaic pieces.
+
+    Every piece is a standard 12mm cube outside (full magnet/steel/nub
+    coupling — assembles exactly like the rest of the wall). The only
+    difference is on the BACK: each carries its cell's share of a shared
+    28x28x3.6 screen pocket, so the assembled 3x3 patch nests a 0.96"
+    SSD1306 flush behind it (glass against the window cubes). The
+    bottom-centre piece adds a pigtail channel. eye_cells = (row, col)
+    of the two window cells, row 0 = top.
+    Returns {name: mesh} for the 9 pieces.
+    """
+    W = 3 * pitch
+    pocket = B((W - 28) / 2, -1, (W - 28) / 2, (W + 28) / 2, 3.6, (W + 28) / 2)
+    chan = B(W/2 - 4, -1, -1, W/2 + 4, 3.6, 6)
+    out = {}
+    for r in range(3):
+        for c in range(3):
+            base = window_cube() if (r, c) in eye_cells else mosaic_cube()
+            # place: x = col, z = height (row 0 on top), y = depth (front +y)
+            piece = base.copy()
+            piece.apply_transform(TM([c * pitch, 0, (2 - r) * pitch]))
+            piece = D(piece, pocket)
+            if (r, c) == (2, 1):
+                piece = D(piece, chan)
+            piece.apply_transform(TM([-c * pitch, 0, -(2 - r) * pitch]))
+            piece.fix_normals()
+            out[f'eyepatch_r{r}c{c}'] = piece
+    return out
+
+
 if __name__ == '__main__':
     out = sys.argv[1] if len(sys.argv) > 1 else '.'
     coupons = {'coupon_2x2': brick(2, 2), 'coupon_1x4': brick(1, 4),
                'coupon_2x4': brick(2, 4), 'mosaic_cube': mosaic_cube(),
-               'window_cube': window_cube(), 'hole_cube': hole_cube(),
-               'eye_module_L': eye_module(1), 'eye_module_R': eye_module(0)}
+               'window_cube': window_cube(), 'hole_cube': hole_cube()}
+    coupons.update(eye_patch_kit())
     for name, m in coupons.items():
         print(name, 'watertight', m.is_watertight, 'tris', len(m.faces))
         m.export(f'{out}/{name}.stl')
