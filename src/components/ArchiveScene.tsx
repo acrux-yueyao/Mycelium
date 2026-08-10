@@ -29,17 +29,24 @@ export function ArchiveScene({ creatures }: Props) {
     let dir = 1;
     let last = performance.now();
     let lastTouch = -Infinity;
+    // float accumulator: sub-pixel steps written via += get floored away
+    // by the browser, so keep our own position and assign absolutely
+    let pos = el.scrollLeft;
     const touched = () => { lastTouch = performance.now(); };
     const step = (t: number) => {
       raf = requestAnimationFrame(step);
       const dt = Math.min(t - last, 100);
       last = t;
-      if (t - lastTouch < 10000) return;       // visitor is (or just was) browsing
+      if (t - lastTouch < 10000) {
+        pos = el.scrollLeft;                   // follow the visitor's hand
+        return;
+      }
       const max = el.scrollWidth - el.clientWidth;
       if (max <= 0) return;
-      el.scrollLeft += dir * 0.022 * dt;       // ~22px/s — river pace
-      if (el.scrollLeft >= max - 1) dir = -1;
-      if (el.scrollLeft <= 1) dir = 1;
+      pos += dir * 0.022 * dt;                 // ~22px/s — river pace
+      if (pos >= max) { pos = max; dir = -1; }
+      if (pos <= 0) { pos = 0; dir = 1; }
+      el.scrollLeft = pos;
     };
     el.addEventListener('pointerdown', touched, { passive: true });
     el.addEventListener('touchstart', touched, { passive: true });
