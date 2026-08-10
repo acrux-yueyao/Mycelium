@@ -113,7 +113,11 @@ for (const cell of cells) {
   }
   const rgb = parse(cell.color);
   const y = rows - 1 - cell.row + MOUND;
-  const z0 = ROBOT ? Z - d : Math.floor((Z - d) / 2); // robot: front flush, grow backward
+  // robot: front flush. --flushback: back flush (flat lying face, prints
+  // support-free). default: centred in depth.
+  const z0 = ROBOT ? Z - d
+    : process.argv.includes('--flushback') ? 0
+    : Math.floor((Z - d) / 2);
   for (let dz = 0; dz < d; dz++) {
     const i = at(cell.col, y, z0 + dz);
     grid[i] = 1;
