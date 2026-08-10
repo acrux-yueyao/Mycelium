@@ -143,21 +143,30 @@ def mosaic_cube(pitch=P):
 
 
 def window_cube(pitch=P):
-    """Hollow through-cube for eye/ToF cells: open front-to-back (y axis),
-    magnets/steel + nubs on the four side faces only. The cartridge's
-    riser-mounted OLED glass sits 1-2 mm behind its front plane."""
+    """Hollow through-cube for eye/ToF cells — thin 1.6 walls keep the
+    8.8 window; each side pocket gets a LOCAL internal boss (6 wide,
+    1.4 proud) so a full 2mm magnet still seats with a 0.9 floor. The
+    four bosses read as small mid-edge steps inside the light tunnel."""
     c = B(0, 0, 0, pitch, pitch, pitch)
-    c = D(c, B(2.8, -1, 2.8, pitch-2.8, pitch+1, pitch-2.8))
+    c = D(c, B(1.6, -1, 1.6, pitch-1.6, pitch+1, pitch-1.6))
     h = pitch/2
-    MAG_R, MAG_D = 2.15, 2.1      # dual-magnet: walls 2.8 take full pockets
-    for axis in (0, 2):           # x and z faces keep the coupling
-        for positive, r, d_ in ((True, MAG_R, MAG_D), (False, MAG_R, MAG_D)):
-            cyl = cylinder(radius=r, height=d_+2, sections=32)
+    MAG_R, MAG_D = 2.15, 2.1
+    for axis in (0, 2):
+        for positive in (True, False):
+            # boss behind the pocket
+            if axis == 0:
+                bx = (pitch-3.0, pitch-1.6) if positive else (1.6, 3.0)
+                c = U([c, B(bx[0], h-3, h-3, bx[1], h+3, h+3)])
+            else:
+                bz = (pitch-3.0, pitch-1.6) if positive else (1.6, 3.0)
+                c = U([c, B(h-3, h-3, bz[0], h+3, h+3, bz[1])])
+            cyl = cylinder(radius=MAG_R, height=MAG_D+2, sections=32)
+            pos = (pitch - MAG_D/2 + 1) if positive else (MAG_D/2 - 1)
             if axis == 0:
                 cyl.apply_transform(trimesh.transformations.rotation_matrix(math.pi/2, [0, 1, 0]))
-                cyl.apply_transform(TM([(pitch - d_/2 + 1) if positive else (d_/2 - 1), h, h]))
+                cyl.apply_transform(TM([pos, h, h]))
             else:
-                cyl.apply_transform(TM([h, h, (pitch - d_/2 + 1) if positive else (d_/2 - 1)]))
+                cyl.apply_transform(TM([h, h, pos]))
             c = D(c, cyl)
     c.fix_normals()
     return c
@@ -274,6 +283,13 @@ def eye_patch_kit(eye_cells=((1, 1), (1, 2)), pitch=P, pocket_d=8.0):
             m = B(ox, 0, oz, ox + pitch, pitch, oz + pitch)
             if (r, c) in eye_cells:                     # window: open through
                 m = D(m, B(ox + 1.6, -1, oz + 1.6, ox + pitch - 1.6, pitch + 1, oz + pitch - 1.6))
+                # local bosses under the seam pockets (front band, y~10)
+                for side in range(4):
+                    if side == 0:  bb = B(ox+pitch-3.0, 7.6, oz+3, ox+pitch-1.6, 12, oz+9)
+                    elif side==1:  bb = B(ox+1.6, 7.6, oz+3, ox+3.0, 12, oz+9)
+                    elif side==2:  bb = B(ox+3, 7.6, oz+pitch-3.0, ox+9, 12, oz+pitch-1.6)
+                    else:          bb = B(ox+3, 7.6, oz+1.6, ox+9, 12, oz+3.0)
+                    m = U([m, bb])
             m = D(m, pocket)
             if (r, c) == (2, 1):
                 m = D(m, chan)
