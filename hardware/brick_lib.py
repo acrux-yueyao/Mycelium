@@ -34,6 +34,35 @@ H = 12.0          # brick height (cube module)
 TUNE = 0.0        # global fit trim: + looser, - tighter
 CRUSH = 0.15      # rib interference
 
+# mosaic coupling (shared by mosaic_cube / window_cube / hole_cube)
+MAG_R, MAG_D = 2.15, 2.1     # O4.3 x 2.1 pocket for O4x2 magnet
+NUB_R, NUB_H = 1.2, 0.5      # pin
+DIM_R, DIM_D = 1.45, 0.65    # dimple
+OFF = 3.5                    # diagonal pin offset from face centre
+
+
+def face_cyl(axis, positive, r, depth, cx=0.0, cy=0.0, add=False, pitch=P):
+    """cylinder on a cube face: axis 0/1/2; (cx,cy) offsets in the face
+    plane. add=True → protruding pin; add=False → pocket cut exactly
+    `depth` into the face (overshoots outward for a clean boolean)."""
+    h = pitch / 2
+    if add:
+        hgt = depth + 0.02
+        pos = pitch + depth/2 if positive else -depth/2
+    else:
+        hgt = depth + 2
+        pos = (pitch - depth/2 + 1) if positive else (depth/2 - 1)
+    cyl = cylinder(radius=r, height=hgt, sections=32)
+    if axis == 0:
+        cyl.apply_transform(trimesh.transformations.rotation_matrix(math.pi/2, [0, 1, 0]))
+        cyl.apply_transform(TM([pos, h+cx, h+cy]))
+    elif axis == 1:
+        cyl.apply_transform(trimesh.transformations.rotation_matrix(math.pi/2, [1, 0, 0]))
+        cyl.apply_transform(TM([h+cx, pos, h+cy]))
+    else:
+        cyl.apply_transform(TM([h+cx, h+cy, pos]))
+    return cyl
+
 
 def U(parts):
     return trimesh.boolean.union(parts)
@@ -138,44 +167,15 @@ def mosaic_cube(pitch=P):
     the voxel grid's own logic. Pockets are face-open; glue inserts flush.
     """
     c = B(0, 0, 0, pitch, pitch, pitch)
-    h = pitch/2
-    MAG_R, MAG_D = 2.15, 2.1     # O4.3 x 2.1 pocket for O4x2 magnet
-    STL_R, STL_D = 2.65, 0.7     # O5.3 x 0.7 pocket for O5x0.5 steel disc
-    NUB_R, NUB_H = 1.2, 0.5
-    DIM_R, DIM_D = 1.45, 0.65
-    OFF = 3.5                     # diagonal nub offset
-
-    def face_cyl(axis, positive, r, depth, cx=0.0, cy=0.0, add=False):
-        """cylinder on a face: axis 0/1/2; (cx,cy) offsets in the face plane.
-        add=True → protruding nub; add=False → pocket cut exactly `depth`
-        into the face (overshoots outward for a clean boolean)."""
-        if add:
-            hgt = depth + 0.02
-            pos = pitch + depth/2 if positive else -depth/2
-        else:
-            hgt = depth + 2
-            pos = (pitch - depth/2 + 1) if positive else (depth/2 - 1)
-        cyl = cylinder(radius=r, height=hgt, sections=32)
-        if axis == 0:
-            cyl.apply_transform(trimesh.transformations.rotation_matrix(math.pi/2, [0, 1, 0]))
-            cyl.apply_transform(TM([pos, h+cx, h+cy]))
-        elif axis == 1:
-            cyl.apply_transform(trimesh.transformations.rotation_matrix(math.pi/2, [1, 0, 0]))
-            cyl.apply_transform(TM([h+cx, pos, h+cy]))
-        else:
-            cyl.apply_transform(TM([h+cx, h+cy, pos]))
-        return cyl
 
     # DUAL-MAGNET: every face gets a magnet pocket. Polarity convention:
     # +faces glued N-out, -faces glued S-out (load from opposite stack ends).
     for axis in range(3):
-        c = D(c, face_cyl(axis, True, MAG_R, MAG_D))
-        c = D(c, face_cyl(axis, False, MAG_R, MAG_D))
-        ip = [a for a in range(3) if a != axis]
-        c = U([c, _ridge(axis, True, ip[0], 0, 3.5, pitch, ridge=True)])
-        c = U([c, _ridge(axis, True, ip[1], 3.5, 0, pitch, ridge=True)])
-        c = D(c, _ridge(axis, False, ip[0], 0, 3.5, pitch, ridge=False))
-        c = D(c, _ridge(axis, False, ip[1], 3.5, 0, pitch, ridge=False))
+        c = D(c, face_cyl(axis, True, MAG_R, MAG_D, pitch=pitch))
+        c = D(c, face_cyl(axis, False, MAG_R, MAG_D, pitch=pitch))
+        for s_ in (+OFF, -OFF):
+            c = U([c, face_cyl(axis, True, NUB_R, NUB_H, s_, s_, add=True, pitch=pitch)])
+            c = D(c, face_cyl(axis, False, DIM_R, DIM_D, s_, s_, pitch=pitch))
     c.fix_normals()
     return c
 
@@ -207,11 +207,9 @@ def window_cube(pitch=P):
                 cyl.apply_transform(TM([h, h, pos]))
             c = D(c, cyl)
     for axis in (0, 2):
-        ip = [a for a in range(3) if a != axis]
-        c = U([c, _ridge(axis, True, ip[0], 0, 3.5, pitch, ridge=True)])
-        c = U([c, _ridge(axis, True, ip[1], 3.5, 0, pitch, ridge=True)])
-        c = D(c, _ridge(axis, False, ip[0], 0, 3.5, pitch, ridge=False))
-        c = D(c, _ridge(axis, False, ip[1], 3.5, 0, pitch, ridge=False))
+        for s_ in (+OFF, -OFF):
+            c = U([c, face_cyl(axis, True, NUB_R, NUB_H, s_, s_, add=True, pitch=pitch)])
+            c = D(c, face_cyl(axis, False, DIM_R, DIM_D, s_, s_, pitch=pitch))
     c.fix_normals()
     return c
 
@@ -312,22 +310,42 @@ def eye_patch_kit(eye_cells=((1, 1), (1, 2)), pitch=P, pocket_d=8.0):
         m = D(m, cyl(r, d_, yc, pitch / 2))
         fa = 0 if axis == 0 else 2
         org = (ox, oy, oz)
-        ip = [a for a in range(3) if a != fa]
-        if internal:
-            # single ridge running across the seam inside the y=8..12 band
-            along = ip[1] if ip[0] == 1 else ip[0]      # the non-y in-plane axis
-            cu, cv = (4.0, 0) if ip[0] == 1 else (0, 4.0)  # y offset +4 → y=10
-            if positive:
-                m = U([m, _ridge(fa, True, along, cu, cv, pitch, ridge=True, origin=org)])
+
+        def fk_cyl(r, depth, u, v, add=False, half=None):
+            """u = y coord in face, v = other in-plane coord; half='low'
+            clips to a half-cylinder with the flat side on the y=8 line."""
+            if add:
+                hgt = depth + 0.02
+                pos = pitch + depth/2 if positive else -depth/2
             else:
-                m = D(m, _ridge(fa, False, along, cu, cv, pitch, ridge=False, origin=org))
+                hgt = depth + 2
+                pos = (pitch - depth/2 + 1) if positive else (depth/2 - 1)
+            cc = cylinder(radius=r, height=hgt, sections=28)
+            if fa == 0:
+                cc.apply_transform(trimesh.transformations.rotation_matrix(math.pi/2, [0, 1, 0]))
+                cc.apply_transform(TM([org[0]+pos, org[1]+u, org[2]+v]))
+            else:
+                cc.apply_transform(TM([org[0]+v, org[1]+u, org[2]+pos]))
+            if half == 'low':
+                cc = trimesh.boolean.intersection(
+                    [cc, B(org[0]-20, org[1]+8, org[2]-20, org[0]+40, org[1]+40, org[2]+40)])
+            return cc
+
+        if internal:
+            # full pin/dimple high in the band + half (flat side on y=8) low
+            if positive:
+                m = U([m, fk_cyl(1.2, 0.5, 9.5, 9.5, add=True)])
+                m = U([m, fk_cyl(1.2, 0.5, 8.0, 2.5, add=True, half='low')])
+            else:
+                m = D(m, fk_cyl(1.45, 0.65, 9.5, 9.5))
+                m = D(m, fk_cyl(1.45, 0.65, 8.0, 2.5, half='low'))
         else:
             if positive:
-                m = U([m, _ridge(fa, True, ip[0], 0, 3.5, pitch, ridge=True, origin=org)])
-                m = U([m, _ridge(fa, True, ip[1], 3.5, 0, pitch, ridge=True, origin=org)])
+                m = U([m, fk_cyl(1.2, 0.5, 2.5, 2.5, add=True)])
+                m = U([m, fk_cyl(1.2, 0.5, 9.5, 9.5, add=True)])
             else:
-                m = D(m, _ridge(fa, False, ip[0], 0, 3.5, pitch, ridge=False, origin=org))
-                m = D(m, _ridge(fa, False, ip[1], 3.5, 0, pitch, ridge=False, origin=org))
+                m = D(m, fk_cyl(1.45, 0.65, 2.5, 2.5))
+                m = D(m, fk_cyl(1.45, 0.65, 9.5, 9.5))
         return m
 
     pocket = B((W - 28) / 2, -1, (W - 28) / 2, (W + 28) / 2, pocket_d, (W + 28) / 2)
