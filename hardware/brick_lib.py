@@ -174,11 +174,55 @@ def hole_cube(pitch=P, hole=2.5):
     return c
 
 
+def eye_module(win_col=1, pitch=P):
+    """3×3-cell eye module (36×36×12): swallows a whole 0.96" SSD1306 so
+    the glass sits 1.2 mm behind the mosaic surface. Front face carries
+    0.4 mm grid grooves (reads as 9 tiles) and a 22×11 window over the
+    creature's eye pair — win_col 0/1 picks which local column pair.
+    PCB slides in from the back between side rails; pigtail notch at the
+    bottom. Perimeter cell-faces keep the standard magnet/steel coupling.
+    """
+    W = 3 * pitch
+    m = B(0, 0, 0, W, W, pitch)
+    m = D(m, B(1.6, 1.6, 1.2, W - 1.6, W - 1.6, pitch + 1))      # shell, back open
+    # PCB side rails: pocket 27.6 wide, module retained against front wall
+    m = U([m, B(1.6, 2.6, 1.2, (W - 27.6) / 2, W - 2.6, 5.0)])
+    m = U([m, B(W - (W - 27.6) / 2, 2.6, 1.2, W - 1.6, W - 2.6, 5.0)])
+    # window over the eye pair: 22×11 centred on local cols win_col..win_col+1, mid row
+    wx = (win_col + 1) * pitch
+    m = D(m, B(wx - 11, 1.5 * pitch - 5.5, -1, wx + 11, 1.5 * pitch + 5.5, 1.3))
+    # face grooves at the internal cell seams
+    for i in (1, 2):
+        m = D(m, B(i * pitch - 0.2, -1, -0.01, i * pitch + 0.2, W + 1, 0.4))
+        m = D(m, B(-1, i * pitch - 0.2, -0.01, W + 1, i * pitch + 0.2, 0.4))
+    # pigtail notch, bottom back edge
+    m = D(m, B(W / 2 - 4, -1, 8, W / 2 + 4, 2.7, pitch + 1))
+    # perimeter coupling: 3 cells per side — magnets on +x/+y, steel on -x/-y
+    MAG_R, MAG_D = 2.15, 1.3
+    STL_R, STL_D = 2.65, 0.7
+    for k in range(3):
+        cc = k * pitch + pitch / 2
+        for positive, r, d_ in ((True, MAG_R, MAG_D), (False, STL_R, STL_D)):
+            for axis in (0, 1):
+                cyl = cylinder(radius=r, height=d_ + 2, sections=32)
+                pos = (W - d_/2 + 1) if positive else (d_/2 - 1)
+                if axis == 0:
+                    cyl.apply_transform(trimesh.transformations.rotation_matrix(math.pi/2, [0, 1, 0]))
+                    cyl.apply_transform(TM([pos, cc, pitch / 2]))
+                else:
+                    cyl.apply_transform(trimesh.transformations.rotation_matrix(math.pi/2, [1, 0, 0]))
+                    cyl.apply_transform(TM([cc, pos, pitch / 2]))
+                m = D(m, cyl)
+    m.fix_normals()
+    return m
+
+
 if __name__ == '__main__':
     out = sys.argv[1] if len(sys.argv) > 1 else '.'
     coupons = {'coupon_2x2': brick(2, 2), 'coupon_1x4': brick(1, 4),
                'coupon_2x4': brick(2, 4), 'mosaic_cube': mosaic_cube(),
-               'window_cube': window_cube(), 'hole_cube': hole_cube()}
+               'window_cube': window_cube(), 'hole_cube': hole_cube(),
+               'eye_module_L': eye_module(1), 'eye_module_R': eye_module(0)}
     for name, m in coupons.items():
         print(name, 'watertight', m.is_watertight, 'tris', len(m.faces))
         m.export(f'{out}/{name}.stl')
