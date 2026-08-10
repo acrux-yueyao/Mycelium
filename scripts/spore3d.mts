@@ -134,6 +134,20 @@ for (const cell of cells) {
   let d: number;
   const inCore = COMPANION &&
     cell.col >= coreC0 && cell.col < coreC0 + CORE_COLS && cell.row >= coreRowTop;
+  if (COMPANION && !inCore) {
+    // stepped relief on BOTH faces: bricks sit at deterministic front/back
+    // offsets so the body reads volumetric instead of slab-flat
+    d = cell.alpha < 0.9 ? 2 : solid2D ? DEPTH - 1 : 2;
+    const play = Z - d;
+    const z0c = (cell.col * 7 + cell.row * 13 + h0) % (play + 1);
+    const rgb = parse(cell.color);
+    const y = rows - 1 - cell.row + MOUND;
+    for (let dz = 0; dz < d; dz++) {
+      const i = at(cell.col, y, z0c + dz);
+      grid[i] = 1; colors.set(i, rgb); alpha.set(i, cell.alpha);
+    }
+    continue;
+  }
   if (inCore) {
     d = DEPTH;                                  // core footprint: full depth, no gaps
   } else if (ROBOT) {

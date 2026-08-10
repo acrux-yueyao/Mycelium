@@ -55,43 +55,67 @@ def main(base):
     depth = meta['dims'][2] * mm             # front at y=depth (flushback: back y=0)
     zc = depth / 2
 
-    cavity = B(ecx - CAVITY_W/2, zc - CAVITY_D/2, -1,
-               ecx + CAVITY_W/2, zc + CAVITY_D/2, core_top_z - 4)  # keep 4mm crown
+    # anchor the cavity to the EYE LINE: the cartridge's A-panel eye line
+    # sits 46 mm above its base, so the cavity bottom goes exactly there —
+    # shell eye windows and the OLEDs end up coplanar.
+    zb = eye_z - 46.0
+    zt = zb + 82.6
+    crown = core_top_z - zt
+    print(f'eye-aligned cavity: zb={zb:.1f} zt={zt:.1f} crown above={crown:.1f}mm')
+    assert crown >= 2, 'core footprint does not reach high enough above the cavity'
+    cavity = B(ecx - CAVITY_W/2, zc - CAVITY_D/2, zb,
+               ecx + CAVITY_W/2, zc + CAVITY_D/2, zt)
     sleeve = trimesh.boolean.difference([shell, cavity])
 
     for eye_c in (a['L0'] + 1, a['R0']):     # window centred per eye pair
-        wx = eye_c * mm                       # boundary between the two eye cells
+        wx = eye_c * mm
         win = B(wx - EYE_WIN_W/2, zc, eye_z - EYE_WIN_H/2,
-                wx + EYE_WIN_W/2, depth + 1, eye_z + EYE_WIN_H/2)
+                wx + EYE_WIN_W/2, depth + 30, eye_z + EYE_WIN_H/2)
         sleeve = trimesh.boolean.difference([sleeve, win])
 
     mouth_z = (rows - 1 - (a['eyeRow'] + 2)) * mm + mm / 2
-    mic = cylinder(radius=1.5, height=depth, sections=24)
+    mic = cylinder(radius=1.5, height=depth * 2, sections=24)
     mic.apply_transform(RM(np.pi/2, [1, 0, 0]))
-    mic.apply_transform(TM([ecx, depth - depth/4, mouth_z]))
+    mic.apply_transform(TM([ecx, zc + depth/2, mouth_z]))
     sleeve = trimesh.boolean.difference([sleeve, mic])
 
-    sleeve.fix_normals()
-    print('sleeve watertight', sleeve.is_watertight, 'tris', len(sleeve.faces))
+    # ---- clamshell split at the cavity mid-plane ----
+    big = 500
+    front = trimesh.boolean.intersection([sleeve, B(-big, zc, -big, big, big, big)])
+    back  = trimesh.boolean.intersection([sleeve, B(-big, -big, -big, big, zc, big)])
+    # alignment pegs on the back half, sockets in the front half
+    for pxx in (ecx - 20, ecx + 20):
+        pz = zb - 8
+        peg = cylinder(radius=1.8, height=6, sections=24)
+        peg.apply_transform(RM(np.pi/2, [1, 0, 0]))
+        peg.apply_transform(TM([pxx, zc, pz]))
+        back = trimesh.boolean.union([back, trimesh.boolean.intersection([peg, B(-big, zc - 3, -big, big, zc + 3, big)])])
+        sock = cylinder(radius=2.1, height=8, sections=24)
+        sock.apply_transform(RM(np.pi/2, [1, 0, 0]))
+        sock.apply_transform(TM([pxx, zc + 2, pz]))
+        front = trimesh.boolean.difference([front, sock])
 
-    # probes: cavity open from below; eye windows open from front
+    for part, tag in ((front, 'front'), (back, 'back')):
+        part.fix_normals()
+        print(f'{tag}: watertight {part.is_watertight} tris {len(part.faces)}')
+        part.export(f'{base}_{tag}.stl')
+
+    # probes on the assembled sleeve
     probes = [
-        ('cavity from below', [ecx, zc, -5], [0, 0, 1], None),
-        ('eye L window', [(a['L0']+1)*mm, depth+5, eye_z], [0, -1, 0], zc),
-        ('eye R window', [a['R0']*mm, depth+5, eye_z], [0, -1, 0], zc),
-        ('mic hole', [ecx, depth+5, mouth_z], [0, -1, 0], zc),
+        ('eye L window', [(a['L0']+1)*mm, depth+40, eye_z], [0, -1, 0]),
+        ('eye R window', [a['R0']*mm, depth+40, eye_z], [0, -1, 0]),
+        ('mic hole', [ecx, depth+40, mouth_z], [0, -1, 0]),
+        ('cavity sealed below', [ecx, zc, -5], [0, 0, 1]),
     ]
-    for name, o, d, expect_past in probes:
+    for name, o, d in probes:
         locs = sleeve.ray.intersects_location([o], [d])[0]
         if len(locs) == 0:
-            print(f'{name:20s} → clean through')
+            print(f'{name:22s} → clean through')
             continue
         axis = int(np.argmax(np.abs(d)))
         vals = sorted((l[axis] for l in locs), reverse=d[axis] < 0)
-        print(f'{name:20s} → first hit {vals[0]:.1f}')
-
-    sleeve.export(base + '_sleeve.stl')
-    print('wrote', base + '_sleeve.stl')
+        print(f'{name:22s} → first hit {vals[0]:.1f}')
+    print('wrote', base + '_front.stl /', base + '_back.stl')
 
 
 if __name__ == '__main__':
