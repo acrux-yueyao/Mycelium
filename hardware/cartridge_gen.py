@@ -45,13 +45,19 @@ def build_frame():
         f = U(f, B(2, 26, zr0, 4.5, 74, zr1))
         f = U(f, B(55.5, 26, zr0, 58, 74, zr1))
     f = U(f, B(2, 24, 1.5, 58, 26, 20.5))                 # shelf over D bay
-    for cx in (16.25, 43.75):                             # screen windows
-        f = D(f, B(cx-10.85, 40.55, -1, cx+10.85, 51.45, 2.5))
+    # v1.5: risers replace fixed screen windows — one wire slot across the
+    # eye band plus two rows of M2 rail holes (riser slides to any spacing)
+    f = D(f, B(12, 43, -1, 48, 49, 2.5))                  # wire slot 36×6
+    for yy in (40, 52):
+        for k in range(9):
+            f = D(f, CYL_Z(12 + k*4.5, yy, -1, 2.5, 0.9, 16))
     f = D(f, B(24, 64, -1, 36, 72, 2.5))                  # ToF window
     for i in range(5):                                    # mic holes
         f = D(f, CYL_Z(24+i*3, 30, -1, 2.5, 0.8, 16))
     f = D(f, B(37.75, 8.25, -1, 47.25, 11.75, 2.5))       # USB-C window
-    f = D(f, B(2.5, 26.5, 20.5, 57.5, 73.5, 26))          # back card door
+    # v1.5: rebated back door — lid drops in flush onto a 2 mm ledge
+    f = D(f, B(2.5, 26.5, 20.5, 57.5, 73.5, 26))          # through opening
+    f = D(f, B(1.5, 25.5, 23, 58.5, 74.5, 26))            # rebate ledge
     f = D(f, B(15, 4, 22, 45, 22, 26))                    # D-bay service opening
     f = D(f, B(26, 77, 20, 34, 81, 24))                   # top wire slot
     f = D(f, CYL_Y(17, 12.5, -1, 3, 1.25, 20))            # speaker grille
@@ -62,14 +68,30 @@ def build_frame():
         f = D(f, CYL_Y(px, 6, -1, 3, 1.1, 20))
     for mx, mz in ((5, 5), (5, 20), (55, 5), (55, 20)):   # blind magnet pockets
         f = D(f, CYL_Y(mx, mz, 0.6, 2.6, 2.65, 24))
+    # v1.5: shallow steel-disc pockets on the exterior sides/top so the
+    # surrounding mosaic cubes' magnets lock the cartridge into the shell
+    for (cy, cz) in ((40, 12.5), (60, 12.5)):
+        f = D(f, CYL_X(0.7/2 - 0.0, cy, cz, 2.65))        # left face
+        f = D(f, CYL_X(60 - 0.7/2, cy, cz, 2.65))         # right face
+    for cx in (20, 40):
+        f = D(f, CYL_Y(cx, 12.5, 80 - 0.7, 80.1, 2.65, 24))  # top face
     f.fix_normals()
     return f
 
 
+def CYL_X(cx, cy, cz, r):
+    c = cylinder(radius=r, height=1.4, sections=24)
+    c.apply_transform(RM(math.pi/2, [0, 1, 0]))
+    c.apply_transform(TM([cx, cy, cz]))
+    return c
+
+
 def build_lid():
-    lid = B(0, 0, 0, 54.6, 46.6, 2)
-    lid = U(lid, B(2, 2, 2, 52.6, 44.6, 4))               # friction plug
-    lid = D(lid, CYL_Z(27.3, 46.6, -1, 5, 6, 32))         # finger notch
+    # v1.5: flush lid — outer plate rests in the 2 mm rebate (0.4/side
+    # clearance), chamfer-friendly plug with 0.5/side clearance
+    lid = B(0, 0, 0, 56.2, 48.2, 2)                       # rebate 57×49
+    lid = U(lid, B(1.7, 1.7, 2, 54.5, 46.5, 4.2))         # plug into 55×47
+    lid = D(lid, CYL_Z(28.1, 48.2, -1, 5, 6, 32))         # finger notch
     lid.fix_normals()
     return lid
 
