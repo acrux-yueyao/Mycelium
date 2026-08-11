@@ -24,7 +24,7 @@ export function ArchiveScene({ creatures }: Props) {
   const gridRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const el = gridRef.current;
-    if (!el || !document.body.classList.contains('kiosk-mode')) return;
+    if (!el) return;
     let raf = 0;
     let dir = 1;
     let last = performance.now();
@@ -37,12 +37,15 @@ export function ArchiveScene({ creatures }: Props) {
       raf = requestAnimationFrame(step);
       const dt = Math.min(t - last, 100);
       last = t;
+      // the river only runs on the tower's strip, where the catalogue is a
+      // single horizontal row wider than the screen; checked per-frame so it
+      // never depends on kiosk-mode being set before this effect runs
+      const max = el.scrollWidth - el.clientWidth;
+      if (max <= 0 || !document.body.classList.contains('kiosk-mode')) return;
       if (t - lastTouch < 10000) {
         pos = el.scrollLeft;                   // follow the visitor's hand
         return;
       }
-      const max = el.scrollWidth - el.clientWidth;
-      if (max <= 0) return;
       pos += dir * 0.022 * dt;                 // ~22px/s — river pace
       if (pos >= max) { pos = max; dir = -1; }
       if (pos <= 0) { pos = 0; dir = 1; }
