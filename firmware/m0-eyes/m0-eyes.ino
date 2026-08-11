@@ -3,13 +3,16 @@
  *
  * Board:    ESP32 WROOM-32 devkit (bench) — same code runs on XIAO ESP32-S3
  *           with only the pin table changed.
- * Screens:  2× 0.96" SSD1306 128×64, both on I2C — left eye 0x3C, right 0x3D.
- *           (If your batch is fixed at 0x3C, put a TCA9548A between them and
- *           wrap the draw calls in channel selects.)
+ * Screens:  2× 0.96" SSD1306 128×64.
+ *           TWO_BUS 1 (default): each screen gets its own I2C bus, so both
+ *           can stay at the factory 0x3C — no address rework, no multiplexer.
+ *           TWO_BUS 0: both on one bus, right screen strapped to 0x3D.
  * Optional: VL53L0X ToF on the same bus — the creature notices you.
  *
- * Wiring (bench pin table from drawing MC-01 v1.3):
- *   SDA=21  SCL=22  ·  3V3 + GND to both screens (+ ToF)
+ * Wiring (bench):
+ *   左眼 + ToF   SDA=21  SCL=22      (总线0)
+ *   右眼         SDA=18  SCL=19      (总线1)
+ *   3V3 + GND 两块屏和 ToF 都并上
  *
  * Behaviour — the same rules the site's creatures follow:
  *   - collective breath: everything scales ±2% on a ~7 s sine
@@ -33,11 +36,19 @@
 #include "Adafruit_VL53L0X.h"
 #endif
 
+#define TWO_BUS 1     // 1 = 右眼走第二组 I2C(两块屏都是 0x3C,不用改地址)
+
 constexpr int PIN_SDA = 21, PIN_SCL = 22;
-constexpr uint8_t ADDR_L = 0x3C, ADDR_R = 0x3D;
+constexpr int PIN_SDA2 = 18, PIN_SCL2 = 19;
+constexpr uint8_t ADDR_L = 0x3C;
+constexpr uint8_t ADDR_R = TWO_BUS ? 0x3C : 0x3D;
 
 Adafruit_SSD1306 eyeL(128, 64, &Wire, -1);
+#if TWO_BUS
+Adafruit_SSD1306 eyeR(128, 64, &Wire1, -1);
+#else
 Adafruit_SSD1306 eyeR(128, 64, &Wire, -1);
+#endif
 #if USE_TOF
 Adafruit_VL53L0X lox;
 bool hasTof = false;
@@ -128,10 +139,15 @@ void setup() {
   Serial.begin(115200);
   Wire.begin(PIN_SDA, PIN_SCL);
   Wire.setClock(400000);
+#if TWO_BUS
+  Wire1.begin(PIN_SDA2, PIN_SCL2);
+  Wire1.setClock(400000);
+#endif
 
   bool okL = eyeL.begin(SSD1306_SWITCHCAPVCC, ADDR_L);
   bool okR = eyeR.begin(SSD1306_SWITCHCAPVCC, ADDR_R);
-  Serial.printf("eye L(0x3C)=%d  eye R(0x3D)=%d\n", okL, okR);
+  Serial.printf("eye L(0x%02X @bus0)=%d  eye R(0x%02X @bus%d)=%d\n",
+                ADDR_L, okL, ADDR_R, TWO_BUS ? 1 : 0, okR);
 
 #if USE_TOF
   hasTof = lox.begin();

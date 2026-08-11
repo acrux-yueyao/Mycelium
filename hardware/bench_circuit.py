@@ -19,7 +19,7 @@ fig.suptitle('面包板验货电路 · ESP32 WROOM-32(全程 USB 供电,不接�
 ax = fig.add_axes([0.03, 0.50, 0.94, 0.42])
 ax.set_xlim(0, 150); ax.set_ylim(0, 62)
 ax.set_aspect('equal'); ax.axis('off'); ax.set_facecolor(BG)
-ax.text(2, 59, '阶段 1 · I2C 五件套(先只插屏1,点亮后再逐个加)',
+ax.text(2, 59, '阶段 1 · I2C(两条总线:屏2 单独走总线1,两块屏都保持出厂 0x3C)',
         fontsize=12, color=CSDA, weight='bold')
 
 ax.add_patch(FancyBboxPatch((3, 20), 20, 28, boxstyle='round,pad=0.6',
@@ -28,28 +28,37 @@ ax.text(13, 43, 'ESP32\nWROOM-32', ha='center', fontsize=9.5, weight='bold')
 ax.text(13, 36, 'USB→电脑', ha='center', fontsize=7, color=SOFT)
 
 rails = [('3V3', 48, C33, '3V3'), ('GND', 43, CGND, 'GND'),
-         ('SDA', 38, CSDA, 'G21'), ('SCL', 33, CSCL, 'G22')]
+         ('SDA0', 38, CSDA, 'G21'), ('SCL0', 33, CSCL, 'G22'),
+         ('SDA1', 28, '#8e44ad', 'G18'), ('SCL1', 23.5, '#6c3483', 'G19')]
 for name, y, c, gp in rails:
     ax.plot([23, 138], [y, y], color=c, lw=2.4, solid_capstyle='round')
     ax.add_patch(Circle((23, y), 0.8, fc=c, ec='none'))
     ax.text(139.5, y, f'{name} 轨', va='center', fontsize=9, color=c, weight='bold')
     ax.text(21.5, y, gp, ha='right', va='center', fontsize=8, color=c)
 
-mods = [('SSD1306 屏1', '0x3C', 33), ('SSD1306 屏2', '0x3D', 54),
-        ('VL53L0X', '0x29', 75), ('MPU6050', '0x68', 96), ('MPR121', '0x5A', 117)]
-order = [('VCC', 48, C33), ('GND', 43, CGND), ('SDA', 38, CSDA), ('SCL', 33, CSCL)]
-for name, addr, x0 in mods:
-    ax.add_patch(Rectangle((x0 - 8.5, 8), 17, 13, fill=False, ec=INK, lw=1.8))
+BUS0 = [('VCC', 48, C33), ('GND', 43, CGND), ('SDA', 38, CSDA), ('SCL', 33, CSCL)]
+BUS1 = [('VCC', 48, C33), ('GND', 43, CGND), ('SDA', 28, '#8e44ad'), ('SCL', 23.5, '#6c3483')]
+mods = [('SSD1306 屏1', '0x3C 总线0', 33, BUS0),
+        ('SSD1306 屏2', '0x3C 总线1', 54, BUS1),
+        ('VL53L0X', '0x29 总线0', 75, BUS0),
+        ('MPU6050', '0x68 总线0', 96, BUS0),
+        ('MPR121', '0x5A 总线0', 117, BUS0)]
+for name, addr, x0, order in mods:
+    hl = order is BUS1
+    ax.add_patch(Rectangle((x0 - 8.5, 8), 17, 13, fill=False,
+                           ec='#8e44ad' if hl else INK, lw=2.2 if hl else 1.8))
     ax.text(x0, 17, name, ha='center', fontsize=7.8, weight='bold')
-    ax.text(x0, 11.5, addr, ha='center', fontsize=8.5, color=SOFT)
+    ax.text(x0, 11.5, addr, ha='center', fontsize=7,
+            color='#8e44ad' if hl else SOFT)
     for i, (p, ry, c) in enumerate(order):
         px = x0 - 6 + i * 4
         ax.plot([px, px], [21, ry], color=c, lw=1.5)
         ax.add_patch(Circle((px, ry), 0.75, fc=c, ec='none'))
         ax.text(px, 22.2, p, ha='center', va='bottom', fontsize=5.8,
                 rotation=90, color=c)
-ax.text(2, 3.5, '每个模块 4 根线,顺序都一样:VCC→3V3轨 · GND→GND轨 · SDA→SDA轨 · SCL→SCL轨\n'
-                '模块名下方是它的 I2C 地址 —— 跑扫描程序应报出这 5 个数',
+ax.text(2, 4.5, '屏2 是唯一走总线1 的:SDA→G18  SCL→G19(紫色);其余四个模块全在总线0\n'
+                '两块屏地址相同也不冲突 —— 各自独占一条总线,不用改地址电阻\n'
+                '扫描程序会分别列出两条总线上的设备',
         fontsize=8.5, color=SOFT, va='top')
 
 # ============================================================ 阶段 2 · I2S
