@@ -23,7 +23,8 @@
  *   - left alone 60 s → sleepy lids; wake on approach
  *
  * Serial (115200) mood test keys, for the future /api/emotion hookup:
- *   n neutral · h happy · z sleepy · s sad · a angry · d 打印实时距离
+ *   n neutral · h happy · z sleepy · s sad · a angry
+ *   d 打印实时距离 · c 重新校准背景距离
  *
  * Libraries: Adafruit GFX, Adafruit SSD1306, (optional) Adafruit_VL53L0X.
  * Set USE_TOF 0 if the ToF library isn't installed yet.
@@ -76,6 +77,8 @@ constexpr uint32_t HOLD_MS = 700;      // 读数丢失后还认为"有人"的时
 constexpr uint32_t LONELY_MS = 20000;  // 没人多久之后开始打瞌睡
 
 int rangeMM = 9999;
+int bgMM = 9999;               // 开机量到的"背景距离"(桌面/墙)
+int nearGate = NEAR_MM;        // 实际生效的发现阈值
 uint32_t lastRangePoll = 0;
 uint32_t lastPresence = 0;     // last time someone was near
 uint32_t noticedAt = 0;        // 刚发现人的时刻 —— 用来做"一惊"的睁大
@@ -148,6 +151,31 @@ void drawEye(Adafruit_SSD1306 &d, int sign, float breath, float open_) {
   d.display();
 }
 
+#if USE_TOF
+/** 开机(或串口按 c)量一遍背景:传感器可能正对桌面或墙,
+ *  那样绝对阈值永远成立,人走了也判断不出来。改成"比背景近多少"。 */
+void calibrate() {
+  int v[24], n = 0;
+  uint32_t t0 = millis();
+  while (n < 24 && millis() - t0 < 1200) {
+    if (lox.isRangeComplete()) {
+      int r = lox.readRangeResult();
+      if (r > 0 && r < 8000) v[n++] = r;
+    }
+    delay(15);
+  }
+  if (n < 5) { bgMM = 9999; nearGate = NEAR_MM; }
+  else {
+    for (int i = 1; i < n; i++)              // 插入排序取中位数,抗跳变
+      for (int j = i; j > 0 && v[j] < v[j-1]; j--) { int t = v[j]; v[j] = v[j-1]; v[j-1] = t; }
+    bgMM = v[n / 2];
+    // 背景比 NEAR_MM 还近 → 门限压到背景前面 120mm
+    nearGate = (bgMM < NEAR_MM + 120) ? max(80, bgMM - 120) : NEAR_MM;
+  }
+  Serial.printf("背景 %d mm → 发现门限 %d mm(按 c 可重新校准)\n", bgMM, nearGate);
+}
+#endif
+
 void setup() {
   Serial.begin(115200);
   Wire.begin(PIN_SDA, PIN_SCL);
@@ -165,7 +193,7 @@ void setup() {
 #if USE_TOF
   hasTof = lox.begin();
   Serial.printf("ToF VL53L0X=%d\n", hasTof);
-  if (hasTof) lox.startRangeContinuous(33);   // 30Hz,比原来快 4 倍
+  if (hasTof) { lox.startRangeContinuous(33); calibrate(); }
 #endif
   randomSeed(esp_random());
 }
@@ -181,12 +209,12 @@ void loop() {
       int r = lox.readRangeResult();
       if (r > 0 && r < 8000) rangeMM = r;      // 8190 = 超量程,丢掉
     }
-    if (rangeMM > 0 && rangeMM < NEAR_MM) lastPresence = now;
+    if (rangeMM > 0 && rangeMM < nearGate) lastPresence = now;
   }
   if (debugRange && now - lastDbg > 250) {
     lastDbg = now;
     Serial.printf("距离 %4d mm  %s\n", rangeMM,
-                  rangeMM < CLOSE_MM ? "贴近" : (rangeMM < NEAR_MM ? "有人" : "空"));
+                  rangeMM < CLOSE_MM ? "贴近" : (rangeMM < nearGate ? "有人" : "空"));
   }
 #endif
   bool someoneNear  = (now - lastPresence) < HOLD_MS && lastPresence != 0;
@@ -214,6 +242,10 @@ void loop() {
       case 'a': mood = ANGRY;   break;
       case 'd': debugRange = !debugRange;
                 Serial.printf("[距离打印 %s]\n", debugRange ? "开" : "关"); break;
+#if USE_TOF
+      case 'c': if (hasTof) { Serial.println("[重新校准背景,手离开传感器]");
+                              delay(600); calibrate(); } break;
+#endif
     }
   }
   // presence overrides idle moods —— 人走了必须把心情还原,否则笑脸会一直挂着
