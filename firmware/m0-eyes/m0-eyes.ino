@@ -18,11 +18,12 @@
  *   - collective breath: everything scales ±2% on a ~7 s sine
  *   - saccades: the pupil picks a spot, eases there, holds, picks again
  *   - blinks: every 2–6 s, 15% chance of a double blink
- *   - presence: ToF < 350 mm → look at you; < 120 mm → happy squint
+ *   - presence: ToF < NEAR_MM → snaps awake and looks at you (eyes widen
+ *     for a moment on the transition); < CLOSE_MM → happy squint
  *   - left alone 60 s → sleepy lids; wake on approach
  *
  * Serial (115200) mood test keys, for the future /api/emotion hookup:
- *   n neutral · h happy · z sleepy · s sad · a angry
+ *   n neutral · h happy · z sleepy · s sad · a angry · d 打印实时距离
  *
  * Libraries: Adafruit GFX, Adafruit SSD1306, (optional) Adafruit_VL53L0X.
  * Set USE_TOF 0 if the ToF library isn't installed yet.
@@ -68,9 +69,18 @@ uint32_t blinkStart = 0;
 bool doubleBlink = false;
 
 // ---------- presence ----------
+// 灵敏度就调这三个数:发现距离 / 贴近距离 / 离开后多久算走了
+constexpr int NEAR_MM  = 500;    // 50cm 以内 = 注意到你
+constexpr int CLOSE_MM = 200;    // 20cm 以内 = 眯眼笑
+constexpr uint32_t HOLD_MS = 700;  // 读数丢失后还认为"有人"的时间
+
 int rangeMM = 9999;
 uint32_t lastRangePoll = 0;
 uint32_t lastPresence = 0;     // last time someone was near
+uint32_t noticedAt = 0;        // 刚发现人的时刻 —— 用来做"一惊"的睁大
+bool wasNear = false;
+bool debugRange = false;       // 串口按 d 打开距离打印
+uint32_t lastDbg = 0;
 
 float clampf(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
@@ -152,7 +162,7 @@ void setup() {
 #if USE_TOF
   hasTof = lox.begin();
   Serial.printf("ToF VL53L0X=%d\n", hasTof);
-  if (hasTof) lox.startRangeContinuous(120);
+  if (hasTof) lox.startRangeContinuous(33);   // 30Hz,比原来快 4 倍
 #endif
   randomSeed(esp_random());
 }
@@ -162,15 +172,26 @@ void loop() {
 
   // --- presence ---
 #if USE_TOF
-  if (hasTof && now - lastRangePoll > 120) {
+  if (hasTof && now - lastRangePoll > 20) {
     lastRangePoll = now;
-    if (lox.isRangeComplete()) rangeMM = lox.readRangeResult();
-    if (rangeMM > 0 && rangeMM < 350) lastPresence = now;
+    if (lox.isRangeComplete()) {
+      int r = lox.readRangeResult();
+      if (r > 0 && r < 8000) rangeMM = r;      // 8190 = 超量程,丢掉
+    }
+    if (rangeMM > 0 && rangeMM < NEAR_MM) lastPresence = now;
+  }
+  if (debugRange && now - lastDbg > 250) {
+    lastDbg = now;
+    Serial.printf("距离 %4d mm  %s\n", rangeMM,
+                  rangeMM < CLOSE_MM ? "贴近" : (rangeMM < NEAR_MM ? "有人" : "空"));
   }
 #endif
-  bool someoneNear  = (now - lastPresence) < 1200 && lastPresence != 0;
-  bool someoneClose = someoneNear && rangeMM < 120;
+  bool someoneNear  = (now - lastPresence) < HOLD_MS && lastPresence != 0;
+  bool someoneClose = someoneNear && rangeMM < CLOSE_MM;
   bool lonely       = (now - lastPresence) > 60000;
+  if (someoneNear && !wasNear) noticedAt = now;   // 从"没人"变"有人"的那一瞬
+  wasNear = someoneNear;
+  bool startled = someoneNear && (now - noticedAt) < 450;
 
   // --- serial mood keys (stand-in for /api/emotion) ---
   while (Serial.available()) {
@@ -180,6 +201,8 @@ void loop() {
       case 'z': mood = SLEEPY;  break;
       case 's': mood = SAD;     break;
       case 'a': mood = ANGRY;   break;
+      case 'd': debugRange = !debugRange;
+                Serial.printf("[距离打印 %s]\n", debugRange ? "开" : "关"); break;
     }
   }
   // presence overrides idle moods
@@ -194,8 +217,10 @@ void loop() {
     ty = (random(200) - 100) / 100.0f * 0.5f;
     nextSaccade = now + 1500 + random(2500);
   }
-  px += (tx - px) * 0.18f;
-  py += (ty - py) * 0.18f;
+  // 被发现的瞬间视线猛地对过来,平时慢慢飘
+  float ease = startled ? 0.45f : 0.18f;
+  px += (tx - px) * ease;
+  py += (ty - py) * ease;
 
   // --- blinks ---
   if (now > nextBlink && blinkStart == 0) {
@@ -205,6 +230,7 @@ void loop() {
   }
   float open_ = blinkAmt(now);
   if (mood == SLEEPY) open_ *= 0.72f;
+  if (startled) open_ *= 1.18f;          // 一惊:眼睛睁大半秒
 
   // --- collective breath, the 7 s sine every creature shares ---
   float breath = 1.0f + 0.02f * sinf(now / 7000.0f * TWO_PI);
