@@ -72,13 +72,16 @@ bool doubleBlink = false;
 // 灵敏度就调这三个数:发现距离 / 贴近距离 / 离开后多久算走了
 constexpr int NEAR_MM  = 500;    // 50cm 以内 = 注意到你
 constexpr int CLOSE_MM = 200;    // 20cm 以内 = 眯眼笑
-constexpr uint32_t HOLD_MS = 700;  // 读数丢失后还认为"有人"的时间
+constexpr uint32_t HOLD_MS = 700;      // 读数丢失后还认为"有人"的时间
+constexpr uint32_t LONELY_MS = 20000;  // 没人多久之后开始打瞌睡
 
 int rangeMM = 9999;
 uint32_t lastRangePoll = 0;
 uint32_t lastPresence = 0;     // last time someone was near
 uint32_t noticedAt = 0;        // 刚发现人的时刻 —— 用来做"一惊"的睁大
+uint32_t leftAt = 0;           // 人刚走开的时刻 —— 用来做"目送"的垂眼
 bool wasNear = false;
+bool moodFromPresence = false; // 心情是不是因为有人才变的(走了要还回去)
 bool debugRange = false;       // 串口按 d 打开距离打印
 uint32_t lastDbg = 0;
 
@@ -188,10 +191,18 @@ void loop() {
 #endif
   bool someoneNear  = (now - lastPresence) < HOLD_MS && lastPresence != 0;
   bool someoneClose = someoneNear && rangeMM < CLOSE_MM;
-  bool lonely       = (now - lastPresence) > 60000;
-  if (someoneNear && !wasNear) noticedAt = now;   // 从"没人"变"有人"的那一瞬
+  bool lonely       = (now - lastPresence) > LONELY_MS;
+  if (someoneNear && !wasNear) {                 // 从"没人"变"有人"的那一瞬
+    noticedAt = now;
+    Serial.println("→ 有人");
+  }
+  if (!someoneNear && wasNear) {                 // 从"有人"变"没人"
+    leftAt = now;
+    Serial.println("→ 走了");
+  }
   wasNear = someoneNear;
   bool startled = someoneNear && (now - noticedAt) < 450;
+  bool justLeft = leftAt != 0 && (now - leftAt) < 1000;
 
   // --- serial mood keys (stand-in for /api/emotion) ---
   while (Serial.available()) {
@@ -205,13 +216,15 @@ void loop() {
                 Serial.printf("[距离打印 %s]\n", debugRange ? "开" : "关"); break;
     }
   }
-  // presence overrides idle moods
-  if (someoneClose) mood = HAPPY;
+  // presence overrides idle moods —— 人走了必须把心情还原,否则笑脸会一直挂着
+  if (someoneClose) { mood = HAPPY; moodFromPresence = true; }
+  else if (moodFromPresence && !someoneNear) { mood = NEUTRAL; moodFromPresence = false; }
   else if (lonely && mood == NEUTRAL) mood = SLEEPY;
   else if (!lonely && mood == SLEEPY && someoneNear) mood = NEUTRAL;
 
   // --- saccades ---
   if (someoneNear) { tx = 0; ty = 0.15f; nextSaccade = now + 600; }
+  else if (justLeft) { tx = 0; ty = -0.45f; nextSaccade = now + 1000; }  // 目送:视线垂下
   else if (now > nextSaccade) {
     tx = (random(200) - 100) / 100.0f * 0.8f;
     ty = (random(200) - 100) / 100.0f * 0.5f;
@@ -231,6 +244,7 @@ void loop() {
   float open_ = blinkAmt(now);
   if (mood == SLEEPY) open_ *= 0.72f;
   if (startled) open_ *= 1.18f;          // 一惊:眼睛睁大半秒
+  if (justLeft)  open_ *= 0.80f;         // 目送:眼皮垂一秒
 
   // --- collective breath, the 7 s sine every creature shares ---
   float breath = 1.0f + 0.02f * sinf(now / 7000.0f * TWO_PI);
