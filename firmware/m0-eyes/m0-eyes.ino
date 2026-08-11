@@ -20,11 +20,13 @@
  *   - blinks: every 2–6 s, 15% chance of a double blink
  *   - presence: ToF < NEAR_MM → snaps awake and looks at you (eyes widen
  *     for a moment on the transition); < CLOSE_MM → happy squint
+ *   - touch (MPR121): 摸铜箔 → 眯眼笑,松手就恢复
+ *   - tilt (MPU6050): 机身歪 → 视线跟着重力滑;倒过来 → 晕;晃动 → 一惊
  *   - left alone 60 s → sleepy lids; wake on approach
  *
  * Serial (115200) mood test keys, for the future /api/emotion hookup:
  *   n neutral · h happy · z sleepy · s sad · a angry
- *   d 打印实时距离 · c 重新校准背景距离
+ *   d 打印实时距离 · c 重新校准背景距离 · i 打印姿态/触摸状态
  *
  * Libraries: Adafruit GFX, Adafruit SSD1306, (optional) Adafruit_VL53L0X.
  * Set USE_TOF 0 if the ToF library isn't installed yet.
@@ -56,7 +58,7 @@ Adafruit_VL53L0X lox;
 bool hasTof = false;
 #endif
 
-enum Mood { NEUTRAL, HAPPY, SLEEPY, SAD, ANGRY };
+enum Mood { NEUTRAL, HAPPY, SLEEPY, SAD, ANGRY, DIZZY };
 Mood mood = NEUTRAL;
 
 // ---------- gaze ----------
@@ -89,6 +91,88 @@ bool debugRange = false;       // 串口按 d 打开距离打印
 uint32_t lastDbg = 0;
 
 float clampf(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+// ===================== MPU6050 姿态(直接读寄存器,不用装库) =====================
+constexpr uint8_t MPU_ADDR = 0x68;
+bool hasMpu = false;
+float tiltX = 0, tiltZ = 1;      // 归一化重力分量:tiltX 左右倾,tiltZ 正面朝上为正
+float shake = 0;                 // 抖动强度(高通后的加速度变化)
+uint32_t shookAt = 0;
+
+void mpuWrite(uint8_t reg, uint8_t val) {
+  Wire.beginTransmission(MPU_ADDR);
+  Wire.write(reg); Wire.write(val);
+  Wire.endTransmission();
+}
+
+bool mpuBegin() {
+  Wire.beginTransmission(MPU_ADDR);
+  if (Wire.endTransmission() != 0) return false;
+  mpuWrite(0x6B, 0x00);          // 唤醒
+  mpuWrite(0x1C, 0x00);          // ±2g 量程
+  mpuWrite(0x1A, 0x03);          // 低通 44Hz,压掉马达/桌面震动
+  return true;
+}
+
+/** 读三轴加速度,更新倾斜与抖动。 */
+void mpuUpdate() {
+  Wire.beginTransmission(MPU_ADDR);
+  Wire.write(0x3B);
+  if (Wire.endTransmission(false) != 0) return;
+  if (Wire.requestFrom((int)MPU_ADDR, 6) != 6) return;
+  int16_t ax = (Wire.read() << 8) | Wire.read();
+  int16_t ay = (Wire.read() << 8) | Wire.read();
+  int16_t az = (Wire.read() << 8) | Wire.read();
+  float gx = ax / 16384.0f, gy = ay / 16384.0f, gz = az / 16384.0f;
+  static float pm = 1.0f;
+  float mag = sqrtf(gx*gx + gy*gy + gz*gz);
+  shake = shake * 0.85f + fabsf(mag - pm) * 0.15f * 10.0f;   // 平滑的高通
+  pm = mag;
+  // 模块平放时 z 轴朝上;板子立起来贴在脸后面时用 x/y 判左右倾
+  tiltX = tiltX * 0.85f + clampf(gy, -1, 1) * 0.15f;
+  tiltZ = tiltZ * 0.85f + gz * 0.15f;
+}
+
+// ===================== MPR121 触摸(同样直接读寄存器) =====================
+constexpr uint8_t MPR_ADDR = 0x5A;
+bool hasMpr = false;
+uint16_t touched = 0;
+uint32_t touchStart = 0;
+
+void mprWrite(uint8_t reg, uint8_t val) {
+  Wire.beginTransmission(MPR_ADDR);
+  Wire.write(reg); Wire.write(val);
+  Wire.endTransmission();
+}
+
+bool mprBegin() {
+  Wire.beginTransmission(MPR_ADDR);
+  if (Wire.endTransmission() != 0) return false;
+  mprWrite(0x80, 0x63);          // 软复位
+  delay(10);
+  mprWrite(0x5E, 0x00);          // 停机才能改配置
+  for (uint8_t i = 0; i < 12; i++) {
+    mprWrite(0x41 + i * 2, 12);  // 触摸门限(越小越灵敏)
+    mprWrite(0x42 + i * 2, 6);   // 松开门限
+  }
+  mprWrite(0x2B, 0x01); mprWrite(0x2C, 0x01);   // 基线跟踪(上升)
+  mprWrite(0x2D, 0x0E); mprWrite(0x2E, 0x00);
+  mprWrite(0x2F, 0x01); mprWrite(0x30, 0x05);   // 基线跟踪(下降)
+  mprWrite(0x31, 0x01); mprWrite(0x32, 0x00);
+  mprWrite(0x5B, 0x00);          // 去抖
+  mprWrite(0x5C, 0x10); mprWrite(0x5D, 0x20);   // 采样配置
+  mprWrite(0x5E, 0x8F);          // 启用 12 路电极 + 基线跟踪
+  return true;
+}
+
+uint16_t mprRead() {
+  Wire.beginTransmission(MPR_ADDR);
+  Wire.write(0x00);
+  if (Wire.endTransmission(false) != 0) return 0;
+  if (Wire.requestFrom((int)MPR_ADDR, 2) != 2) return 0;
+  uint16_t lo = Wire.read(), hi = Wire.read();
+  return (lo | (hi << 8)) & 0x0FFF;
+}
 
 /** Blink envelope: 1 = open, 0 = shut. ~220 ms per blink. */
 float blinkAmt(uint32_t now) {
@@ -147,6 +231,10 @@ void drawEye(Adafruit_SSD1306 &d, int sign, float breath, float open_) {
       int drop = int((sign > 0 ? (w - i) : i) * 0.30f);
       d.drawFastVLine(cx - w / 2 + i, cy - h / 2, drop, SSD1306_BLACK);
     }
+  } else if (mood == DIZZY) {
+    // 晕:瞳孔上多画一道十字,像卡通里转圈的眼睛
+    d.drawFastHLine(pxp - pr - 4, pyp, pr * 2 + 8, SSD1306_BLACK);
+    d.drawFastVLine(pxp, pyp - pr - 4, pr * 2 + 8, SSD1306_BLACK);
   }
   d.display();
 }
@@ -190,6 +278,10 @@ void setup() {
   Serial.printf("eye L(0x%02X @bus0)=%d  eye R(0x%02X @bus%d)=%d\n",
                 ADDR_L, okL, ADDR_R, TWO_BUS ? 1 : 0, okR);
 
+  hasMpu = mpuBegin();
+  hasMpr = mprBegin();
+  Serial.printf("MPU6050=%d  MPR121=%d\n", hasMpu, hasMpr);
+
 #if USE_TOF
   hasTof = lox.begin();
   Serial.printf("ToF VL53L0X=%d\n", hasTof);
@@ -232,6 +324,23 @@ void loop() {
   bool startled = someoneNear && (now - noticedAt) < 450;
   bool justLeft = leftAt != 0 && (now - leftAt) < 1000;
 
+  // --- 姿态 / 触摸 ---
+  static uint32_t lastImu = 0;
+  if (hasMpu && now - lastImu > 25) { lastImu = now; mpuUpdate(); }
+  bool upsideDown = hasMpu && tiltZ < -0.4f;
+  if (hasMpu && shake > 1.2f) shookAt = now;
+  bool jolted = (now - shookAt) < 700 && shookAt != 0;
+
+  static uint32_t lastTouchPoll = 0;
+  if (hasMpr && now - lastTouchPoll > 40) {
+    lastTouchPoll = now;
+    uint16_t t = mprRead();
+    if (t && !touched) { touchStart = now; Serial.println("→ 被摸了"); }
+    if (!t && touched) Serial.println("→ 松手");
+    touched = t;
+  }
+  bool beingTouched = touched != 0;
+
   // --- serial mood keys (stand-in for /api/emotion) ---
   while (Serial.available()) {
     switch (Serial.read()) {
@@ -242,15 +351,23 @@ void loop() {
       case 'a': mood = ANGRY;   break;
       case 'd': debugRange = !debugRange;
                 Serial.printf("[距离打印 %s]\n", debugRange ? "开" : "关"); break;
+      case 'i': Serial.printf("倾斜 x=%.2f z=%.2f  抖动=%.2f  触摸=0x%03X\n",
+                              tiltX, tiltZ, shake, touched); break;
 #if USE_TOF
       case 'c': if (hasTof) { Serial.println("[重新校准背景,手离开传感器]");
                               delay(600); calibrate(); } break;
 #endif
     }
   }
-  // presence overrides idle moods —— 人走了必须把心情还原,否则笑脸会一直挂着
-  if (someoneClose) { mood = HAPPY; moodFromPresence = true; }
+  // 反应优先级:晕 > 惊 > 摸 > 靠近 > 独处
+  // 每一条都要能"退回去",否则表情会卡住(之前笑脸下不来就是这个原因)
+  if (upsideDown)          { mood = DIZZY; moodFromPresence = true; }
+  else if (jolted)         { mood = ANGRY; moodFromPresence = true; }
+  else if (beingTouched)   { mood = HAPPY; moodFromPresence = true; }
+  else if (someoneClose)   { mood = HAPPY; moodFromPresence = true; }
   else if (moodFromPresence && !someoneNear) { mood = NEUTRAL; moodFromPresence = false; }
+  else if (moodFromPresence && someoneNear && mood != NEUTRAL
+           && !beingTouched && !jolted && !upsideDown) { mood = NEUTRAL; moodFromPresence = false; }
   else if (lonely && mood == NEUTRAL) mood = SLEEPY;
   else if (!lonely && mood == SLEEPY && someoneNear) mood = NEUTRAL;
 
@@ -262,9 +379,12 @@ void loop() {
     ty = (random(200) - 100) / 100.0f * 0.5f;
     nextSaccade = now + 1500 + random(2500);
   }
+  // 机身一歪,视线跟着重力往低处滑。注意是叠加到"本帧目标"上,
+  // 不能累加进 tx —— tx 是跨帧保留的扫视目标,累加会瞬间打满。
+  float gazeX = hasMpu ? clampf(tx + tiltX * 0.9f, -1.0f, 1.0f) : tx;
   // 被发现的瞬间视线猛地对过来,平时慢慢飘
-  float ease = startled ? 0.45f : 0.18f;
-  px += (tx - px) * ease;
+  float ease = (startled || jolted) ? 0.45f : 0.18f;
+  px += (gazeX - px) * ease;
   py += (ty - py) * ease;
 
   // --- blinks ---
@@ -275,7 +395,7 @@ void loop() {
   }
   float open_ = blinkAmt(now);
   if (mood == SLEEPY) open_ *= 0.72f;
-  if (startled) open_ *= 1.18f;          // 一惊:眼睛睁大半秒
+  if (startled || jolted) open_ *= 1.18f;   // 一惊:眼睛睁大半秒
   if (justLeft)  open_ *= 0.80f;         // 目送:眼皮垂一秒
 
   // --- collective breath, the 7 s sine every creature shares ---
