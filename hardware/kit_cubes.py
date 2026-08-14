@@ -20,12 +20,25 @@ Axis mapping (voxel dump → cube local):
 The eye-patch 3×3 footprint is EXCLUDED (printed via eye_patch_kit);
 mic/vent cells are listed for manual hole_cube substitution.
 
+PRINT ORIENTATION: each variant STL is rotated so one FLAT (exposed)
+face sits on the bed. Exposed faces carry no pockets, so elephant foot
+near the heated plate can never squeeze a magnet pocket — and on a
+textured PEI sheet the show face picks up the nice matte texture for
+free. Pockets end up only on top (truest) and side walls. Preference:
+front/back flat faces first (the plate-like majority), then bottom/top,
+then left/right. A fully-coupled interior cube has no flat face and is
+flagged in the bill — ream its bed-side pocket or print it last.
+
 Usage: python3 hardware/kit_cubes.py <base> [out_dir]   (expects <base>.json)
 Writes out_dir/cube_<mask>.stl, out_dir/variant_bill.txt, out_dir/variant_map.json
 """
 import json
 import os
 import sys
+
+import numpy as np
+import trimesh
+from trimesh.transformations import rotation_matrix as RM, translation_matrix as TM
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from brick_lib import mosaic_cube
@@ -36,6 +49,32 @@ FACE_KEYS = [((0, True), '+x/右'), ((0, False), '-x/左'),
 DIRS = {(0, True): (1, 0, 0), (0, False): (-1, 0, 0),
         (1, True): (0, 0, 1), (1, False): (0, 0, -1),
         (2, True): (0, 1, 0), (2, False): (0, -1, 0)}
+
+# 平面朝下的优先级(前后 → 下上 → 左右)与对应的放倒旋转
+FLAT_PREF = [(1, True), (1, False), (2, False), (2, True), (0, False), (0, True)]
+FLAT_ROT = {(1, True):  RM(-np.pi/2, [1, 0, 0]),   # 前面(+y)贴床
+            (1, False): RM(+np.pi/2, [1, 0, 0]),   # 后面(-y)贴床
+            (2, False): None,                       # 底面本来就贴床
+            (2, True):  RM(np.pi, [1, 0, 0]),      # 顶面翻下去
+            (0, False): RM(-np.pi/2, [0, 1, 0]),   # 左面贴床
+            (0, True):  RM(+np.pi/2, [0, 1, 0])}   # 右面贴床
+
+
+def orient_flat_down(m, mask):
+    """把一个没有耦合特征的外露面转到床面,返回 (mesh, 说明)."""
+    for key in FLAT_PREF:
+        if key not in mask:
+            r = FLAT_ROT[key]
+            if r is not None:
+                m = m.copy()
+                m.apply_transform(r)
+            lo = m.bounds[0]
+            m.apply_transform(TM([-lo[0], -lo[1], -lo[2]]))
+            name = dict(FACE_KEYS)[key]
+            return m, f'贴床面 {name}'
+    lo = m.bounds[0]
+    m = m.copy(); m.apply_transform(TM([-lo[0], -lo[1], -lo[2]]))
+    return m, '⚠ 六面全耦合,床面磁袋需手工扩孔'
 
 
 def main(base, out_dir):
@@ -86,10 +125,11 @@ def main(base, out_dir):
     for code, v in sorted(variants.items(), key=lambda kv: -kv[1]['count']):
         m = mosaic_cube(faces=list(v['mask']))
         assert m.is_watertight, code
+        m, orient = orient_flat_down(m, set(v['mask']))
         m.export(f'{out_dir}/cube_{code}.stl')
         names = [n for k, n in FACE_KEYS if k in v['mask']]
         flat = [n for k, n in FACE_KEYS if k not in v['mask']]
-        lines.append(f'cube_{code:14s} × {v["count"]:3d}   '
+        lines.append(f'cube_{code:14s} × {v["count"]:3d}   {orient:14s} '
                      f'耦合面: {" ".join(names) or "—"}   全平面: {" ".join(flat) or "—"}')
     lines += ['', 'substitutions: ' + ', '.join(
         f'{k[0]},{k[1]},{k[2]} → {t}' for k, t in special.items() if k in kit)]
