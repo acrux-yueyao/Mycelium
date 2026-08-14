@@ -193,8 +193,10 @@ def main(base, out_dir):
     kcols = [hexes.get(c, '#b0aca0') for c in sorted(kit)]
     rgbs = _np.array([[int(h[1:3], 16), int(h[3:5], 16), int(h[5:7], 16)]
                       for h in kcols], float)
+    import os as _os
+    n_colors = int(_os.environ.get('KIT_COLORS', '8'))
     uq = _np.unique(rgbs, axis=0)
-    kq = min(8, len(uq))
+    kq = min(n_colors, len(uq))
     cent = uq[_np.linspace(0, len(uq) - 1, kq).astype(int)].copy()
     for _ in range(12):
         dd = ((rgbs[:, None] - cent[None]) ** 2).sum(2)
