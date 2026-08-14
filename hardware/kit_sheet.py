@@ -9,8 +9,8 @@ magnets, steel discs).
 
 Kit conventions:
   - cube pitch 12 mm (brick_lib.mosaic_cube), one voxel = one cube
-  - core void: 6 × 7 × 3 cells anchored to the eye rows; front wall keeps
-    one cell; the cartridge slides in from the BACK, lid flush
+  - core: 7×7 zone, cavity 5×6 behind the front skin; the MC02
+    backplane (electronics SKU) clicks onto the open back
   - the ±4 mm eye-line offset between grid and cartridge is absorbed in
     firmware (eyes draw a few pixels higher on the OLEDs)
 
@@ -58,7 +58,7 @@ def main(base):
     # core void: 6 cols from anchor, 7 engine rows around the eyes, back 3 depth
     vc0 = a.get('voidC0', a['coreC0'] + 1)             # void leaves a 1-cube side wall
     vr0, vr1 = a['eyeRow'] - 2, a['eyeRow'] + 4        # inclusive engine rows
-    void = lambda x, r, z: (vc0 <= x < vc0 + 6) and (vr0 <= r <= vr1) and 0 < z < Z - 1
+    void = lambda x, r, z: (vc0 <= x < vc0 + 5) and (vr0 <= r <= vr1) and 0 < z < Z - 1
 
     kit, removed = [], 0
     for x, y, z, hexcol, *_ in vox:
@@ -78,7 +78,7 @@ def main(base):
     special = {}
     for c0 in (a['L0'], a['L0'] + 1, a['R0'], a['R0'] + 1):
         special[(c0, a['eyeRow'], zf)] = 'W'
-    tcx = vc0 + 3
+    tcx = vc0 + 2
     special[(tcx, a['eyeRow'] - 2, zf)] = 'W'
     special[(tcx, a['eyeRow'] + 2, zf)] = 'M'
     for dx in (-1, 1):
@@ -105,7 +105,7 @@ def main(base):
                  f"cubes     {total}",
                  f"magnets   {total * 6}  (O4x2 N35 · dual-magnet)",
                  f"          + 24 O2x1 (eye-patch seams)",
-                 f"core void 6x7x3 centred; ALL 6 faces are cubes",
+                 f"core: MC02 backplane 7x7 zone, cavity 5x6x2",
                  f"function cubes: W window x5 / M mic x1 / V vent x2",
                  "", "colour bill:"]
         for i, c in enumerate(counts):
@@ -198,9 +198,9 @@ def main(base):
                             va='center', fontsize=6.5, family='monospace',
                             color='#5b4fd0' if tag else '#1c1c1a')
                 if vr0 <= r <= vr1:
-                    ax.add_patch(Rectangle((vc0, 0), 6, Z - 1, fill=False,
+                    ax.add_patch(Rectangle((vc0, 0), 5, Z - 1, fill=False,
                                            ec='#5b4fd0', ls='--', lw=1.4))
-                    ax.text(vc0 + 3, (Z - 1) / 2, 'CORE', ha='center',
+                    ax.text(vc0 + 2.5, (Z - 1) / 2, 'CORE', ha='center',
                             va='center', fontsize=9, color='#5b4fd0',
                             family='monospace')
                 ax.set_xlim(-0.5, cols + 0.5); ax.set_ylim(-0.5, Z + 0.5)

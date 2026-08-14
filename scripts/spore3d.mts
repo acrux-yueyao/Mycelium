@@ -100,7 +100,7 @@ const alpha = new Map<number, number>();
 // column solid all the way down so the cartridge can slide in from the
 // bottom. Colours for added cells come from the row's palette band.
 const COMPANION = process.argv.includes('--companion');
-const CORE_COLS = 8, CORE_UP = 3; // widened span: 6-col void + 1-cube wall each side
+const CORE_COLS = 7, CORE_UP = 3; // widened span: 6-col void + 1-cube wall each side
 let coreC0 = 0, coreRowTop = 0;
 if (COMPANION) {
   const ecx = (eyes.L0 + 1 + eyes.R0) / 2;
@@ -391,7 +391,7 @@ fs.mkdirSync(outDir, { recursive: true });
       name, text, family: FAMS[charId], sporeId, dims: [X, Y, Z], mm, voxels: vox,
       anchor: COMPANION ? {
         coreC0, coreRowTop, coreCols: CORE_COLS,
-        voidC0: coreC0 + 1, voidCols: 6,
+        voidC0: coreC0 + 1, voidCols: 5,
         eyeRow: eyes.row, L0: eyes.L0, R0: eyes.R0, rows, cols,
       } : undefined,
     }));

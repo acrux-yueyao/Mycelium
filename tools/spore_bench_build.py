@@ -112,7 +112,7 @@ dialog .row{margin-top:10px; justify-content:flex-end}
       <div class="row"><label>云厚(层)</label><input type=range id=cloudD min=1 max=3 step=1 value=2><output></output></div>
     </fieldset>
     <fieldset>
-      <legend>核心舱 8列×7行</legend>
+      <legend>核心舱 7列×7行(MC02 背板)</legend>
       <label class="toggle"><input type=checkbox id=core checked>启用(填实 · 锁深3 · 背面平)</label>
       <label class="toggle"><input type=checkbox id=coreGround checked>贴地(USB 充电口对桌面)</label>
       <div class="row"><label>中轴偏移(默认0=居中)</label><input type=range id=coreDX min=-3 max=3 step=1 value=0><output></output></div>
@@ -260,9 +260,9 @@ function rebuild(){
     if(!P.coreGround){
       let best=null;
       for(let ty=0;ty+7<=rows;ty++){
-        const tx0=Math.round(axisX-4);
+        const tx0=Math.round(axisX-3.5);
         let miss=0;
-        for(let yy=ty;yy<ty+7;yy++)for(let xx=tx0;xx<tx0+8;xx++)
+        for(let yy=ty;yy<ty+7;yy++)for(let xx=tx0;xx<tx0+7;xx++)
           if(xx<0||xx>=cols||!body[yy][xx])miss++;
         const cyc=(ty+3.5)/rows, bias=(cyc>=0.4&&cyc<=0.8)?0:5;
         if(best===null||miss+bias<best[0])best=[miss+bias,ty];
@@ -270,10 +270,10 @@ function rebuild(){
       bestTy=best[1];
     }
     {
-      let tx=Math.max(0,Math.min(cols-8,Math.round(axisX-4)+P.coreDX));
+      let tx=Math.max(0,Math.min(cols-7,Math.round(axisX-3.5)+P.coreDX));
       let ty=P.coreGround?bestTy:Math.max(0,Math.min(rows-7,bestTy+P.coreDY));
       coreW=[tx,ty];
-      for(let yy=ty;yy<ty+7;yy++)for(let xx=tx;xx<tx+8;xx++){
+      for(let yy=ty;yy<ty+7;yy++)for(let xx=tx;xx<tx+7;xx++){
         if(!body[yy][xx]){
           body[yy][xx]=true;
           out:for(let rr=1;rr<6;rr++)
@@ -291,7 +291,7 @@ function rebuild(){
   const HMAX=6, Z=2*HMAX+3, MID=HMAX+1;
   const vox=new Map();     // "x,z,y" -> {hex, core}
   const rngJ=mulberry32(1111);
-  const inCore=(x,y)=>coreW&&x>=coreW[0]&&x<coreW[0]+8&&y>=coreW[1]&&y<coreW[1]+7;
+  const inCore=(x,y)=>coreW&&x>=coreW[0]&&x<coreW[0]+7&&y>=coreW[1]&&y<coreW[1]+7;
   for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
     if(body[y][x]){
       const h=half[y][x], hex=colr[x+','+y]||'#b0aca0';
@@ -374,7 +374,7 @@ function rebuild(){
          core:(P.core&&coreW)?{tx:coreW[0],ty:coreW[1],z0:MID-1,z1:MID+2}:null};
   document.getElementById('editCount').textContent=ed.size?`已改 ${ed.size} 格`:'';
   let coreTxt=(P.core&&coreW)
-    ?`<br>舱位 列${coreW[0]}-${coreW[0]+7} · 行${coreW[1]}-${coreW[1]+6}`+
+    ?`<br>舱位 列${coreW[0]}-${coreW[0]+6} · 行${coreW[1]}-${coreW[1]+6}`+
      (P.coreGround?' · <b>贴地·中轴对齐,USB可插</b>':' · 中轴对齐 · ⚠悬空,充电口够不着')
     :'';
   if(P.core&&coreW&&eyePatch){
@@ -470,22 +470,12 @@ function render(){
       ctx.setLineDash([]);
       return C;
     };
-    // 外框:保护区 8列×7行×3深(格)
-    const C=drawBox(tx,tx+8,ty,ty+7,z0,z1,[6,4],1.6,'#c9793a');
-    // 真空腔 62.6×82.6×26.6mm:水平居中 · 底对齐 · 贴背开口(舱从背后插)
-    const CW=62.6/12, CH=82.6/12, CD=26.6/12;
-    const cx0=tx+(8-CW)/2, cy0b=ty+0.05, cz1=z1, cz0=z1-CD;
-    drawBox(cx0,cx0+CW,cy0b,cy0b+CH,cz0,cz1,[2,3],0.9,'#c9793a');
-    // 眼线:腔底上方 46mm
-    const eyY=cy0b+46/12;
-    const e1=proj(cx0,eyY,cz0), e2=proj(cx0+CW,eyY,cz0);
-    ctx.setLineDash([1,3]);
-    ctx.beginPath();ctx.moveTo(e1[0],e1[1]);ctx.lineTo(e2[0],e2[1]);
-    ctx.strokeStyle='#5b8cd0';ctx.lineWidth=1.2;ctx.stroke();ctx.setLineDash([]);
-    ctx.font='10px ui-monospace,monospace';ctx.fillStyle='#5b8cd0';
-    ctx.fillText('眼线 +46',e2[0]+4,e2[1]+3);
+    // 外框:保护区 7列×7行×3深(格)
+    const C=drawBox(tx,tx+7,ty,ty+7,z0,z1,[6,4],1.6,'#c9793a');
+    // MC02:腔 5列×6行×21(底行是U/G墙),背板扣在开口上
+    drawBox(tx+1,tx+6,ty+1,ty+7,z1-21/12,z1,[2,3],0.9,'#c9793a');
     // USB-C 充电口:前脸底部中央一格
-    const ux0=tx+3.5, ux1=tx+4.5;
+    const ux0=tx+3, ux1=tx+4;
     const U=[proj(ux0,ty,z0),proj(ux1,ty,z0),proj(ux1,ty+0.55,z0),proj(ux0,ty+0.55,z0)];
     ctx.beginPath();
     ctx.moveTo(U[0][0],U[0][1]);
@@ -499,7 +489,7 @@ function render(){
     // 标签:挂在框顶最高点
     let top=C[0];
     for(const p of C) if(p[1]<top[1]) top=p;
-    const label='MC-01 60×80×25 · 空腔62.6×82.6×26.6 · 背插';
+    const label='MC02 背板84×84×3 · 腔60×72×21 · 背扣';
     ctx.font='11px ui-monospace,monospace';
     const tw=ctx.measureText(label).width;
     const lx=Math.min(Math.max(top[0]-tw/2,8),w-tw-8), ly=Math.max(top[1]-14,16);

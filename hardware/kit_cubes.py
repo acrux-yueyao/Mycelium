@@ -17,6 +17,7 @@ Axis mapping (voxel dump → cube local):
   voxel z (depth)  → cube axis 1
   voxel y (height) → cube axis 2   (y=0 is the bottom layer)
 
+Core zone is 7 cols wide (MC02 backplane, cavity 5×6).
 The eye-patch 3×3 footprint is EXCLUDED (printed via eye_patch_kit);
 mic/vent cells are listed for manual hole_cube substitution.
 
@@ -88,7 +89,7 @@ def main(base, out_dir):
 
     vc0 = a.get('voidC0', a['coreC0'] + 1)
     vr0, vr1 = a['eyeRow'] - 2, a['eyeRow'] + 4
-    void = lambda x, r, z: (vc0 <= x < vc0 + 6) and (vr0 <= r <= vr1) and 0 < z < Z - 1
+    void = lambda x, r, z: (vc0 <= x < vc0 + 5) and (vr0 <= r <= vr1) and 0 < z < Z - 1
 
     kit = set()
     for x, y, z, *_ in meta['voxels']:
