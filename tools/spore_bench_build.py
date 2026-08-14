@@ -444,10 +444,20 @@ function render(){
       ctx.setLineDash([]);
       return C;
     };
-    // 外框 8列×7行×3深(舱壁范围)
+    // 外框:保护区 8列×7行×3深(格)
     const C=drawBox(tx,tx+8,ty,ty+7,z0,z1,[6,4],1.6,'#c9793a');
-    // 内空腔 6×7×3(留1列侧壁)
-    drawBox(tx+1,tx+7,ty,ty+7,z0,z1,[2,3],0.9,'#c9793a');
+    // 真空腔 62.6×82.6×26.6mm:水平居中 · 底对齐 · 贴背开口(舱从背后插)
+    const CW=62.6/12, CH=82.6/12, CD=26.6/12;
+    const cx0=tx+(8-CW)/2, cy0b=ty+0.05, cz1=z1, cz0=z1-CD;
+    drawBox(cx0,cx0+CW,cy0b,cy0b+CH,cz0,cz1,[2,3],0.9,'#c9793a');
+    // 眼线:腔底上方 46mm
+    const eyY=cy0b+46/12;
+    const e1=proj(cx0,eyY,cz0), e2=proj(cx0+CW,eyY,cz0);
+    ctx.setLineDash([1,3]);
+    ctx.beginPath();ctx.moveTo(e1[0],e1[1]);ctx.lineTo(e2[0],e2[1]);
+    ctx.strokeStyle='#5b8cd0';ctx.lineWidth=1.2;ctx.stroke();ctx.setLineDash([]);
+    ctx.font='10px ui-monospace,monospace';ctx.fillStyle='#5b8cd0';
+    ctx.fillText('眼线 +46',e2[0]+4,e2[1]+3);
     // USB-C 充电口:前脸底部中央一格
     const ux0=tx+3.5, ux1=tx+4.5;
     const U=[proj(ux0,ty,z0),proj(ux1,ty,z0),proj(ux1,ty+0.55,z0),proj(ux0,ty+0.55,z0)];
@@ -463,7 +473,7 @@ function render(){
     // 标签:挂在框顶最高点
     let top=C[0];
     for(const p of C) if(p[1]<top[1]) top=p;
-    const label='MC-01 舱区 8列×7行×3深 (96×84×36mm)';
+    const label='MC-01 60×80×25 · 空腔62.6×82.6×26.6 · 背插';
     ctx.font='11px ui-monospace,monospace';
     const tw=ctx.measureText(label).width;
     const lx=Math.min(Math.max(top[0]-tw/2,8),w-tw-8), ly=Math.max(top[1]-14,16);
