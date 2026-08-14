@@ -87,20 +87,39 @@ def main(base, out_dir):
     rows = a['rows']
     Z = meta['dims'][2]
 
-    vc0 = a.get('voidC0', a['coreC0'] + 1)
-    vr0, vr1 = a['eyeRow'] - 2, a['eyeRow'] + 4
-    void = lambda x, r, z: (vc0 <= x < vc0 + 5) and (vr0 <= r <= vr1) and 0 < z < Z - 1
-
-    kit = set()
-    for x, y, z, *_ in meta['voxels']:
-        if not void(x, rows - 1 - y, z):
+    zone = meta.get('zone')
+    if zone:
+        # sculpt 管线:舱区内格(5×6)在"皮面平面"之后的体素 = MC02 腔,挖除。
+        # 皮面平面 = 舱背板前 3 格(Zb=12/MIDb=5 → 引擎 z=7):
+        # 皮面统一共面(横向必然连通),皮前方的鼓包保留(踩在皮上)。
+        SKIN_Z = Z - 1 - 4                     # bench MIDb-1=4 → 引擎 z=7
+        tx, ty = zone['tx'], zone['ty']
+        inner = lambda x, yb: tx + 1 <= x <= tx + 5 and ty + 1 <= yb <= ty + 6
+        kit = set()
+        for x, y, z, *_ in meta['voxels']:
+            if inner(x, y) and z < SKIN_Z:
+                continue
             kit.add((x, y, z))
+    else:
+        vc0 = a.get('voidC0', a['coreC0'] + 1)
+        vr0, vr1 = a['eyeRow'] - 2, a['eyeRow'] + 4
+        void = lambda x, r, z: (vc0 <= x < vc0 + 5) and (vr0 <= r <= vr1) and 0 < z < Z - 1
+        kit = set()
+        for x, y, z, *_ in meta['voxels']:
+            if not void(x, rows - 1 - y, z):
+                kit.add((x, y, z))
 
-    # eye-patch 3×3 footprint on the front layer (printed separately)
+    if zone:
+        vc0 = zone['tx'] + 1                  # 腔起始列(功能块定位用)
+    # eye-patch 3×3 footprint — anchored to each cell's FRONT-most voxel
+    fzall = {}
+    for x, y, z, *_ in meta['voxels']:
+        fzall[(x, y)] = max(fzall.get((x, y), -1), z)
     zf = Z - 1
     er = a['eyeRow']
     ep_c0 = a['L0'] + 1                       # patch centred on the eye pair
-    patch = {(c, rows - 1 - r, zf) for c in range(ep_c0, ep_c0 + 3)
+    patch = {(c, rows - 1 - r, fzall.get((c, rows - 1 - r), zf))
+             for c in range(ep_c0, ep_c0 + 3)
              for r in range(er - 1, er + 2)}
     # mic / vents (manual hole_cube substitution)
     tcx = vc0 + 3
@@ -108,15 +127,73 @@ def main(base, out_dir):
                (tcx - 1, rows - 1 - (er + 4), 0): 'V-vent',
                (tcx + 1, rows - 1 - (er + 4), 0): 'V-vent'}
 
+    # 安全掏空:埋没块(六邻居全实)逐个尝试移除,
+    # 只有当每个邻居移除后仍有 ≥1 个其他面接触时才真移除;
+    # 最后整体 BFS 验证连通,不连通的方案直接放弃该次移除。
+    nb6 = lambda c: [(c[0] + d[0], c[1] + d[1], c[2] + d[2]) for d in DIRS.values()]
+
+    # 先剔孤块(眼件背后等只邻拼件的格):不可拼装,入另册
+    strays = set()
+    if kit:
+        # 反复取最大连通域
+        comps = []
+        rest = set(kit)
+        while rest:
+            s0, st = set(), [next(iter(sorted(rest)))]
+            while st:
+                c = st.pop()
+                if c in s0 or c not in rest:
+                    continue
+                s0.add(c)
+                st.extend(n for n in nb6(c) if n in rest)
+            comps.append(s0)
+            rest -= s0
+        comps.sort(key=len, reverse=True)
+        # 含眼件占位格的小连通域不算孤块(拼件靠缝耦合物理连接)
+        strays = set()
+        for comp in comps[1:]:
+            if comp & patch:
+                continue
+            strays |= comp
+        kit -= strays
+
+    # 掏空判定:移除后,它的所有原邻居必须仍互相可达(局部 BFS)
+    def still_linked(nbrs):
+        if len(nbrs) <= 1:
+            return True
+        target = set(nbrs)
+        seen, stack = set(), [nbrs[0]]
+        while stack and not target <= seen:
+            c = stack.pop()
+            if c in seen or c not in kit:
+                continue
+            seen.add(c)
+            stack.extend(n for n in nb6(c) if n in kit)
+        return target <= seen
+
+    removed = set()
+    for c in sorted(c for c in kit if all(n in kit for n in nb6(c))):
+        kit.discard(c)
+        nbrs = [n for n in nb6(c) if n in kit]
+        if still_linked(nbrs):
+            removed.add(c)
+        else:
+            kit.add(c)
+    buried = removed
+    # 终检:零邻居的幸存孤块也入另册
+    zero = {c for c in kit if not any(n in kit for n in nb6(c))}
+    kit -= zero
+    strays |= zero
+
     variants, vmap = {}, {}
     for (x, y, z) in sorted(kit):
         if (x, y, z) in patch:
             vmap[f'{x},{y},{z}'] = 'EYEPATCH'
             continue
+        # 眼件外侧面带标准耦合,邻居照常算耦合面
         mask = tuple(sorted(
             key for key, _ in FACE_KEYS
-            if ((x + DIRS[key][0], y + DIRS[key][1], z + DIRS[key][2]) in kit
-                and (x + DIRS[key][0], y + DIRS[key][1], z + DIRS[key][2]) not in patch)))
+            if (x + DIRS[key][0], y + DIRS[key][1], z + DIRS[key][2]) in kit))
         code = 'C-%02X' % sum(1 << FACE_BIT[k] for k in mask)
         variants.setdefault(code, {'mask': mask, 'count': 0})['count'] += 1
         tag = special.get((x, y, z))
@@ -124,7 +201,8 @@ def main(base, out_dir):
 
     os.makedirs(out_dir, exist_ok=True)
     lines = [f'{meta["name"]} — exposure-aware cube bill',
-             f'kit cubes {len(kit)} · eyepatch cells {sum(1 for v in vmap.values() if v == "EYEPATCH")}'
+             f'kit cubes {len(kit)} · hollowed {len(buried)} · strays dropped {len(strays)} · '
+             f'eyepatch cells {sum(1 for v in vmap.values() if v == "EYEPATCH")}'
              f' · variants {len(variants)}', '']
     for code, v in sorted(variants.items(), key=lambda kv: -kv[1]['count']):
         m = mosaic_cube(faces=list(v['mask']))

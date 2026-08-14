@@ -24,6 +24,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildMosaic } from '../src/core/mosaic';
 import { Rng, xmur3 } from '../src/core/seed';
+import { demoColony } from '../src/core/demoColony';
 import type { CharId } from '../src/data/characters';
 
 // ---------- args ----------
@@ -53,12 +54,21 @@ const sporeId = 'MYC-' + FAM_CODE[charId] +
 const name = arg('name') ?? `spore_${FAMS[charId]}_${h0.toString(16).slice(0, 6)}`;
 
 // ---------- 1) the exact creature the site would grow ----------
-const spec = buildMosaic({
+// --demo demo-11: reproduce a resident of the site's demo colony exactly
+const DEMO = arg('demo');
+let specInput = {
   id,
   charId,
   morphology: { density, agitation: 0.4, tendrilCount: 5, glow: 0.5, tintHue, particles: false },
   intensity,
-});
+} as Parameters<typeof buildMosaic>[0];
+if (DEMO) {
+  const resident = demoColony(48, 1720000000000).find((c) => c.id === DEMO);
+  if (!resident) throw new Error(`--demo: no resident ${DEMO}`);
+  specInput = { id: resident.id, charId: resident.charId,
+                morphology: resident.morphology, intensity: resident.intensity };
+}
+const spec = buildMosaic(specInput);
 const { cols, rows, cells, eyes, palette } = spec;
 
 const hsl = /hsl\((-?\d+),(\d+)%,(\d+)%\)/;
@@ -85,7 +95,8 @@ const parse = (c: string): [number, number, number] => {
 const ROBOT = process.argv.includes('--robot');
 const CORE_D = ROBOT ? Number(arg('coredepth', '3')) : 0; // body depth, blocks (3×20=60mm)
 const MOUND = ROBOT ? Number(arg('mound', '0')) : 0;      // optional pixel mound rows
-const ZDIM = ROBOT ? Math.max(CORE_D, 3) : DEPTH;
+const SCULPT = arg('sculpt');                 // 塑形台导出的参数 JSON
+const ZDIM = SCULPT ? 12 : ROBOT ? Math.max(CORE_D, 3) : DEPTH;
 const X = cols, Y = rows + MOUND, Z = ZDIM;
 const grid = new Uint8Array(X * Y * Z);
 const at = (x: number, y: number, z: number) => x + X * (y + Y * z);
@@ -102,7 +113,7 @@ const alpha = new Map<number, number>();
 const COMPANION = process.argv.includes('--companion');
 const CORE_COLS = 7, CORE_UP = 3; // widened span: 6-col void + 1-cube wall each side
 let coreC0 = 0, coreRowTop = 0;
-if (COMPANION) {
+if (COMPANION && !SCULPT) {
   const ecx = (eyes.L0 + 1 + eyes.R0) / 2;
   coreC0 = Math.max(0, Math.min(cols - CORE_COLS, Math.round(ecx - CORE_COLS / 2)));
   coreRowTop = Math.max(0, eyes.row - CORE_UP);
@@ -133,7 +144,7 @@ for (let r = rows - 3; r < rows; r++)
     if (filled2D(c, r)) { stemL = Math.min(stemL, c); stemR = Math.max(stemR, c); }
 const cx = (cols - 1) / 2;
 
-for (const cell of cells) {
+for (const cell of SCULPT ? [] : cells) {
   const solid2D =
     filled2D(cell.col - 1, cell.row) && filled2D(cell.col + 1, cell.row) &&
     filled2D(cell.col, cell.row - 1) && filled2D(cell.col, cell.row + 1);
@@ -175,6 +186,197 @@ for (const cell of cells) {
     colors.set(i, rgb);
     alpha.set(i, cell.alpha);
   }
+}
+
+// ---------- 1.5) --sculpt: 塑形台管线(与工具逐位一致) ----------
+let sculptZone: { tx: number; ty: number } | null = null;
+if (SCULPT) {
+  const SP = JSON.parse(fs.readFileSync(SCULPT, 'utf8'));
+  const p = SP.params, edits = SP.edits ?? { adds: [], dels: [] };
+  const mulberry32 = (a: number) => () => {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const body: boolean[][] = Array.from({ length: rows }, () => new Array(cols).fill(false));
+  const colr = new Map<string, [number, number, number]>();
+  for (const c of cells) {
+    const yb = rows - 1 - c.row;
+    body[yb][c.col] = true;
+    colr.set(c.col + ',' + yb, parse(c.color));
+  }
+  // EDT(暴力,含边界外圈)
+  const edgeL: number[][] = [];
+  for (let y = -1; y <= rows; y++) for (let x = -1; x <= cols; x++)
+    if (!(y >= 0 && y < rows && x >= 0 && x < cols && body[y][x])) edgeL.push([x, y]);
+  const edt = Array.from({ length: rows }, () => new Array(cols).fill(0));
+  for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+    if (!body[y][x]) continue;
+    let m = 1e18;
+    for (const [ex, ey] of edgeL) { const dx = x - ex, dy = y - ey; const q = dx * dx + dy * dy; if (q < m) m = q; }
+    edt[y][x] = Math.sqrt(m);
+  }
+  // 白云
+  const K = p.cloudK | 0, rngW = mulberry32(1100);
+  const white = Array.from({ length: rows }, () => new Array(cols).fill(false));
+  if (K > 0) {
+    for (let x = 0; x < cols; x++) {
+      let first = -1;
+      for (let y = 0; y < rows; y++) if (body[y][x]) { first = y; break; }
+      if (first > 0 && first <= K) for (let y = 0; y < first; y++) white[y][x] = true;
+    }
+    for (let y = 0; y < Math.min(2, rows); y++) for (let x = 0; x < cols; x++) {
+      if (body[y][x] || white[y][x]) continue;
+      let L = false, R = false;
+      for (let k = 1; k <= 2; k++) {
+        if (x - k >= 0 && (body[y][x - k] || white[y][x - k])) L = true;
+        if (x + k < cols && (body[y][x + k] || white[y][x + k])) R = true;
+      }
+      if (L && R) white[y][x] = true;
+    }
+    for (let x = 0; x < cols; x++) {
+      let top = -1;
+      for (let y = rows - 1; y >= 0; y--) if (white[y][x]) { top = y; break; }
+      if (top > 0 && rngW() < p.erode) white[top][x] = false;
+    }
+  }
+  // 椭球包络
+  let sx = 0, sy = 0, n = 0, minx = 1e9, maxx = -1e9, miny = 1e9, maxy = -1e9;
+  for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) if (body[y][x]) {
+    sx += x; sy += y; n++;
+    minx = Math.min(minx, x); maxx = Math.max(maxx, x);
+    miny = Math.min(miny, y); maxy = Math.max(maxy, y);
+  }
+  const ecx2 = sx / n, ecy2 = sy / n + p.cy;
+  const aE = Math.max((maxx - minx) / 2, 1) * p.ax, bE = Math.max((maxy - miny) / 2, 1) * p.ay;
+  const half = Array.from({ length: rows }, () => new Array(cols).fill(0));
+  for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+    if (!body[y][x]) continue;
+    const r2 = ((x - ecx2) / aE) ** 2 + ((y - ecy2) / bE) ** 2;
+    const env = p.halfMax * Math.pow(Math.max(0, 1 - r2), p.power);
+    half[y][x] = Math.max(0, Math.min(Math.round(env), Math.ceil(edt[y][x] * p.cap)));
+  }
+  // 核心舱 7×7:贴地 + 中轴
+  let coreW: [number, number] | null = null;
+  if (p.core) {
+    let bodyBottom = 0;
+    for (let y = 0; y < rows; y++) { if (body[y].some((v: boolean) => v)) { bodyBottom = y; break; } }
+    let bminx = 1e9, bmaxx = -1e9;
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++)
+      if (body[y][x]) { bminx = Math.min(bminx, x); bmaxx = Math.max(bmaxx, x); }
+    const axisX = (bminx + bmaxx + 1) / 2;
+    let bestTy = bodyBottom;
+    if (!p.coreGround) {
+      let best: [number, number] | null = null;
+      for (let ty = 0; ty + 7 <= rows; ty++) {
+        const tx0 = Math.round(axisX - 3.5);
+        let miss = 0;
+        for (let yy = ty; yy < ty + 7; yy++) for (let xx = tx0; xx < tx0 + 7; xx++)
+          if (xx < 0 || xx >= cols || !body[yy][xx]) miss++;
+        const cyc = (ty + 3.5) / rows, bias = (cyc >= 0.4 && cyc <= 0.8) ? 0 : 5;
+        if (best === null || miss + bias < best[0]) best = [miss + bias, ty];
+      }
+      bestTy = best![1];
+    }
+    const tx = Math.max(0, Math.min(cols - 7, Math.round(axisX - 3.5) + p.coreDX));
+    const ty = p.coreGround ? bestTy : Math.max(0, Math.min(rows - 7, bestTy + p.coreDY));
+    coreW = [tx, ty];
+    for (let yy = ty; yy < ty + 7; yy++) for (let xx = tx; xx < tx + 7; xx++) {
+      if (!body[yy][xx]) {
+        body[yy][xx] = true;
+        out: for (let rr = 1; rr < 6; rr++)
+          for (let dy = -rr; dy <= rr; dy++) for (let dx = -rr; dx <= rr; dx++) {
+            const k = (xx + dx) + ',' + (yy + dy);
+            if (colr.has(k)) { colr.set(xx + ',' + yy, colr.get(k)!); break out; }
+          }
+      }
+      half[yy][xx] = Math.max(half[yy][xx], 1);
+    }
+    sculptZone = { tx, ty };
+  }
+  // 铺体素(工具坐标:zb 小 = 前;引擎 z = 11 - zb)
+  const Zb = 12, MIDb = 5;
+  const inCore = (x: number, y: number) =>
+    coreW !== null && x >= coreW[0] && x < coreW[0] + 7 && y >= coreW[1] && y < coreW[1] + 7;
+  const vox = new Map<string, [number, number, number]>();
+  const rngJ = mulberry32(1111);
+  const WHITE_RGB: [number, number, number] = [242, 239, 230];
+  for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+    if (body[y][x]) {
+      const h = half[y][x];
+      const rgb = colr.get(x + ',' + y) ?? [176, 172, 160] as [number, number, number];
+      let z0: number, z1: number;
+      if (inCore(x, y)) {
+        const tot = Math.max(2 * h + 1, 3);
+        z1 = MIDb + 1; z0 = z1 - (tot - 1);
+      } else if (p.jitter && h > 0 && rngJ() < 0.5) {
+        z0 = MIDb - h + 1; z1 = MIDb + h;
+      } else {
+        z0 = MIDb - h; z1 = MIDb + h;
+      }
+      for (let z = z0; z <= z1; z++) vox.set(x + ',' + z + ',' + y, rgb);
+    } else if (white[y][x]) {
+      for (let z = MIDb; z < MIDb + p.cloudD; z++) vox.set(x + ',' + z + ',' + y, WHITE_RGB);
+    }
+  }
+  // 芽突
+  const rngB = mulberry32(11);
+  const inner: [number, number][] = [];
+  for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++)
+    if (body[y][x] && edt[y][x] >= 2 && !inCore(x, y)) inner.push([x, y]);
+  for (let i = inner.length - 1; i > 0; i--) { const j = (rngB() * (i + 1)) | 0; [inner[i], inner[j]] = [inner[j], inner[i]]; }
+  let fb = 0;
+  for (const [x, y] of inner) {
+    if (fb >= p.budsFB) break;
+    const zs: number[] = [];
+    for (let z = 0; z < Zb; z++) if (vox.has(x + ',' + z + ',' + y)) zs.push(z);
+    if (!zs.length) continue;
+    const z = fb % 2 === 0 ? zs[0] - 1 : zs[zs.length - 1] + 1;
+    const k = x + ',' + z + ',' + y;
+    if (z >= 0 && z < Zb && !vox.has(k)) { vox.set(k, colr.get(x + ',' + y)!); fb++; }
+  }
+  const sidesList: [number, number, number][] = [];
+  for (let y = 3; y < rows; y++) for (let x = 0; x < cols; x++) {
+    if (!body[y][x]) continue;
+    for (const dx of [-1, 1]) {
+      const nx = x + dx;
+      if (nx >= 0 && nx < cols && !body[y][nx] && !white[y][nx]) sidesList.push([x, y, dx]);
+    }
+  }
+  for (let i = sidesList.length - 1; i > 0; i--) { const j = (rngB() * (i + 1)) | 0; [sidesList[i], sidesList[j]] = [sidesList[j], sidesList[i]]; }
+  let sb = 0;
+  for (const [x, y, dx] of sidesList) {
+    if (sb >= p.budsS) break;
+    const zs: number[] = [];
+    for (let z = 0; z < Zb; z++) if (vox.has(x + ',' + z + ',' + y)) zs.push(z);
+    if (!zs.length) continue;
+    const z = zs[(zs.length / 2) | 0];
+    const k = (x + dx) + ',' + z + ',' + y;
+    let colEmpty = true;
+    for (let zz = 0; zz < Zb; zz++) if (vox.has((x + dx) + ',' + zz + ',' + y)) { colEmpty = false; break; }
+    if (colEmpty && !vox.has(k)) { vox.set(k, colr.get(x + ',' + y)!); sb++; }
+  }
+  // 手工修改
+  console.log(`sculpt-debug: pre-edit ${vox.size} · fb=${fb} sb=${sb}`);
+  for (const [dx_, dz_, dy_] of edits.dels ?? []) {
+    const kk = dx_ + ',' + dz_ + ',' + dy_;
+    if (!vox.delete(kk)) console.log('  del MISS:', kk);
+  }
+  for (const ad of edits.adds ?? []) {
+    const [ax_, az_, ay_, hex] = ad;
+    const rgb: [number, number, number] = [
+      parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
+    vox.set(ax_ + ',' + az_ + ',' + ay_, rgb);
+  }
+  // 写进引擎网格(z 翻转:引擎 front = Z-1)
+  for (const [k, rgb] of vox) {
+    const [x, zb, y] = k.split(',').map(Number);
+    if (!inb(x, y, (Zb - 1) - zb)) { console.log('  OUT OF GRID:', k); continue; }
+    const i = at(x, y, (Zb - 1) - zb);
+    grid[i] = 1; colors.set(i, rgb); alpha.set(i, 1);
+  }
+  console.log(`sculpt: ${vox.size} cubes (bench said ${SP.cubes ?? '—'})`);
 }
 
 if (ROBOT) {
@@ -229,10 +431,11 @@ if (process.argv.includes('--dock')) {
 }
 
 // ---------- 3) the face, straight from the engine spec ----------
+// (sculpt 模式跳过:眼睛由外壳眼件承担,不改体素)
 const WHITE: [number, number, number] = [246, 246, 241];
 const BLACK: [number, number, number] = [18, 18, 18];
 const eyeY = rows - 1 - eyes.row + MOUND;
-for (const [c, col] of [
+for (const [c, col] of SCULPT ? [] : [
   [eyes.L0, WHITE], [eyes.L0 + 1, BLACK], [eyes.R0, BLACK], [eyes.R0 + 1, WHITE],
 ] as Array<[number, [number, number, number]]>) {
   // ensure the eye block exists even if dither skipped the cell
@@ -264,7 +467,8 @@ if (process.argv.includes('--hollow')) {
 }
 
 // keep the largest connected component (dither can strand blocks)
-{
+// sculpt 模式跳过:白云/芽是有意的近邻件,工具所见即所得
+if (!SCULPT) {
   const seen = new Uint8Array(X * Y * Z);
   let best: number[] = [];
   for (let i = 0; i < grid.length; i++) {
@@ -389,6 +593,7 @@ fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(path.join(outDir, `${name}.json`),
     JSON.stringify({
       name, text, family: FAMS[charId], sporeId, dims: [X, Y, Z], mm, voxels: vox,
+      zone: sculptZone ?? undefined,
       anchor: COMPANION ? {
         coreC0, coreRowTop, coreCols: CORE_COLS,
         voidC0: coreC0 + 1, voidCols: 5,

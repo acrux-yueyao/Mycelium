@@ -1,0 +1,16 @@
+{
+  "tool": "spore-shaping-bench",
+  "version": 2,
+  "params": {
+    "halfMax": 3, "power": 0.55, "ax": 1.1, "ay": 1.1, "cy": 0.5, "cap": 0.9,
+    "cloudK": 0, "erode": 0.8, "cloudD": 2, "coreDX": 0, "coreDY": 0,
+    "budsFB": 12, "budsS": 7, "jitter": false, "coreGround": true,
+    "core": true, "coreTint": true, "creature": "demo-11"
+  },
+  "edits": {
+    "adds": [],
+    "dels": [[6,2,7],[6,3,7],[8,4,7],[7,4,7],[6,4,7],[5,4,7],[6,4,6],[7,4,6],
+             [6,4,5],[5,4,5],[9,3,12],[6,11,13]]
+  },
+  "cubes": 487, "magnets": 2258
+}
