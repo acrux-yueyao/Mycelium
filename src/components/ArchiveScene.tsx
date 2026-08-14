@@ -8,6 +8,7 @@ import { motion } from 'framer-motion';
 import { CreatureThumb } from './CreatureThumb';
 import { scanRecord } from '../core/scanRecord';
 import { nameFor } from '../core/names';
+import { sporeId } from '../core/sporeId';
 import { CHARACTERS } from '../data/characters';
 import { sceneOverlay, EASE } from '../ui/motion';
 import type { FieldCreature } from './DitherField';
@@ -89,7 +90,7 @@ export function ArchiveScene({ creatures }: Props) {
             >
               <div className="archive-thumb"><CreatureThumb creature={c} cell={6} height={104} /></div>
               <div className="archive-meta">
-                <div className="archive-id">id:{rec.serial} · {name}</div>
+                <div className="archive-id">{sporeId(c)} · {name}</div>
                 <div className="archive-co">{rec.lat} · {rec.lon}</div>
                 {c.bornAt ? <div className="archive-co">{rec.date} · {rec.time}</div> : null}
                 <div className="archive-emo">

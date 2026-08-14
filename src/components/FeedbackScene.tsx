@@ -11,6 +11,7 @@ import { sceneOverlay } from '../ui/motion';
 import { CreatureThumb } from './CreatureThumb';
 import { scanRecord } from '../core/scanRecord';
 import { nameFor } from '../core/names';
+import { sporeId } from '../core/sporeId';
 import { shareUrl } from '../core/share';
 import { downloadShareCard } from '../core/shareCard';
 import { CHARACTERS } from '../data/characters';
@@ -66,6 +67,7 @@ export function FeedbackScene({ latest, editable, onRename, onNavigate }: Props)
       ) : (
         (() => {
           const rec = scanRecord(latest.id, latest.bornAt ?? Date.now(), 1);
+          const myc = sporeId(latest);
           const name = latest.name || nameFor(latest.id);
           const family = CHARACTERS[latest.charId]?.name ?? '—';
           return (
@@ -73,7 +75,7 @@ export function FeedbackScene({ latest, editable, onRename, onNavigate }: Props)
               <div className="spec-topbar">
                 <span>SPECIMEN · NEW</span>
                 <span>MYCELIUM FIELD</span>
-                <span>id:{rec.serial}</span>
+                <span>{myc}</span>
               </div>
 
               <div className="spec-body">
@@ -125,6 +127,7 @@ export function FeedbackScene({ latest, editable, onRename, onNavigate }: Props)
                     <div><dt>emotion</dt><dd>{latest.primaryLabel || family}</dd></div>
                     {latest.secondaryLabel ? <div><dt>secondary</dt><dd>{latest.secondaryLabel}</dd></div> : null}
                     {typeof latest.intensity === 'number' ? <div><dt>intensity</dt><dd>{latest.intensity.toFixed(2)}</dd></div> : null}
+                    <div><dt>spore id</dt><dd>{myc}</dd></div>
                     <div><dt>coordinates</dt><dd>{rec.lat}<br />{rec.lon}</dd></div>
                     <div><dt>logged</dt><dd>{rec.date} · {rec.time}</dd></div>
                   </dl>
