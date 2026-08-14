@@ -185,6 +185,29 @@ def main(base, out_dir):
     kit -= zero
     strays |= zero
 
+    # 颜色量化(与 kit_sheet 同思路,≤8 色 → 每盘一种耗材)
+    hexes = {}
+    for x, y, z, hx, *_ in meta['voxels']:
+        hexes[(x, y, z)] = hx
+    import numpy as _np
+    kcols = [hexes.get(c, '#b0aca0') for c in sorted(kit)]
+    rgbs = _np.array([[int(h[1:3], 16), int(h[3:5], 16), int(h[5:7], 16)]
+                      for h in kcols], float)
+    uq = _np.unique(rgbs, axis=0)
+    kq = min(8, len(uq))
+    cent = uq[_np.linspace(0, len(uq) - 1, kq).astype(int)].copy()
+    for _ in range(12):
+        dd = ((rgbs[:, None] - cent[None]) ** 2).sum(2)
+        lb = dd.argmin(1)
+        for i_ in range(kq):
+            if (lb == i_).any():
+                cent[i_] = rgbs[lb == i_].mean(0)
+    dd = ((rgbs[:, None] - cent[None]) ** 2).sum(2)
+    lb = dd.argmin(1)
+    plate_colors = ['#%02x%02x%02x' % tuple(int(v) for v in c) for c in cent]
+    ci_of = {c: int(l) for c, l in zip(sorted(kit), lb)}
+
+    percube = []
     variants, vmap = {}, {}
     for (x, y, z) in sorted(kit):
         if (x, y, z) in patch:
@@ -198,6 +221,9 @@ def main(base, out_dir):
         variants.setdefault(code, {'mask': mask, 'count': 0})['count'] += 1
         tag = special.get((x, y, z))
         vmap[f'{x},{y},{z}'] = f'{code}{"·" + tag if tag else ""}'
+        percube.append({'x': x, 'y': y, 'z': z, 'code': code,
+                        'mask': [list(k) for k in mask],
+                        'ci': ci_of[(x, y, z)], 'tag': tag})
 
     os.makedirs(out_dir, exist_ok=True)
     lines = [f'{meta["name"]} — exposure-aware cube bill',
@@ -217,6 +243,8 @@ def main(base, out_dir):
         f'{k[0]},{k[1]},{k[2]} → {t}' for k, t in special.items() if k in kit)]
     open(f'{out_dir}/variant_bill.txt', 'w').write('\n'.join(lines) + '\n')
     json.dump(vmap, open(f'{out_dir}/variant_map.json', 'w'), indent=0)
+    json.dump({'colors': plate_colors, 'cells': percube},
+              open(f'{out_dir}/kit_manifest.json', 'w'), indent=0)
     print('\n'.join(lines[:3 + min(len(variants), 40)]))
     print(f'→ {len(variants)} variant STLs in {out_dir}')
 
