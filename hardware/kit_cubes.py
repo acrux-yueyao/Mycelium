@@ -46,6 +46,9 @@ from brick_lib import mosaic_cube
 FACE_KEYS = [((0, True), '+x/右'), ((0, False), '-x/左'),
              ((1, True), '+z/前'), ((1, False), '-z/后'),
              ((2, True), '+y/上'), ((2, False), '-y/下')]
+# 变体号:六个面按 右左前后上下 占 bit5..bit0,拼成两位十六进制。
+# 例:六面全耦合 = C-3F;只右左上下 = C-33;单前面 = C-08。
+FACE_BIT = {k: 5 - i for i, (k, _) in enumerate(FACE_KEYS)}
 DIRS = {(0, True): (1, 0, 0), (0, False): (-1, 0, 0),
         (1, True): (0, 0, 1), (1, False): (0, 0, -1),
         (2, True): (0, 1, 0), (2, False): (0, -1, 0)}
@@ -113,7 +116,7 @@ def main(base, out_dir):
             key for key, _ in FACE_KEYS
             if ((x + DIRS[key][0], y + DIRS[key][1], z + DIRS[key][2]) in kit
                 and (x + DIRS[key][0], y + DIRS[key][1], z + DIRS[key][2]) not in patch)))
-        code = ''.join(f'{a_}{"p" if s else "n"}' for a_, s in mask) or 'loose'
+        code = 'C-%02X' % sum(1 << FACE_BIT[k] for k in mask)
         variants.setdefault(code, {'mask': mask, 'count': 0})['count'] += 1
         tag = special.get((x, y, z))
         vmap[f'{x},{y},{z}'] = f'{code}{"·" + tag if tag else ""}'
@@ -126,10 +129,10 @@ def main(base, out_dir):
         m = mosaic_cube(faces=list(v['mask']))
         assert m.is_watertight, code
         m, orient = orient_flat_down(m, set(v['mask']))
-        m.export(f'{out_dir}/cube_{code}.stl')
+        m.export(f'{out_dir}/{code}.stl')
         names = [n for k, n in FACE_KEYS if k in v['mask']]
         flat = [n for k, n in FACE_KEYS if k not in v['mask']]
-        lines.append(f'cube_{code:14s} × {v["count"]:3d}   {orient:14s} '
+        lines.append(f'{code:6s} × {v["count"]:3d}   {orient:14s} '
                      f'耦合面: {" ".join(names) or "—"}   全平面: {" ".join(flat) or "—"}')
     lines += ['', 'substitutions: ' + ', '.join(
         f'{k[0]},{k[1]},{k[2]} → {t}' for k, t in special.items() if k in kit)]

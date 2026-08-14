@@ -44,6 +44,12 @@ const cellMM = Number(arg('cell', '8'));      // printed size of one block
 const DEPTH = Number(arg('depth', '3'));      // max extrusion depth, blocks
 const style = arg('style', 'pixel');          // pixel | lego
 const id = `w:${h0.toString(16)}`;
+// 孢子号:MYC-<族字母><Crockford Base32 x5> —— 从句子哈希派生,
+// 同一句话永远同一个号(去掉 0/O/1/I 这类易混字符)。
+const B32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+const FAM_CODE = 'TCRDPL';                       // tender calm cuRious dreamy comPanion lonely
+const sporeId = 'MYC-' + FAM_CODE[charId] +
+  [4, 3, 2, 1, 0].map((k) => B32[(h0 >>> (k * 5)) & 31]).join('');
 const name = arg('name') ?? `spore_${FAMS[charId]}_${h0.toString(16).slice(0, 6)}`;
 
 // ---------- 1) the exact creature the site would grow ----------
@@ -382,7 +388,7 @@ fs.mkdirSync(outDir, { recursive: true });
   }
   fs.writeFileSync(path.join(outDir, `${name}.json`),
     JSON.stringify({
-      name, text, family: FAMS[charId], dims: [X, Y, Z], mm, voxels: vox,
+      name, text, family: FAMS[charId], sporeId, dims: [X, Y, Z], mm, voxels: vox,
       anchor: COMPANION ? {
         coreC0, coreRowTop, coreCols: CORE_COLS,
         voidC0: coreC0 + 1, voidCols: 6,
@@ -392,4 +398,4 @@ fs.mkdirSync(outDir, { recursive: true });
 }
 
 let blocks = 0; for (let i = 0; i < grid.length; i++) if (grid[i]) blocks++;
-console.log(`${name}: family=${FAMS[charId]} blocks=${blocks} grid=${X}×${Y}×${Z} tris=${tris.length} print=${(X*mm).toFixed(0)}×${(Z*mm).toFixed(0)}×${(Y*mm).toFixed(0)}mm`);
+console.log(`${name}: ${sporeId} family=${FAMS[charId]} blocks=${blocks} grid=${X}×${Y}×${Z} tris=${tris.length} print=${(X*mm).toFixed(0)}×${(Z*mm).toFixed(0)}×${(Y*mm).toFixed(0)}mm`);

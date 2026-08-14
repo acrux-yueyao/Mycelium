@@ -96,9 +96,11 @@ def main(base):
             ax.add_patch(Rectangle((x, y), 1, 1, fc=chex[li], ec='#1c1c1a', lw=0.4))
         ax.set_xlim(-1, cols + 1); ax.set_ylim(-1, rows + 1)
         ax.set_aspect('equal'); ax.axis('off'); ax.set_facecolor('#f6f5f0')
-        ax.set_title(f"{meta['name']} — mosaic kit", family='monospace', fontsize=13)
+        ax.set_title(f"{meta.get('sporeId', meta['name'])} — mosaic kit",
+                     family='monospace', fontsize=13)
         ax2.axis('off'); ax2.set_facecolor('#f6f5f0')
-        lines = [f"sentence  {meta['text']}",
+        lines = [f"spore id  {meta.get('sporeId', '—')}",
+                 f"sentence  {meta['text']}",
                  f"family    {meta['family']}",
                  f"cubes     {total}",
                  f"magnets   {total * 6}  (O4x2 N35 · dual-magnet)",
