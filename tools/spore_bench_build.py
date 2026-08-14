@@ -360,13 +360,29 @@ function rebuild(){
     if(vox.has(x+','+(z+1)+','+y))pairs++;
     if(vox.has(x+','+z+','+(y+1)))pairs++;
   }
-  model={vox,cols,rows,Z,count:vox.size,pairs,name:d.name,
+  let eyePatch=null;
+  if(d.eyes){
+    const er=d.eyes.row, ec0=d.eyes.L0+1;
+    const eyY0=rows-1-(er+1), eyY1=rows-1-(er-1);      // 自底向上 3 行
+    let fz=MID;
+    for(let yy=eyY0;yy<=eyY1;yy++)for(let xx=ec0;xx<ec0+3;xx++){
+      for(let z=0;z<Z;z++) if(vox.has(xx+','+z+','+yy)){fz=Math.min(fz,z);break}
+    }
+    eyePatch={x0:ec0,y0:eyY0,z:fz};
+  }
+  model={vox,cols,rows,Z,count:vox.size,pairs,name:d.name,eyePatch,
          core:(P.core&&coreW)?{tx:coreW[0],ty:coreW[1],z0:MID-1,z1:MID+2}:null};
   document.getElementById('editCount').textContent=ed.size?`已改 ${ed.size} 格`:'';
-  const coreTxt=(P.core&&coreW)
+  let coreTxt=(P.core&&coreW)
     ?`<br>舱位 列${coreW[0]}-${coreW[0]+7} · 行${coreW[1]}-${coreW[1]+6}`+
      (P.coreGround?' · <b>贴地·中轴对齐,USB可插</b>':' · 中轴对齐 · ⚠悬空,充电口够不着')
     :'';
+  if(P.core&&coreW&&eyePatch){
+    const span=Math.round((eyePatch.y0+1.5)*12-(coreW[1]*12+49));
+    const ok=span+40<=110;
+    coreTxt+=`<br>眼屏在脸上第${eyePatch.y0+1}-${eyePatch.y0+3}行 · H3排线跨${span}mm`+
+             (ok?' ✓(110mm够)':' ⚠超110mm排线');
+  }
   document.getElementById('stats').innerHTML=
     `<b>${d.name}</b> · ${P.creature}<br>方块 <b>${vox.size}</b> · 缝 ${pairs} · 磁铁 ${pairs*2}<br>`+
     `实体约 ${cols*12}×${rows*12}×${Z*12}mm${coreTxt}`;
