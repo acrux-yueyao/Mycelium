@@ -115,7 +115,7 @@ dialog .row{margin-top:10px; justify-content:flex-end}
       <legend>核心舱 8列×7行</legend>
       <label class="toggle"><input type=checkbox id=core checked>启用(填实 · 锁深3 · 背面平)</label>
       <label class="toggle"><input type=checkbox id=coreGround checked>贴地(USB 充电口对桌面)</label>
-      <div class="row"><label>横向微调</label><input type=range id=coreDX min=-3 max=3 step=1 value=0><output></output></div>
+      <div class="row"><label>中轴偏移(默认0=居中)</label><input type=range id=coreDX min=-3 max=3 step=1 value=0><output></output></div>
       <div class="row"><label>纵向微调</label><input type=range id=coreDY min=-3 max=3 step=1 value=0><output></output></div>
       <label class="toggle"><input type=checkbox id=coreTint checked>标注舱体(描边+虚线框+尺寸)</label>
     </fieldset>
@@ -250,18 +250,28 @@ function rebuild(){
   if(P.core){
     let bodyBottom=0;
     for(let y=0;y<rows;y++){ if(body[y].some(v=>v)){bodyBottom=y;break} }
-    let best=null;
-    for(let ty=0;ty+7<=rows;ty++)for(let tx=0;tx+8<=cols;tx++){
-      if(P.coreGround&&ty!==bodyBottom)continue;      // 贴地:底行锁定
-      let miss=0;
-      for(let yy=ty;yy<ty+7;yy++)for(let xx=tx;xx<tx+8;xx++) if(!body[yy][xx])miss++;
-      const cyc=(ty+3.5)/rows, bias=P.coreGround?0:((cyc>=0.4&&cyc<=0.8)?0:5);
-      const s=miss+bias;
-      if(best===null||s<best[0])best=[s,tx,ty];
+    // 横向:锁中轴线 —— 舱中心对齐身体包围盒中线(微调仅作偏移)
+    let bminx=1e9,bmaxx=-1e9;
+    for(let y=0;y<rows;y++)for(let x=0;x<cols;x++)
+      if(body[y][x]){bminx=Math.min(bminx,x);bmaxx=Math.max(bmaxx,x)}
+    const axisX=(bminx+bmaxx+1)/2;
+    // 纵向:贴地锁底行;非贴地时在中段找补格最少的行
+    let bestTy=bodyBottom;
+    if(!P.coreGround){
+      let best=null;
+      for(let ty=0;ty+7<=rows;ty++){
+        const tx0=Math.round(axisX-4);
+        let miss=0;
+        for(let yy=ty;yy<ty+7;yy++)for(let xx=tx0;xx<tx0+8;xx++)
+          if(xx<0||xx>=cols||!body[yy][xx])miss++;
+        const cyc=(ty+3.5)/rows, bias=(cyc>=0.4&&cyc<=0.8)?0:5;
+        if(best===null||miss+bias<best[0])best=[miss+bias,ty];
+      }
+      bestTy=best[1];
     }
-    if(best){
-      let tx=Math.max(0,Math.min(cols-8,best[1]+P.coreDX));
-      let ty=P.coreGround?best[2]:Math.max(0,Math.min(rows-7,best[2]+P.coreDY));
+    {
+      let tx=Math.max(0,Math.min(cols-8,Math.round(axisX-4)+P.coreDX));
+      let ty=P.coreGround?bestTy:Math.max(0,Math.min(rows-7,bestTy+P.coreDY));
       coreW=[tx,ty];
       for(let yy=ty;yy<ty+7;yy++)for(let xx=tx;xx<tx+8;xx++){
         if(!body[yy][xx]){
@@ -355,7 +365,7 @@ function rebuild(){
   document.getElementById('editCount').textContent=ed.size?`已改 ${ed.size} 格`:'';
   const coreTxt=(P.core&&coreW)
     ?`<br>舱位 列${coreW[0]}-${coreW[0]+7} · 行${coreW[1]}-${coreW[1]+6}`+
-     (P.coreGround?' · <b>贴地,USB可插</b>':' · ⚠悬空,充电口够不着')
+     (P.coreGround?' · <b>贴地·中轴对齐,USB可插</b>':' · 中轴对齐 · ⚠悬空,充电口够不着')
     :'';
   document.getElementById('stats').innerHTML=
     `<b>${d.name}</b> · ${P.creature}<br>方块 <b>${vox.size}</b> · 缝 ${pairs} · 磁铁 ${pairs*2}<br>`+
