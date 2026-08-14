@@ -1,0 +1,432 @@
+<title>孢子塑形台</title>
+<style>
+:root{
+  --bg:#f6f5f0; --panel:#efede8; --ink:#1c1c1a; --soft:#8a8880;
+  --line:#d9d6cc; --acc:#5b4fd0; --org:#b05a2a; --chip:#e7e4da;
+}
+:root:not([data-theme="light"]){}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#191816; --panel:#211f1c; --ink:#ece9e0; --soft:#8f8b80;
+    --line:#39362f; --acc:#948be8; --chip:#2a2823;
+  }
+  :root:not([data-theme="light"]){ --acc:#9188e6; --org:#d0855a; }
+}
+:root[data-theme="dark"]{
+  --bg:#191816; --panel:#211f1c; --ink:#ece9e0; --soft:#8f8b80;
+  --line:#39362f; --acc:#9188e6; --org:#d0855a; --chip:#2a2823;
+}
+*{box-sizing:border-box; margin:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:ui-monospace,'SF Mono',Menlo,Consolas,'Noto Sans Mono CJK SC',monospace;
+  font-size:13px; height:100vh; display:flex; flex-direction:column; overflow:hidden;
+}
+header{
+  display:flex; align-items:center; gap:14px; padding:10px 16px;
+  border-bottom:1px solid var(--line); flex-wrap:wrap;
+}
+header h1{font-size:14px; letter-spacing:.14em; font-weight:700}
+header .sub{color:var(--soft); font-size:11px}
+main{flex:1; display:flex; min-height:0}
+#rail{
+  width:296px; min-width:296px; overflow-y:auto; padding:14px 16px 40px;
+  border-right:1px solid var(--line); background:var(--panel);
+}
+#stage{flex:1; position:relative; min-width:0}
+canvas{display:block; width:100%; height:100%; touch-action:none; cursor:grab}
+fieldset{border:none; margin:0 0 18px}
+legend{
+  font-size:11px; letter-spacing:.18em; color:var(--acc);
+  padding:0 0 8px; font-weight:700;
+}
+.row{display:flex; align-items:center; gap:8px; margin-bottom:9px}
+.row label{flex:1; color:var(--ink)}
+.row output{width:38px; text-align:right; color:var(--org); font-variant-numeric:tabular-nums}
+input[type=range]{flex:1.6; accent-color:var(--acc); min-width:0}
+select,button{
+  font:inherit; color:var(--ink); background:var(--chip);
+  border:1px solid var(--line); border-radius:4px; padding:4px 9px; cursor:pointer;
+}
+select:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid var(--acc); outline-offset:1px}
+button.primary{background:var(--acc); color:#fff; border-color:var(--acc)}
+.toggle{display:flex; align-items:center; gap:7px; margin-bottom:9px; cursor:pointer}
+.views{display:flex; gap:6px; flex-wrap:wrap}
+.views button{padding:3px 8px; font-size:12px}
+#stats{
+  position:absolute; left:14px; bottom:12px; background:var(--panel);
+  border:1px solid var(--line); border-radius:5px; padding:8px 12px;
+  font-size:12px; line-height:1.7; color:var(--soft); pointer-events:none;
+}
+#stats b{color:var(--ink)}
+#hint{position:absolute; right:14px; bottom:12px; color:var(--soft); font-size:11px}
+dialog{
+  border:1px solid var(--line); border-radius:6px; background:var(--panel);
+  color:var(--ink); padding:18px; width:min(480px,90vw);
+}
+dialog::backdrop{background:rgba(20,18,14,.45)}
+dialog textarea{
+  width:100%; height:180px; font:inherit; font-size:11px; background:var(--bg);
+  color:var(--ink); border:1px solid var(--line); border-radius:4px; padding:8px;
+}
+dialog .row{margin-top:10px; justify-content:flex-end}
+.note{color:var(--soft); font-size:11px; line-height:1.6; margin-top:4px}
+</style>
+
+<header>
+  <h1>孢子塑形台</h1>
+  <span class="sub">拖动旋转 · 滑杆即时重算 · 调好点「导出参数」发我</span>
+  <span style="flex:1"></span>
+  <select id="pick" aria-label="选择形象"></select>
+  <span class="views" id="views"></span>
+  <button class="primary" id="exportBtn">导出参数</button>
+</header>
+<main>
+  <div id="rail">
+    <fieldset>
+      <legend>椭球包络 · 厚度分布</legend>
+      <div class="row"><label>中心半厚(格)</label><input type=range id=halfMax min=1 max=5 step=1 value=3><output></output></div>
+      <div class="row"><label>包络指数</label><input type=range id=power min=0.3 max=1.5 step=0.05 value=0.5><output></output></div>
+      <div class="row"><label>横向饱满</label><input type=range id=ax min=0.7 max=1.5 step=0.05 value=1><output></output></div>
+      <div class="row"><label>纵向饱满</label><input type=range id=ay min=0.7 max=1.5 step=0.05 value=1><output></output></div>
+      <div class="row"><label>蛋心高度偏移</label><input type=range id=cy min=-3 max=3 step=0.5 value=0><output></output></div>
+      <div class="row"><label>附肢厚度上限×</label><input type=range id=cap min=0.5 max=3 step=0.1 value=1><output></output></div>
+      <label class="toggle"><input type=checkbox id=jitter>奇数余层随机分前后(关=严格对称)</label>
+      <div class="note">指数 0.5=圆蛋肩线 · 1=直线锥 · 附肢上限压细腿薄檐</div>
+    </fieldset>
+    <fieldset>
+      <legend>白云底座</legend>
+      <div class="row"><label>云最高(行)</label><input type=range id=cloudK min=0 max=4 step=1 value=3><output></output></div>
+      <div class="row"><label>云顶镂空率</label><input type=range id=erode min=0 max=0.8 step=0.05 value=0.45><output></output></div>
+      <div class="row"><label>云厚(层)</label><input type=range id=cloudD min=1 max=3 step=1 value=2><output></output></div>
+    </fieldset>
+    <fieldset>
+      <legend>核心舱 8列×7行</legend>
+      <label class="toggle"><input type=checkbox id=core checked>启用(填实 · 锁深3 · 背面平)</label>
+      <div class="row"><label>横向微调</label><input type=range id=coreDX min=-3 max=3 step=1 value=0><output></output></div>
+      <div class="row"><label>纵向微调</label><input type=range id=coreDY min=-3 max=3 step=1 value=0><output></output></div>
+      <label class="toggle"><input type=checkbox id=coreTint checked>橙色标出舱区</label>
+    </fieldset>
+    <fieldset>
+      <legend>芽突(可选)</legend>
+      <div class="row"><label>前后芽(颗)</label><input type=range id=budsFB min=0 max=12 step=1 value=0><output></output></div>
+      <div class="row"><label>侧芽(颗)</label><input type=range id=budsS min=0 max=8 step=1 value=0><output></output></div>
+    </fieldset>
+  </div>
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="stats"></div>
+    <div id="hint">拖动旋转 · 滚轮缩放</div>
+  </div>
+</main>
+<dialog id="dlg">
+  <b>参数 JSON</b>
+  <p class="note">复制这段发给 Claude,规则会按同样的数值写进引擎。</p>
+  <textarea id="dlgText" readonly></textarea>
+  <div class="row">
+    <button id="copyBtn">复制</button>
+    <button id="closeBtn">关闭</button>
+  </div>
+</dialog>
+
+<script>
+'use strict';
+const LIB = {"demo-20": {"name": "Fuzzy Bun", "cols": 13, "rows": 13, "cells": [[1, 0, "#207d82"], [2, 0, "#1f797e"], [3, 0, "#26959b"], [4, 0, "#259196"], [5, 0, "#26959b"], [6, 0, "#289da3"], [7, 0, "#2ba8af"], [8, 0, "#2e9da3"], [9, 0, "#26959b"], [10, 0, "#207d82"], [11, 0, "#218186"], [2, 1, "#2c999f"], [4, 1, "#29a1a7"], [5, 1, "#27999f"], [6, 1, "#2ba8af"], [7, 1, "#26959b"], [8, 1, "#289da3"], [9, 1, "#26959b"], [10, 1, "#1f797e"], [2, 2, "#2a9197"], [3, 2, "#2e9da3"], [4, 2, "#33b0b6"], [5, 2, "#35b8be"], [6, 2, "#34b4ba"], [7, 2, "#31a8af"], [8, 2, "#33b0b6"], [9, 2, "#30a4ab"], [10, 2, "#298d93"], [2, 3, "#288a8f"], [3, 3, "#30a4ab"], [4, 3, "#30a4ab"], [5, 3, "#27999f"], [6, 3, "#3757cd"], [7, 3, "#32acb3"], [8, 3, "#259196"], [9, 3, "#2b959b"], [2, 4, "#2c999f"], [3, 4, "#2e4dbb"], [4, 4, "#3050c3"], [5, 4, "#3254cc"], [6, 4, "#4361d0"], [7, 4, "#3b5ace"], [8, 4, "#3050c3"], [9, 4, "#dee3f6"], [10, 4, "#2a9197"], [3, 5, "#def5f6"], [5, 5, "#3f5ecf"], [6, 5, "#4765d1"], [8, 5, "#2f4fbf"], [9, 5, "#dee3f6"], [3, 6, "#2a4bcf"], [4, 6, "#2f50d4"], [5, 6, "#405ed7"], [6, 6, "#5974dd"], [7, 6, "#dee3f6"], [8, 6, "#3c5bd7"], [9, 6, "#2f50d4"], [4, 7, "#a465dc"], [5, 7, "#a673d2"], [6, 7, "#5974dd"], [7, 7, "#a877d4"], [8, 7, "#9a60cc"], [4, 8, "#9050c7"], [5, 8, "#9a60cc"], [6, 8, "#ba8ae4"], [7, 8, "#a16bd0"], [8, 8, "#9558ca"], [4, 9, "#a261db"], [5, 9, "#a769dd"], [6, 9, "#e5a2d3"], [7, 9, "#de86c6"], [8, 9, "#9a54d8"], [6, 10, "#ba8ae4"], [5, 11, "#d66ab9"], [6, 11, "#e5a2d3"], [7, 11, "#d872bd"], [5, 12, "#d872bd"], [6, 12, "#eab2db"], [7, 12, "#d566b7"]]}, "demo-23": {"name": "Sunny Crumb", "cols": 10, "rows": 14, "cells": [[4, 0, "#c32c63"], [5, 0, "#b2285b"], [3, 1, "#b2285b"], [4, 1, "#a01c7f"], [5, 1, "#a91d86"], [1, 2, "#8a186e"], [2, 2, "#8f1971"], [3, 2, "#ad1e89"], [4, 2, "#ad1e89"], [5, 2, "#b11f8d"], [6, 2, "#a01c7f"], [7, 2, "#b2285b"], [8, 2, "#7d1663"], [1, 3, "#b83128"], [3, 3, "#d23c32"], [6, 3, "#c72d65"], [7, 3, "#a22452"], [8, 3, "#86176a"], [1, 4, "#aa2656"], [2, 4, "#bb2a5f"], [3, 4, "#c32c63"], [4, 4, "#cf2f6a"], [5, 4, "#cf2f6a"], [6, 4, "#bf2b61"], [7, 4, "#ae2759"], [8, 4, "#a62554"], [1, 5, "#b83128"], [2, 5, "#cc372c"], [3, 5, "#d4483e"], [4, 5, "#d54c42"], [6, 5, "#d23c32"], [7, 5, "#d24036"], [8, 5, "#c8362c"], [1, 6, "#cc372c"], [2, 6, "#d23c32"], [3, 6, "#d54c42"], [4, 6, "#cf2f6a"], [5, 6, "#d65046"], [6, 6, "#d24036"], [7, 6, "#d1382d"], [1, 7, "#ce8b53"], [2, 7, "#d0905b"], [3, 7, "#d49867"], [5, 7, "#eade84"], [6, 7, "#d4483e"], [7, 7, "#cc854b"], [3, 8, "#bc3329"], [4, 8, "#d54c42"], [5, 8, "#d24036"], [6, 8, "#cc854b"], [3, 9, "#c3e06a"], [4, 9, "#e7d973"], [5, 9, "#e8dc7c"], [6, 9, "#e2d154"], [5, 10, "#e7d973"], [4, 12, "#d0e78c"], [5, 12, "#e5d76a"]]}, "demo-5": {"name": "Honey Bean", "cols": 14, "rows": 14, "cells": [[5, 0, "#872916"], [6, 0, "#af351c"], [3, 1, "#8c2a16"], [4, 1, "#b52610"], [5, 1, "#af351c"], [6, 1, "#d12c13"], [7, 1, "#b8371d"], [8, 1, "#af351c"], [10, 1, "#832715"], [2, 2, "#902b17"], [3, 2, "#992e18"], [4, 2, "#a6321b"], [5, 2, "#db2e14"], [6, 2, "#b8371d"], [7, 2, "#c03a1f"], [8, 2, "#ab331b"], [9, 2, "#992e18"], [10, 2, "#952d18"], [2, 3, "#9d2f19"], [3, 3, "#cd2b13"], [4, 3, "#dad429"], [5, 3, "#ddd83a"], [6, 3, "#d12c13"], [7, 3, "#e93115"], [8, 3, "#e43015"], [9, 3, "#c82a12"], [10, 3, "#bf2811"], [11, 3, "#b12510"], [12, 3, "#c4be21"], [1, 4, "#ba2711"], [2, 4, "#c82a12"], [3, 4, "#dad324"], [4, 4, "#df2f14"], [5, 4, "#d62d13"], [6, 4, "#e43015"], [7, 4, "#c03a1f"], [8, 4, "#ab331b"], [9, 4, "#9d2f19"], [10, 4, "#992e18"], [11, 4, "#d1cb23"], [12, 4, "#b52610"], [0, 5, "#bfba20"], [1, 5, "#d1cb23"], [2, 5, "#dbd52d"], [3, 5, "#dad429"], [4, 5, "#dcd632"], [5, 5, "#ddd83a"], [6, 5, "#ddd83a"], [7, 5, "#dcd736"], [8, 5, "#e4da48"], [9, 5, "#dbd52d"], [10, 5, "#d1cb23"], [11, 5, "#dad429"], [12, 5, "#ccc722"], [13, 5, "#dfd324"], [0, 6, "#ccc722"], [1, 6, "#c8c322"], [2, 6, "#dbd52d"], [3, 6, "#dcd736"], [4, 6, "#e6dc50"], [5, 6, "#ddd83a"], [6, 6, "#ded93f"], [7, 6, "#e0db4c"], [8, 6, "#dcd632"], [9, 6, "#e4d943"], [10, 6, "#dbd52d"], [11, 6, "#cd2b13"], [12, 6, "#e1d52d"], [13, 6, "#ba2711"], [0, 7, "#e2d73a"], [1, 7, "#c8c322"], [2, 7, "#e2d636"], [3, 7, "#e5db4c"], [4, 7, "#8ce372"], [5, 7, "#dfda43"], [6, 7, "#dfda43"], [7, 7, "#e6dc50"], [8, 7, "#e5db4c"], [9, 7, "#ddd83a"], [10, 7, "#e3d83f"], [11, 7, "#e4d943"], [12, 7, "#c8c322"], [13, 7, "#e2d636"], [5, 8, "#e2d73a"], [6, 8, "#ded93f"], [7, 8, "#dcd632"], [8, 8, "#e2d73a"], [5, 9, "#82e065"], [6, 9, "#e4d943"], [7, 9, "#90e476"], [8, 9, "#78de58"], [5, 10, "#7edf61"], [6, 10, "#e5db4c"], [7, 10, "#89e26e"], [8, 10, "#74dd54"], [5, 11, "#94eb74"], [6, 11, "#9eed82"], [7, 11, "#a8ef8f"], [8, 11, "#9bec7d"], [5, 12, "#8de96b"], [6, 12, "#90e476"], [7, 12, "#9eed82"], [8, 12, "#89e967"]]}, "demo-11": {"name": "Moony Mochi", "cols": 14, "rows": 16, "cells": [[6, 0, "#208d65"], [5, 1, "#239d71"], [6, 1, "#27ae7d"], [7, 1, "#27ae7d"], [8, 1, "#1f8962"], [9, 1, "#288f72"], [3, 2, "#1e855f"], [4, 2, "#21956b"], [5, 2, "#22996e"], [6, 2, "#25a677"], [7, 2, "#26aa7a"], [8, 2, "#30ab88"], [9, 2, "#219168"], [10, 2, "#21956b"], [2, 3, "#2c9f7e"], [3, 3, "#2c9f7e"], [4, 3, "#2ea381"], [5, 3, "#32b38e"], [6, 3, "#33b691"], [7, 3, "#33b691"], [8, 3, "#33b691"], [9, 3, "#24a274"], [10, 3, "#2fa785"], [11, 3, "#288f72"], [2, 4, "#2a9778"], [3, 4, "#3b7bae"], [4, 4, "#33b691"], [5, 4, "#32b38e"], [6, 4, "#488ac0"], [7, 4, "#31af8b"], [8, 4, "#3f83ba"], [9, 4, "#30ab88"], [10, 4, "#2ea381"], [12, 4, "#2b9b7b"], [1, 5, "#3b7bae"], [2, 5, "#337fd0"], [3, 5, "#3e80b6"], [4, 5, "#5494d8"], [6, 5, "#deeaf6"], [7, 5, "#5794c5"], [8, 5, "#3f83ba"], [9, 5, "#3e80b6"], [10, 5, "#2fa785"], [11, 5, "#3a78aa"], [2, 6, "#3f83ba"], [3, 6, "#2c9f7e"], [4, 6, "#488ac0"], [5, 6, "#4185bd"], [6, 6, "#4c8dc1"], [8, 6, "#4185bd"], [9, 6, "#4185bd"], [10, 6, "#3e80b6"], [11, 6, "#488cd5"], [12, 6, "#3b7bae"], [0, 7, "#3782d1"], [1, 7, "#337fd0"], [2, 7, "#3f87d3"], [3, 7, "#deeaf6"], [4, 7, "#4c8fd6"], [5, 7, "#5091d7"], [6, 7, "#4c8fd6"], [7, 7, "#4c8fd6"], [8, 7, "#488ac0"], [9, 7, "#3f87d3"], [10, 7, "#4185bd"], [11, 7, "#337fd0"], [12, 7, "#3b84d2"], [13, 7, "#2d77c7"], [1, 8, "#6e4dcf"], [2, 8, "#7455d2"], [3, 8, "#8165d6"], [4, 8, "#4389d4"], [5, 8, "#5091d7"], [6, 8, "#488ac0"], [7, 8, "#5091d7"], [8, 8, "#3f83ba"], [9, 8, "#4c8fd6"], [10, 8, "#7151d0"], [11, 8, "#4389d4"], [12, 8, "#7151d0"], [5, 9, "#488cd5"], [6, 9, "#8165d6"], [7, 9, "#488cd5"], [8, 9, "#3f87d3"], [4, 10, "#6a49ce"], [5, 10, "#9877d8"], [6, 10, "#8f76da"], [7, 10, "#e6def6"], [8, 10, "#7b5dd4"], [9, 10, "#613dcb"], [5, 11, "#9573d7"], [6, 11, "#886dd8"], [6, 12, "#9e7fdb"], [7, 12, "#a487dd"], [8, 12, "#8c67d4"], [5, 13, "#da85d4"], [6, 13, "#e4a4df"], [7, 13, "#e4a4df"], [8, 13, "#df94da"], [5, 14, "#f6def5"], [6, 14, "#df94da"], [8, 14, "#8f6bd5"]]}};
+const WHITE_HEX = '#f2efe6';
+
+// ---------- 确定性随机 ----------
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+
+// ---------- 参数 ----------
+const ids=['halfMax','power','ax','ay','cy','cap','cloudK','erode','cloudD','coreDX','coreDY','budsFB','budsS'];
+const P={};
+function readParams(){
+  for(const id of ids) P[id]=parseFloat(document.getElementById(id).value);
+  P.jitter=document.getElementById('jitter').checked;
+  P.core=document.getElementById('core').checked;
+  P.coreTint=document.getElementById('coreTint').checked;
+  P.creature=document.getElementById('pick').value;
+}
+
+// ---------- 体素重建(与引擎同规则) ----------
+let model=null;
+function rebuild(){
+  readParams();
+  const d=LIB[P.creature], cols=d.cols, rows=d.rows;
+  const body=Array.from({length:rows},()=>new Array(cols).fill(false));
+  const colr={};
+  for(const [c,r,hex] of d.cells){ const y=rows-1-r; body[y][c]=true; colr[c+','+y]=hex; }
+
+  // EDT(暴力,网格很小)
+  const edge=[];
+  for(let y=-1;y<=rows;y++)for(let x=-1;x<=cols;x++)
+    if(!(y>=0&&y<rows&&x>=0&&x<cols&&body[y][x])) edge.push([x,y]);
+  const edt=Array.from({length:rows},()=>new Array(cols).fill(0));
+  for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+    if(!body[y][x])continue;
+    let m=1e9;
+    for(const [ex,ey] of edge){const dx=x-ex,dy=y-ey;const q=dx*dx+dy*dy;if(q<m)m=q;}
+    edt[y][x]=Math.sqrt(m);
+  }
+
+  // 白云
+  const K=P.cloudK|0, rngW=mulberry32(1100);
+  const white=Array.from({length:rows},()=>new Array(cols).fill(false));
+  if(K>0){
+    for(let x=0;x<cols;x++){
+      let first=-1;
+      for(let y=0;y<rows;y++) if(body[y][x]){first=y;break}
+      if(first>0&&first<=K) for(let y=0;y<first;y++) white[y][x]=true;
+    }
+    for(let y=0;y<Math.min(2,rows);y++){          // 腿间窄闭运算
+      for(let x=0;x<cols;x++){
+        if(body[y][x]||white[y][x])continue;
+        let L=false,R=false;
+        for(let k=1;k<=2;k++){
+          if(x-k>=0&&(body[y][x-k]||white[y][x-k]))L=true;
+          if(x+k<cols&&(body[y][x+k]||white[y][x+k]))R=true;
+        }
+        if(L&&R)white[y][x]=true;
+      }
+    }
+    for(let x=0;x<cols;x++){                       // 云顶镂空
+      let top=-1;
+      for(let y=rows-1;y>=0;y--) if(white[y][x]){top=y;break}
+      if(top>0&&rngW()<P.erode) white[top][x]=false;
+    }
+  }
+
+  // 椭球包络
+  let sx=0,sy=0,n=0,minx=1e9,maxx=-1e9,miny=1e9,maxy=-1e9;
+  for(let y=0;y<rows;y++)for(let x=0;x<cols;x++)if(body[y][x]){
+    sx+=x;sy+=y;n++;
+    minx=Math.min(minx,x);maxx=Math.max(maxx,x);
+    miny=Math.min(miny,y);maxy=Math.max(maxy,y);
+  }
+  const ecx=sx/n, ecy=sy/n+P.cy;
+  const a=Math.max((maxx-minx)/2,1)*P.ax, b=Math.max((maxy-miny)/2,1)*P.ay;
+  const half=Array.from({length:rows},()=>new Array(cols).fill(0));
+  for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+    if(!body[y][x])continue;
+    const r2=((x-ecx)/a)**2+((y-ecy)/b)**2;
+    const env=P.halfMax*Math.pow(Math.max(0,1-r2),P.power);
+    half[y][x]=Math.max(0,Math.min(Math.round(env),Math.ceil(edt[y][x]*P.cap)));
+  }
+
+  // 核心舱
+  let coreW=null;
+  if(P.core){
+    let best=null;
+    for(let ty=0;ty+7<=rows;ty++)for(let tx=0;tx+8<=cols;tx++){
+      let miss=0;
+      for(let yy=ty;yy<ty+7;yy++)for(let xx=tx;xx<tx+8;xx++) if(!body[yy][xx])miss++;
+      const cyc=(ty+3.5)/rows, bias=(cyc>=0.4&&cyc<=0.8)?0:5;
+      const s=miss+bias;
+      if(best===null||s<best[0])best=[s,tx,ty];
+    }
+    if(best){
+      let tx=Math.max(0,Math.min(cols-8,best[1]+P.coreDX));
+      let ty=Math.max(0,Math.min(rows-7,best[2]+P.coreDY));
+      coreW=[tx,ty];
+      for(let yy=ty;yy<ty+7;yy++)for(let xx=tx;xx<tx+8;xx++){
+        if(!body[yy][xx]){
+          body[yy][xx]=true;
+          out:for(let rr=1;rr<6;rr++)
+            for(let dy=-rr;dy<=rr;dy++)for(let dx=-rr;dx<=rr;dx++){
+              const k=(xx+dx)+','+(yy+dy);
+              if(colr[k]){colr[xx+','+yy]=colr[k];break out}
+            }
+        }
+        half[yy][xx]=Math.max(half[yy][xx],1);
+      }
+    }
+  }
+
+  // 铺体素
+  const HMAX=6, Z=2*HMAX+3, MID=HMAX+1;
+  const vox=new Map();     // "x,z,y" -> {hex, core}
+  const rngJ=mulberry32(1111);
+  const inCore=(x,y)=>coreW&&x>=coreW[0]&&x<coreW[0]+8&&y>=coreW[1]&&y<coreW[1]+7;
+  for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+    if(body[y][x]){
+      const h=half[y][x], hex=colr[x+','+y]||'#b0aca0';
+      let z0,z1;
+      if(inCore(x,y)){
+        const tot=Math.max(2*h+1,3);
+        z1=MID+1; z0=z1-(tot-1);                 // 背面平齐
+      }else if(P.jitter&&h>0&&rngJ()<0.5){
+        z0=MID-h+1; z1=MID+h;                    // 余层偏后
+      }else{
+        z0=MID-h; z1=MID+h;
+      }
+      for(let z=z0;z<=z1;z++) vox.set(x+','+z+','+y,{hex,core:inCore(x,y)});
+    }else if(white[y][x]){
+      for(let z=MID;z<MID+P.cloudD;z++) vox.set(x+','+z+','+y,{hex:WHITE_HEX,cloud:true});
+    }
+  }
+
+  // 芽突
+  const rngB=mulberry32(11);
+  const inner=[];
+  for(let y=0;y<rows;y++)for(let x=0;x<cols;x++) if(body[y][x]&&edt[y][x]>=2&&!inCore(x,y)) inner.push([x,y]);
+  for(let i=inner.length-1;i>0;i--){const j=(rngB()*(i+1))|0;[inner[i],inner[j]]=[inner[j],inner[i]]}
+  let fb=0;
+  for(const [x,y] of inner){
+    if(fb>=P.budsFB)break;
+    let zs=[];for(let z=0;z<Z;z++)if(vox.has(x+','+z+','+y))zs.push(z);
+    if(!zs.length)continue;
+    const z=(fb%2===0)?zs[0]-1:zs[zs.length-1]+1;
+    const k=x+','+z+','+y;
+    if(z>=0&&z<Z&&!vox.has(k)){vox.set(k,{hex:colr[x+','+y]});fb++}
+  }
+  const sidesList=[];
+  for(let y=3;y<rows;y++)for(let x=0;x<cols;x++){
+    if(!body[y][x])continue;
+    for(const dx of[-1,1]){
+      const nx=x+dx;
+      if(nx>=0&&nx<cols&&!body[y][nx]&&!white[y][nx]) sidesList.push([x,y,dx]);
+    }
+  }
+  for(let i=sidesList.length-1;i>0;i--){const j=(rngB()*(i+1))|0;[sidesList[i],sidesList[j]]=[sidesList[j],sidesList[i]]}
+  let sb=0;
+  for(const [x,y,dx] of sidesList){
+    if(sb>=P.budsS)break;
+    let zs=[];for(let z=0;z<Z;z++)if(vox.has(x+','+z+','+y))zs.push(z);
+    if(!zs.length)continue;
+    const z=zs[(zs.length/2)|0];
+    const k=(x+dx)+','+z+','+y;
+    let colEmpty=true;
+    for(let zz=0;zz<Z;zz++)if(vox.has((x+dx)+','+zz+','+y)){colEmpty=false;break}
+    if(colEmpty&&!vox.has(k)){vox.set(k,{hex:colr[x+','+y]});sb++}
+  }
+
+  // 统计
+  let pairs=0;
+  for(const key of vox.keys()){
+    const [x,z,y]=key.split(',').map(Number);
+    if(vox.has((x+1)+','+z+','+y))pairs++;
+    if(vox.has(x+','+(z+1)+','+y))pairs++;
+    if(vox.has(x+','+z+','+(y+1)))pairs++;
+  }
+  model={vox,cols,rows,Z,count:vox.size,pairs,name:d.name};
+  document.getElementById('stats').innerHTML=
+    `<b>${d.name}</b> · ${P.creature}<br>方块 <b>${vox.size}</b> · 缝 ${pairs} · 磁铁 ${pairs*2}<br>`+
+    `实体约 ${cols*12}×${rows*12}×${Z*12}mm`;
+}
+
+// ---------- 渲染(canvas 等轴测画家算法) ----------
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+let az=-0.55, zoom=1, dragging=false, lastX=0;
+function shade(hex,f){
+  const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),bl=parseInt(hex.slice(5,7),16);
+  return `rgb(${(r*f)|0},${(g*f)|0},${(bl*f)|0})`;
+}
+function render(){
+  const dpr=window.devicePixelRatio||1;
+  const w=cv.clientWidth,h=cv.clientHeight;
+  if(cv.width!==w*dpr||cv.height!==h*dpr){cv.width=w*dpr;cv.height=h*dpr}
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,w,h);
+  if(!model)return;
+  const {vox,cols,rows,Z}=model;
+  const s=Math.min(w/(cols+Z+4),h/(rows+6))*0.92*zoom;
+  const ca=Math.cos(az),sa=Math.sin(az);
+  const cx0=cols/2,cz0=Z/2,cy0=rows/2;
+  const proj=(x,y,z)=>{
+    const xr=(x-cx0)*ca-(z-cz0)*sa;
+    const zr=(x-cx0)*sa+(z-cz0)*ca;
+    return [w/2+xr*s, h/2-((y-cy0)*0.95*s)+zr*0.5*s, zr];
+  };
+  const items=[];
+  for(const [key,v] of vox){
+    const [x,z,y]=key.split(',').map(Number);
+    const zr=(x-cx0)*sa+(z-cz0)*ca;
+    items.push([zr,y,x,z,v]);
+  }
+  items.sort((p,q)=>p[0]-q[0]||p[1]-q[1]);
+  const edgeC=getComputedStyle(document.documentElement).getPropertyValue('--line').trim();
+  for(const [,yy,x,z,v] of items){
+    const y=yy;
+    const p={};
+    for(const [dx,dy,dz] of [[0,0,0],[1,0,0],[0,1,0],[0,0,1],[1,1,0],[1,0,1],[0,1,1],[1,1,1]]){
+      p[dx+''+dy+''+dz]=proj(x+dx,y+dy,z+dz);
+    }
+    const face=(a,b,c,d,f)=>{
+      ctx.beginPath();
+      ctx.moveTo(p[a][0],p[a][1]);ctx.lineTo(p[b][0],p[b][1]);
+      ctx.lineTo(p[c][0],p[c][1]);ctx.lineTo(p[d][0],p[d][1]);
+      ctx.closePath();
+      let hex=v.hex;
+      ctx.fillStyle=shade(hex,f);
+      ctx.fill();
+      ctx.strokeStyle=v.core&&P.coreTint?'#c9793a':edgeC;
+      ctx.lineWidth=v.core&&P.coreTint?1.1:0.55;
+      ctx.stroke();
+    };
+    // 六面全画,面级画家排序(顺序只随视角变,逐帧算一次即可,这里直接内联)
+    const FACES=[
+      ['-y',['000','100','101','001'],0.5, 0],
+      ['+y',['010','110','111','011'],1.0, 0],
+      ['-x',['000','010','011','001'],0.8,-0.5*sa],
+      ['+x',['100','110','111','101'],0.8, 0.5*sa],
+      ['-z',['000','100','110','010'],0.65,-0.5*ca],
+      ['+z',['001','101','111','011'],0.65, 0.5*ca],
+    ];
+    FACES.sort((A,B)=>(A[3]-B[3])||(A[0]==='-y'?-1:0)-(B[0]==='-y'?-1:0));
+    for(const [,vs,f] of FACES) face(vs[0],vs[1],vs[2],vs[3],f);
+  }
+}
+function loop(){render();requestAnimationFrame(loop)}
+
+// ---------- 交互 ----------
+cv.addEventListener('pointerdown',e=>{dragging=true;lastX=e.clientX;cv.setPointerCapture(e.pointerId)});
+cv.addEventListener('pointermove',e=>{if(dragging){az+=(e.clientX-lastX)*0.008;lastX=e.clientX}});
+cv.addEventListener('pointerup',()=>dragging=false);
+cv.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(0.4,Math.min(2.5,zoom*(e.deltaY<0?1.08:0.92)))},{passive:false});
+
+const pick=document.getElementById('pick');
+for(const id in LIB){
+  const o=document.createElement('option');
+  o.value=id;o.textContent=LIB[id].name+' ('+id+')';
+  pick.appendChild(o);
+}
+pick.value='demo-11';
+
+const VIEWS=[['正面',-0.001],['45°',-0.55],['侧面',-1.57],['背面',3.14]];
+const vbox=document.getElementById('views');
+for(const [name,a] of VIEWS){
+  const b=document.createElement('button');
+  b.textContent=name;
+  b.onclick=()=>{az=a};
+  vbox.appendChild(b);
+}
+
+for(const id of ids){
+  const el=document.getElementById(id);
+  const out=el.parentElement.querySelector('output');
+  const sync=()=>{if(out)out.textContent=el.value};
+  sync();
+  el.addEventListener('input',()=>{sync();rebuild()});
+}
+for(const id of ['jitter','core','coreTint'])
+  document.getElementById(id).addEventListener('change',rebuild);
+pick.addEventListener('change',rebuild);
+
+const dlg=document.getElementById('dlg');
+document.getElementById('exportBtn').onclick=()=>{
+  readParams();
+  const out={tool:'spore-shaping-bench',version:1,params:P,
+             cubes:model.count,magnets:model.pairs*2};
+  document.getElementById('dlgText').value=JSON.stringify(out,null,2);
+  dlg.showModal();
+};
+document.getElementById('copyBtn').onclick=()=>{
+  navigator.clipboard.writeText(document.getElementById('dlgText').value);
+  document.getElementById('copyBtn').textContent='已复制 ✓';
+  setTimeout(()=>document.getElementById('copyBtn').textContent='复制',1400);
+};
+document.getElementById('closeBtn').onclick=()=>dlg.close();
+
+rebuild();
+loop();
+</script>
