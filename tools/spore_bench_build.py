@@ -114,6 +114,7 @@ dialog .row{margin-top:10px; justify-content:flex-end}
     <fieldset>
       <legend>核心舱 8列×7行</legend>
       <label class="toggle"><input type=checkbox id=core checked>启用(填实 · 锁深3 · 背面平)</label>
+      <label class="toggle"><input type=checkbox id=coreGround checked>贴地(USB 充电口对桌面)</label>
       <div class="row"><label>横向微调</label><input type=range id=coreDX min=-3 max=3 step=1 value=0><output></output></div>
       <div class="row"><label>纵向微调</label><input type=range id=coreDY min=-3 max=3 step=1 value=0><output></output></div>
       <label class="toggle"><input type=checkbox id=coreTint checked>标注舱体(描边+虚线框+尺寸)</label>
@@ -167,6 +168,7 @@ const P={};
 function readParams(){
   for(const id of ids) P[id]=parseFloat(document.getElementById(id).value);
   P.jitter=document.getElementById('jitter').checked;
+  P.coreGround=document.getElementById('coreGround').checked;
   P.core=document.getElementById('core').checked;
   P.coreTint=document.getElementById('coreTint').checked;
   P.creature=document.getElementById('pick').value;
@@ -246,17 +248,20 @@ function rebuild(){
   // 核心舱
   let coreW=null;
   if(P.core){
+    let bodyBottom=0;
+    for(let y=0;y<rows;y++){ if(body[y].some(v=>v)){bodyBottom=y;break} }
     let best=null;
     for(let ty=0;ty+7<=rows;ty++)for(let tx=0;tx+8<=cols;tx++){
+      if(P.coreGround&&ty!==bodyBottom)continue;      // 贴地:底行锁定
       let miss=0;
       for(let yy=ty;yy<ty+7;yy++)for(let xx=tx;xx<tx+8;xx++) if(!body[yy][xx])miss++;
-      const cyc=(ty+3.5)/rows, bias=(cyc>=0.4&&cyc<=0.8)?0:5;
+      const cyc=(ty+3.5)/rows, bias=P.coreGround?0:((cyc>=0.4&&cyc<=0.8)?0:5);
       const s=miss+bias;
       if(best===null||s<best[0])best=[s,tx,ty];
     }
     if(best){
       let tx=Math.max(0,Math.min(cols-8,best[1]+P.coreDX));
-      let ty=Math.max(0,Math.min(rows-7,best[2]+P.coreDY));
+      let ty=P.coreGround?best[2]:Math.max(0,Math.min(rows-7,best[2]+P.coreDY));
       coreW=[tx,ty];
       for(let yy=ty;yy<ty+7;yy++)for(let xx=tx;xx<tx+8;xx++){
         if(!body[yy][xx]){
@@ -349,7 +354,8 @@ function rebuild(){
          core:(P.core&&coreW)?{tx:coreW[0],ty:coreW[1],z0:MID-1,z1:MID+2}:null};
   document.getElementById('editCount').textContent=ed.size?`已改 ${ed.size} 格`:'';
   const coreTxt=(P.core&&coreW)
-    ?`<br>舱位 列${coreW[0]}-${coreW[0]+7} · 行${coreW[1]}-${coreW[1]+6}(自底向上)`
+    ?`<br>舱位 列${coreW[0]}-${coreW[0]+7} · 行${coreW[1]}-${coreW[1]+6}`+
+     (P.coreGround?' · <b>贴地,USB可插</b>':' · ⚠悬空,充电口够不着')
     :'';
   document.getElementById('stats').innerHTML=
     `<b>${d.name}</b> · ${P.creature}<br>方块 <b>${vox.size}</b> · 缝 ${pairs} · 磁铁 ${pairs*2}<br>`+
@@ -442,6 +448,18 @@ function render(){
     const C=drawBox(tx,tx+8,ty,ty+7,z0,z1,[6,4],1.6,'#c9793a');
     // 内空腔 6×7×3(留1列侧壁)
     drawBox(tx+1,tx+7,ty,ty+7,z0,z1,[2,3],0.9,'#c9793a');
+    // USB-C 充电口:前脸底部中央一格
+    const ux0=tx+3.5, ux1=tx+4.5;
+    const U=[proj(ux0,ty,z0),proj(ux1,ty,z0),proj(ux1,ty+0.55,z0),proj(ux0,ty+0.55,z0)];
+    ctx.beginPath();
+    ctx.moveTo(U[0][0],U[0][1]);
+    for(let i=1;i<4;i++)ctx.lineTo(U[i][0],U[i][1]);
+    ctx.closePath();
+    ctx.fillStyle='rgba(201,121,58,0.85)';ctx.fill();
+    ctx.font='10px ui-monospace,monospace';
+    ctx.fillStyle='#c9793a';
+    const um=proj((ux0+ux1)/2,ty-0.2,z0);
+    ctx.fillText('USB-C 充电口',um[0]-34,um[1]+14);
     // 标签:挂在框顶最高点
     let top=C[0];
     for(const p of C) if(p[1]<top[1]) top=p;
@@ -537,7 +555,7 @@ for(const id of ids){
   sync();
   el.addEventListener('input',()=>{sync();rebuild()});
 }
-for(const id of ['jitter','core','coreTint'])
+for(const id of ['jitter','core','coreTint','coreGround'])
   document.getElementById(id).addEventListener('change',rebuild);
 pick.addEventListener('change',()=>{curColor=null;readParams();paintPalette();rebuild()});
 
