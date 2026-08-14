@@ -474,6 +474,39 @@ function render(){
     const C=drawBox(tx,tx+7,ty,ty+7,z0,z1,[6,4],1.6,'#c9793a');
     // MC02:腔 5列×6行×21(底行是U/G墙),背板扣在开口上
     drawBox(tx+1,tx+6,ty+1,ty+7,z1-21/12,z1,[2,3],0.9,'#c9793a');
+    // —— 内构可视化(全部换算成格,1格=12mm)——
+    const mm=v=>v/12;
+    // 背板 84×84×3:填充色板体,扣在背面
+    {
+      const bC=[[tx,ty,z1],[tx+7,ty,z1],[tx+7,ty+7,z1],[tx,ty+7,z1]]
+        .map(p=>proj(p[0],p[1],p[2]+mm(3)));
+      ctx.beginPath();
+      ctx.moveTo(bC[0][0],bC[0][1]);
+      for(let i=1;i<4;i++)ctx.lineTo(bC[i][0],bC[i][1]);
+      ctx.closePath();
+      ctx.fillStyle='rgba(201,121,58,0.20)';ctx.fill();
+      ctx.setLineDash([]);ctx.strokeStyle='#c9793a';ctx.lineWidth=1.8;ctx.stroke();
+      ctx.font='10px ui-monospace,monospace';ctx.fillStyle='#c9793a';
+      ctx.fillText('MC02-P 背板',bC[3][0]+4,bC[3][1]+12);
+    }
+    // 腔内元件(虚线盒):坐标以腔左下角起
+    const cx1=tx+1, cy1=ty+1, zBack=z1;
+    // 合板 55×60×10(含元件高):居中x,离腔底10mm
+    const bw=mm(55), bh=mm(60), bd=mm(10);
+    drawBox(cx1+(5-bw)/2, cx1+(5+bw)/2, cy1+mm(10), cy1+mm(10)+bh,
+            zBack-mm(12)-bd, zBack-mm(12), [3,3], 1.0, '#4a7fd0');
+    // 电池 30×40×6:贴背板左
+    drawBox(cx1+mm(4), cx1+mm(34), cy1+mm(12), cy1+mm(52),
+            zBack-mm(6), zBack, [3,3], 1.0, '#2e7d4f');
+    // 喇叭 30×20×8:平躺腔底中央
+    drawBox(cx1+(5-mm(30))/2, cx1+(5+mm(30))/2, cy1, cy1+mm(8),
+            zBack-mm(21), zBack-mm(1), [3,3], 1.0, '#8a6fc0');
+    // 标签
+    ctx.font='9px ui-monospace,monospace';
+    const lb=(x,y,z,t,c)=>{const p=proj(x,y,z);ctx.fillStyle=c;ctx.fillText(t,p[0]+3,p[1])};
+    lb(cx1+(5+bw)/2, cy1+mm(10)+bh, zBack-mm(17), '合板AB', '#4a7fd0');
+    lb(cx1+mm(34), cy1+mm(50), zBack-mm(3), '电池', '#2e7d4f');
+    lb(cx1+(5+mm(30))/2, cy1+mm(4), zBack-mm(18), '喇叭', '#8a6fc0');
     // USB-C 充电口:前脸底部中央一格
     const ux0=tx+3, ux1=tx+4;
     const U=[proj(ux0,ty,z0),proj(ux1,ty,z0),proj(ux1,ty+0.55,z0),proj(ux0,ty+0.55,z0)];
@@ -489,7 +522,7 @@ function render(){
     // 标签:挂在框顶最高点
     let top=C[0];
     for(const p of C) if(p[1]<top[1]) top=p;
-    const label='MC02 背板84×84×3 · 腔60×72×21 · 背扣';
+    const label='MC02 · 腔60×72×21 · 板/电池/喇叭见虚线盒';
     ctx.font='11px ui-monospace,monospace';
     const tw=ctx.measureText(label).width;
     const lx=Math.min(Math.max(top[0]-tw/2,8),w-tw-8), ly=Math.max(top[1]-14,16);
