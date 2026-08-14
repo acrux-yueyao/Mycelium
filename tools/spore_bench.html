@@ -110,7 +110,7 @@ dialog .row{margin-top:10px; justify-content:flex-end}
       <label class="toggle"><input type=checkbox id=core checked>启用(填实 · 锁深3 · 背面平)</label>
       <div class="row"><label>横向微调</label><input type=range id=coreDX min=-3 max=3 step=1 value=0><output></output></div>
       <div class="row"><label>纵向微调</label><input type=range id=coreDY min=-3 max=3 step=1 value=0><output></output></div>
-      <label class="toggle"><input type=checkbox id=coreTint checked>橙色标出舱区</label>
+      <label class="toggle"><input type=checkbox id=coreTint checked>标注舱体(描边+虚线框+尺寸)</label>
     </fieldset>
     <fieldset>
       <legend>芽突(可选)</legend>
@@ -339,11 +339,15 @@ function rebuild(){
     if(vox.has(x+','+(z+1)+','+y))pairs++;
     if(vox.has(x+','+z+','+(y+1)))pairs++;
   }
-  model={vox,cols,rows,Z,count:vox.size,pairs,name:d.name};
+  model={vox,cols,rows,Z,count:vox.size,pairs,name:d.name,
+         core:(P.core&&coreW)?{tx:coreW[0],ty:coreW[1],z0:MID-1,z1:MID+2}:null};
   document.getElementById('editCount').textContent=ed.size?`已改 ${ed.size} 格`:'';
+  const coreTxt=(P.core&&coreW)
+    ?`<br>舱位 列${coreW[0]}-${coreW[0]+7} · 行${coreW[1]}-${coreW[1]+6}(自底向上)`
+    :'';
   document.getElementById('stats').innerHTML=
     `<b>${d.name}</b> · ${P.creature}<br>方块 <b>${vox.size}</b> · 缝 ${pairs} · 磁铁 ${pairs*2}<br>`+
-    `实体约 ${cols*12}×${rows*12}×${Z*12}mm`;
+    `实体约 ${cols*12}×${rows*12}×${Z*12}mm${coreTxt}`;
 }
 
 // ---------- 渲染(canvas 等轴测画家算法) ----------
@@ -411,6 +415,43 @@ function render(){
     ];
     FACES.sort((A,B)=>(A[3]-B[3])||(A[0]==='-y'?-1:0)-(B[0]==='-y'?-1:0));
     for(const [fn,vs,f] of FACES) face(vs[0],vs[1],vs[2],vs[3],f,fn);
+  }
+
+  // ---- MC-01 舱体标注:虚线外框 + 空腔框 + 标签 ----
+  if(model.core&&P.coreTint){
+    const {tx,ty,z0,z1}=model.core;
+    const drawBox=(x0,x1,y0,y1,zz0,zz1,dash,lw,col)=>{
+      const C=[[x0,y0,zz0],[x1,y0,zz0],[x1,y1,zz0],[x0,y1,zz0],
+               [x0,y0,zz1],[x1,y0,zz1],[x1,y1,zz1],[x0,y1,zz1]].map(p=>proj(p[0],p[1],p[2]));
+      ctx.setLineDash(dash);
+      ctx.strokeStyle=col; ctx.lineWidth=lw;
+      const E=[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+      ctx.beginPath();
+      for(const [a,b] of E){ctx.moveTo(C[a][0],C[a][1]);ctx.lineTo(C[b][0],C[b][1])}
+      ctx.stroke();
+      ctx.setLineDash([]);
+      return C;
+    };
+    // 外框 8列×7行×3深(舱壁范围)
+    const C=drawBox(tx,tx+8,ty,ty+7,z0,z1,[6,4],1.6,'#c9793a');
+    // 内空腔 6×7×3(留1列侧壁)
+    drawBox(tx+1,tx+7,ty,ty+7,z0,z1,[2,3],0.9,'#c9793a');
+    // 标签:挂在框顶最高点
+    let top=C[0];
+    for(const p of C) if(p[1]<top[1]) top=p;
+    const label='MC-01 舱区 8列×7行×3深 (96×84×36mm)';
+    ctx.font='11px ui-monospace,monospace';
+    const tw=ctx.measureText(label).width;
+    const lx=Math.min(Math.max(top[0]-tw/2,8),w-tw-8), ly=Math.max(top[1]-14,16);
+    ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--panel').trim();
+    ctx.fillRect(lx-5,ly-11,tw+10,16);
+    ctx.strokeStyle='#c9793a';ctx.lineWidth=1;ctx.strokeRect(lx-5,ly-11,tw+10,16);
+    ctx.fillStyle='#c9793a';
+    ctx.fillText(label,lx,ly+1);
+    ctx.beginPath();
+    ctx.setLineDash([2,3]);
+    ctx.moveTo(lx+tw/2,ly+5);ctx.lineTo(top[0],top[1]);
+    ctx.strokeStyle='#c9793a';ctx.stroke();ctx.setLineDash([]);
   }
 }
 function loop(){render();requestAnimationFrame(loop)}
