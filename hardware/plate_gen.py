@@ -52,7 +52,8 @@ def main(vdir, out):
         groups.setdefault(key, []).append(c)
 
     lines = [f"moony print plates · cubes {len(cells)} · colours {len(colors)}",
-             f"orientation: flat show-face DOWN on the bed (textured PEI side)", '']
+             f"orientation: flat show-face DOWN on the bed (textured PEI side)",
+             f"layout: one plate per colour zone · sorted by variant · blank slot between variants", '']
     plates = []
     import matplotlib
     matplotlib.use('Agg')
@@ -61,15 +62,32 @@ def main(vdir, out):
     import matplotlib.pyplot as plt
     from matplotlib.patches import Rectangle
 
+    def shade(hexcol, f=0.8):
+        r, g, b = (int(hexcol[i:i + 2], 16) for i in (1, 3, 5))
+        return '#%02x%02x%02x' % (int(r * f), int(g * f), int(b * f))
+
     order = sorted(groups, key=lambda k: (k == 'ream', k))
     for key in order:
-        cs = groups[key]
+        cs = sorted(groups[key], key=lambda c: c['code'])
         col = '#8a8880' if key == 'ream' else colors[key]
         base = 'plate_ream' if key == 'ream' else f'plate_c{key}'
-        for pi in range(0, len(cs), GRID * GRID):
-            chunk = cs[pi:pi + GRID * GRID]
+        # slot placement: cluster by variant code, one blank slot between clusters
+        paged, slots, k, cur, gi = [], [], 0, None, 0
+        for c in cs:
+            if cur is not None and c['code'] != cur:
+                k += 1
+                gi += 1
+            cur = c['code']
+            if k >= GRID * GRID:
+                paged.append(slots)
+                slots, k = [], 0
+            slots.append((k, gi, c))
+            k += 1
+        if slots:
+            paged.append(slots)
+        for n0, slots in enumerate(paged):
             parts, counts = [], {}
-            for k, c in enumerate(chunk):
+            for k, gi, c in slots:
                 mesh, _ = geom(c['code'], c['mask'])
                 p = mesh.copy()
                 gx, gy = k % GRID, k // GRID
@@ -78,16 +96,23 @@ def main(vdir, out):
                 parts.append(p)
                 counts[c['code']] = counts.get(c['code'], 0) + 1
             plate = trimesh.util.concatenate(parts)
-            n = pi // (GRID * GRID) + 1
-            fname = f'{base}_{n}.stl'
+            fname = f'{base}_{n0 + 1}.stl'
             plate.export(f'{out}/{fname}')
-            plates.append((fname, col, chunk, counts))
-            tagn = sum(1 for c in chunk if c.get('tag'))
+            plates.append((fname, col, slots, counts))
+            tagn = sum(1 for _, _, c in slots if c.get('tag'))
             lines.append(
-                f'{fname:22s} 颜色 {col} · {len(chunk):3d} 颗 · '
+                f'{fname:22s} 区域色 {col} · {len(slots):3d} 颗 · '
                 + ' '.join(f'{k}×{v}' for k, v in sorted(counts.items()))
                 + (f' · 功能位{tagn}(见map)' if tagn else '')
                 + (' · ⚠全耦合:床面磁袋打完手工扩' if key == 'ream' else ''))
+            # text layout map: bed row by row (row 1 = front/near edge)
+            grid = {}
+            for k, gi, c in slots:
+                grid[(k % GRID, k // GRID)] = c['code'][2:]
+            for gy in range((max(k for k, _, _ in slots) // GRID) + 1):
+                lines.append('    行%2d  ' % (gy + 1) + ' '.join(
+                    grid.get((gx, gy), '··') for gx in range(GRID)))
+            lines.append('')
 
     # 预览图:每盘一格
     ncol = 3
@@ -96,22 +121,29 @@ def main(vdir, out):
                              facecolor='#f6f5f0', squeeze=False)
     for ax in axes.flat:
         ax.axis('off')
-    for ax, (fname, col, chunk, counts) in zip(axes.flat, plates):
+    for ax, (fname, col, slots, counts) in zip(axes.flat, plates):
         ax.set_facecolor('#f6f5f0')
         ax.add_patch(Rectangle((-8, -8), GRID * PITCH + 12, GRID * PITCH + 12,
                                fill=False, ec='#8a8880', lw=1.2))
-        for k, c in enumerate(chunk):
+        for k, gi, c in slots:
             gx, gy = k % GRID, k // GRID
+            fc = col if gi % 2 == 0 else shade(col)
             ax.add_patch(Rectangle((gx * PITCH, gy * PITCH), 12, 12,
-                                   fc=col, ec='#1c1c1a', lw=0.4))
+                                   fc=fc, ec='#1c1c1a', lw=0.4))
             ax.text(gx * PITCH + 6, gy * PITCH + 6, c['code'][2:], ha='center',
                     va='center', fontsize=4.6, color='#1c1c1a')
-        ax.set_xlim(-12, GRID * PITCH + 8)
-        ax.set_ylim(-12, GRID * PITCH + 8)
+        for gx in range(GRID):
+            ax.text(gx * PITCH + 6, -6, str(gx + 1), ha='center', va='center',
+                    fontsize=5.5, color='#8a8880')
+        for gy in range((max(k for k, _, _ in slots) // GRID) + 1):
+            ax.text(-6, gy * PITCH + 6, f'行{gy + 1}', ha='center', va='center',
+                    fontsize=5.5, color='#8a8880')
+        ax.set_xlim(-14, GRID * PITCH + 8)
+        ax.set_ylim(-14, GRID * PITCH + 8)
         ax.set_aspect('equal')
-        ax.set_title(f'{fname} · {len(chunk)}颗 · {col}', fontsize=10,
+        ax.set_title(f'{fname} · {len(slots)}颗 · 区域色{col}', fontsize=10,
                      family='monospace')
-    fig.suptitle('moony_v2 打印排盘 · 外露面朝下 · 一盘一色 · 格内数字=变体号',
+    fig.suptitle('moony_v2 打印排盘 · 外露面朝下 · 一盘一区域 · 格内数字=变体号 · 深浅相间=不同变体簇',
                  fontsize=13)
     fig.savefig(f'{out}/plates_preview.png', dpi=130, facecolor='#f6f5f0',
                 bbox_inches='tight')
