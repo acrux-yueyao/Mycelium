@@ -54,6 +54,79 @@ DIRS = {(0, True): (1, 0, 0), (0, False): (-1, 0, 0),
         (1, True): (0, 0, 1), (1, False): (0, 0, -1),
         (2, True): (0, 1, 0), (2, False): (0, -1, 0)}
 
+# 极性总规则:全机磁铁 N 极统一指向 左/下/后 → −面 N 朝外,+面 S 朝外
+POLE = lambda positive: 'S' if positive else 'N'
+
+# ---- 耦合面刻字:极性字母 + 变体号,0.4 深,占销钉对角线之外的两个空角 ----
+ENG_DEPTH = 0.4
+_glyphs = {}
+
+
+def _text_slab(s, size):
+    """2D text → thin extruded cutter, centred at origin, z ∈ [0, d+0.1]."""
+    key = (s, size)
+    if key not in _glyphs:
+        from matplotlib.textpath import TextPath
+        from matplotlib.font_manager import FontProperties
+        import shapely.geometry as sg
+        from shapely.affinity import translate as sh_tr
+        from trimesh.creation import extrude_polygon
+        tp = TextPath((0, 0), s, size=size,
+                      prop=FontProperties(family='DejaVu Sans', weight='bold'))
+        merged = None
+        for p in tp.to_polygons():
+            if len(p) < 3:
+                continue
+            poly = sg.Polygon(p)
+            merged = poly if merged is None else merged.symmetric_difference(poly)
+        x0, y0, x1, y1 = merged.bounds
+        merged = sh_tr(merged, -(x0 + x1) / 2, -(y0 + y1) / 2)
+        geoms = merged.geoms if hasattr(merged, 'geoms') else [merged]
+        _glyphs[key] = trimesh.util.concatenate(
+            [extrude_polygon(g, ENG_DEPTH + 0.1) for g in geoms if g.area > 0])
+    return _glyphs[key].copy()
+
+
+_ENG_ROT = {(2, True): None,
+            (2, False): RM(np.pi, [1, 0, 0]),
+            (0, True): RM(np.pi / 2, [0, 1, 0]),
+            (0, False): RM(-np.pi / 2, [0, 1, 0]),
+            (1, True): RM(-np.pi / 2, [1, 0, 0]),
+            (1, False): RM(np.pi / 2, [1, 0, 0])}
+_INPLANE = {0: (1, 2), 1: (0, 2), 2: (0, 1)}
+_OFF = 3.5                      # brick_lib pin/dimple diagonal offset
+
+
+def variant_mesh(code, mask, pitch=12.0):
+    """mosaic_cube + engraving: on every coupled face, the pole letter
+    (N/S out) in one free corner and the 2-hex variant code in the other.
+    Hidden after assembly; identifies loose cubes. ENGRAVE=0 disables."""
+    m = mosaic_cube(faces=list(mask))
+    import os as _os
+    if _os.environ.get('ENGRAVE', '1') == '0':
+        return m
+    h = pitch / 2
+    cuts = []
+    for axis, pos in mask:
+        for s, (u, v), size in ((POLE(pos), (-_OFF, _OFF), 3.6),
+                                (code[2:], (_OFF, -_OFF), 2.6)):
+            slab = _text_slab(s, size)
+            slab.apply_transform(TM([0, 0, -ENG_DEPTH]))
+            r = _ENG_ROT[(axis, pos)]
+            if r is not None:
+                slab.apply_transform(r)
+            t = [0.0, 0.0, 0.0]
+            t[axis] = pitch if pos else 0.0
+            ia, ib = _INPLANE[axis]
+            t[ia] += h + u
+            t[ib] += h + v
+            slab.apply_transform(TM(t))
+            cuts.append(slab)
+    if cuts:
+        m = trimesh.boolean.difference([m] + cuts)
+    return m
+
+
 # 平面朝下的优先级(前后 → 下上 → 左右)与对应的放倒旋转
 FLAT_PREF = [(1, True), (1, False), (2, False), (2, True), (0, False), (0, True)]
 FLAT_ROT = {(1, True):  RM(-np.pi/2, [1, 0, 0]),   # 前面(+y)贴床
@@ -233,7 +306,7 @@ def main(base, out_dir):
              f'eyepatch cells {sum(1 for v in vmap.values() if v == "EYEPATCH")}'
              f' · variants {len(variants)}', '']
     for code, v in sorted(variants.items(), key=lambda kv: -kv[1]['count']):
-        m = mosaic_cube(faces=list(v['mask']))
+        m = variant_mesh(code, v['mask'])
         assert m.is_watertight, code
         m, orient = orient_flat_down(m, set(v['mask']))
         m.export(f'{out_dir}/{code}.stl')

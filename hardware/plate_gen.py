@@ -25,8 +25,7 @@ import trimesh
 from trimesh.transformations import translation_matrix as TM
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from brick_lib import mosaic_cube
-from kit_cubes import orient_flat_down
+from kit_cubes import orient_flat_down, variant_mesh
 
 PITCH, GRID = 16.0, 13                  # 13×13 → 220 mm envelope
 
@@ -39,7 +38,7 @@ def main(vdir, out):
     geo_cache = {}
     def geom(code, mask):
         if code not in geo_cache:
-            m = mosaic_cube(faces=[tuple(k) for k in mask])
+            m = variant_mesh(code, [tuple(k) for k in mask])
             geo_cache[code] = orient_flat_down(m, {tuple(k) for k in mask})
         return geo_cache[code]
 

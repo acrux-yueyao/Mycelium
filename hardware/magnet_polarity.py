@@ -27,7 +27,7 @@ import sys
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from kit_cubes import FACE_KEYS, FLAT_PREF, FLAT_ROT
+from kit_cubes import FACE_KEYS, FLAT_PREF, FLAT_ROT, POLE
 
 import matplotlib
 matplotlib.use('Agg')
@@ -57,7 +57,7 @@ def plate_faces(mask):
         n = np.zeros(3)
         n[axis] = 1 if pos else -1
         w = tuple(int(round(v)) for v in rot @ n)
-        out.append((w, ('S' if pos else 'N') if (axis, pos) in mask else None))
+        out.append((w, POLE(pos) if (axis, pos) in mask else None))
     return out
 
 
