@@ -58,7 +58,7 @@ DIRS = {(0, True): (1, 0, 0), (0, False): (-1, 0, 0),
 POLE = lambda positive: 'S' if positive else 'N'
 
 # ---- 耦合面刻字:极性字母 + 变体号,0.4 深,占销钉对角线之外的两个空角 ----
-ENG_DEPTH = 0.4
+ENG_DEPTH = 0.55
 _glyphs = {}
 
 
@@ -108,8 +108,8 @@ def variant_mesh(code, mask, pitch=12.0):
     h = pitch / 2
     cuts = []
     for axis, pos in mask:
-        for s, (u, v), size in ((POLE(pos), (-_OFF, _OFF), 3.6),
-                                (code[2:], (_OFF, -_OFF), 2.6)):
+        for s, (u, v), size in ((POLE(pos), (-_OFF, _OFF), 4.2),
+                                (code[2:], (_OFF, -_OFF), 3.2)):
             slab = _text_slab(s, size)
             slab.apply_transform(TM([0, 0, -ENG_DEPTH]))
             r = _ENG_ROT[(axis, pos)]
