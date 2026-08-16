@@ -30,6 +30,26 @@ from kit_cubes import orient_flat_down, variant_mesh
 PITCH, GRID = 16.0, 13                  # 13×13 → 220 mm envelope
 
 
+def layout_slots(cs, cap=GRID * GRID):
+    """Sorted cells → pages of (slot, cluster_index, cell): cubes cluster
+    by variant code with one blank slot between clusters. Shared by the
+    plate packer, the polarity sheets and the storage tray."""
+    paged, slots, k, cur, gi = [], [], 0, None, 0
+    for c in cs:
+        if cur is not None and c['code'] != cur:
+            k += 1
+            gi += 1
+        cur = c['code']
+        if k >= cap:
+            paged.append(slots)
+            slots, k = [], 0
+        slots.append((k, gi, c))
+        k += 1
+    if slots:
+        paged.append(slots)
+    return paged
+
+
 def main(vdir, out):
     man = json.load(open(f'{vdir}/kit_manifest.json'))
     colors, cells = man['colors'], man['cells']
@@ -71,19 +91,7 @@ def main(vdir, out):
         col = '#8a8880' if key == 'ream' else colors[key]
         base = 'plate_ream' if key == 'ream' else f'plate_c{key}'
         # slot placement: cluster by variant code, one blank slot between clusters
-        paged, slots, k, cur, gi = [], [], 0, None, 0
-        for c in cs:
-            if cur is not None and c['code'] != cur:
-                k += 1
-                gi += 1
-            cur = c['code']
-            if k >= GRID * GRID:
-                paged.append(slots)
-                slots, k = [], 0
-            slots.append((k, gi, c))
-            k += 1
-        if slots:
-            paged.append(slots)
+        paged = layout_slots(cs)
         for n0, slots in enumerate(paged):
             parts, counts = [], {}
             for k, gi, c in slots:
