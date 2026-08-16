@@ -147,6 +147,60 @@ def main(vdir, out):
                  fontsize=13)
     fig.savefig(f'{out}/plates_preview.png', dpi=130, facecolor='#f6f5f0',
                 bbox_inches='tight')
+
+    # ---- per-plate polarity sheet: N/S marked on every pocket, in place ----
+    from matplotlib.patches import Circle
+    from magnet_polarity import plate_faces
+    NC, SC, FC = '#c14953', '#3e6fb8', '#c9c5ba'
+    EDGE = {(-1, 0, 0): (1.7, 6), (1, 0, 0): (10.3, 6),
+            (0, 1, 0): (6, 10.3), (0, -1, 0): (6, 1.7)}
+    for fname, col, slots, counts in plates:
+        nrows = max(k for k, _, _ in slots) // GRID + 1
+        fig, ax = plt.subplots(figsize=(11.5, nrows * 0.83 + 2.6),
+                               facecolor='#f6f5f0')
+        ax.axis('off'); ax.set_facecolor('#f6f5f0')
+        for k, gi, c in slots:
+            gx, gy = k % GRID, k // GRID
+            x0, y0 = gx * PITCH, gy * PITCH
+            fc = col if gi % 2 == 0 else shade(col)
+            ax.add_patch(Rectangle((x0, y0), 12, 12, fc=fc, ec='#1c1c1a',
+                                   lw=0.5, alpha=0.35))
+            poles = dict(plate_faces({tuple(m) for m in c['mask']}))
+            up = poles.get((0, 0, 1))
+            ax.add_patch(Circle((x0 + 6, y0 + 6), 2.5,
+                                fc={None: FC, 'N': NC, 'S': SC}[up],
+                                ec='#1c1c1a', lw=0.5))
+            ax.text(x0 + 6, y0 + 6, up or '平', ha='center', va='center',
+                    fontsize=8 if up else 5.5, family='monospace',
+                    fontweight='bold' if up else 'normal',
+                    color='#ffffff' if up else '#6d6a62')
+            for w, (ex, ey) in EDGE.items():
+                p = poles.get(w)
+                if p:
+                    ax.add_patch(Rectangle((x0 + ex - 1.15, y0 + ey - 1.15),
+                                           2.3, 2.3, fc={'N': NC, 'S': SC}[p],
+                                           ec='#1c1c1a', lw=0.4))
+                    ax.text(x0 + ex, y0 + ey, p, ha='center', va='center',
+                            fontsize=5.5, family='monospace', color='#ffffff')
+            ax.text(x0 + 1.2, y0 + 10.6, c['code'][2:], ha='left', va='center',
+                    fontsize=5, family='monospace', color='#1c1c1a')
+        for gx in range(GRID):
+            ax.text(gx * PITCH + 6, -5, str(gx + 1), ha='center', va='center',
+                    fontsize=7, color='#8a8880')
+        for gy in range(nrows):
+            ax.text(-7, gy * PITCH + 6, f'行{gy + 1}', ha='center', va='center',
+                    fontsize=7, color='#8a8880')
+        ax.set_xlim(-14, GRID * PITCH + 4)
+        ax.set_ylim(-13, nrows * PITCH + 2)
+        ax.set_aspect('equal')
+        ax.set_title(f'{fname} 磁铁极性盘面图 · {len(slots)}颗 · 区域色{col}\n'
+                     '中心圆=上袋 · 边小块=侧袋(左右/上=后/下=前) · 红N 蓝S 朝外 · '
+                     '灰=无袋 · 贴床面=展示面无袋 · 左下角小字=变体号',
+                     fontsize=10, family='monospace')
+        fig.savefig(f'{out}/{fname[:-4]}_polarity.png', dpi=140,
+                    facecolor='#f6f5f0', bbox_inches='tight')
+        plt.close(fig)
+
     open(f'{out}/plates_manifest.txt', 'w').write('\n'.join(lines) + '\n')
     print('\n'.join(lines))
     print(f'→ {len(plates)} plates in {out}')
