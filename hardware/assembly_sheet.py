@@ -31,6 +31,8 @@ def main(vdir, out=None):
     out = out or vdir
     man = json.load(open(f'{vdir}/kit_manifest.json'))
     colors, cells = man['colors'], man['cells']
+    for i, c in enumerate(sorted(cells, key=lambda c: (c['y'], c['z'], c['x']))):
+        c['seq'] = i + 1                       # global assembly order
     cols = max(c['x'] for c in cells) + 1
     Z = max(c['z'] for c in cells) + 1
     layers = sorted({c['y'] for c in cells})
@@ -51,9 +53,12 @@ def main(vdir, out=None):
             col = colors[c['ci']]
             ax.add_patch(Rectangle((c['x'], c['z']), 1, 1, fc=col,
                                    ec='#1c1c1a', lw=0.5))
-            ax.text(c['x'] + 0.5, c['z'] + 0.5, c['code'][2:], ha='center',
+            tc = '#1c1c1a' if luma(col) > 130 else '#f6f5f0'
+            ax.text(c['x'] + 0.5, c['z'] + 0.42, str(c['seq']), ha='center',
                     va='center', fontsize=6, family='monospace',
-                    color='#1c1c1a' if luma(col) > 130 else '#f6f5f0')
+                    fontweight='bold', color=tc)
+            ax.text(c['x'] + 0.5, c['z'] + 0.8, c['code'][2:], ha='center',
+                    va='center', fontsize=3.6, family='monospace', color=tc)
         ax.set_xlim(-0.6, cols + 0.6)
         ax.set_ylim(-0.6, Z + 0.6)
         ax.set_aspect('equal')
@@ -66,7 +71,7 @@ def main(vdir, out=None):
             sp.set_visible(False)
         ax.set_title(f'第 {layers.index(ly) + 1}/{len(layers)} 层(从下往上)· {n} 颗',
                      fontsize=9, family='monospace')
-    fig.suptitle('逐层装配图 · 格内数字=变体号(与方块刻字/盘面图一致) · '
+    fig.suptitle('逐层装配图 · 粗体=拼装序号(=顺序盘剥取次序) · 小字=变体号 · '
                  '底色=区域(盘号) · 每格上沿=背面,下沿=正面',
                  fontsize=12, family='monospace')
     fig.text(0.01, 0.005, '眼罩 3×3(EP9)与功能块另装,见 variant_map.json',
