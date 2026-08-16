@@ -47,16 +47,14 @@ EDGE = {(-1, 0, 0): (1.7, 6), (1, 0, 0): (10.3, 6),
         (0, 1, 0): (6, 10.3), (0, -1, 0): (6, 1.7)}
 
 
-def main(vdir, out, cis=None):
-    man = json.load(open(f'{vdir}/kit_manifest.json'))
+def seq_slots(man, cis=None):
+    """Global assembly order → pages of (slot, cell): layer bottom-up,
+    back-to-front, left-to-right; one blank slot per layer boundary.
+    Cells gain c['seq']. Shared by the plates and the storage trays."""
     cells = sorted(man['cells'], key=lambda c: (c['y'], c['z'], c['x']))
     for i, c in enumerate(cells):
         c['seq'] = i + 1
-    sel = [c for c in cells
-           if cis is None or c['ci'] in cis]
-    os.makedirs(out, exist_ok=True)
-
-    # slot layout: assembly order, blank slot at each layer boundary
+    sel = [c for c in cells if cis is None or c['ci'] in cis]
     paged, slots, k, lasty = [], [], 0, None
     for c in sel:
         if lasty is not None and c['y'] != lasty:
@@ -69,6 +67,14 @@ def main(vdir, out, cis=None):
         k += 1
     if slots:
         paged.append(slots)
+    return paged
+
+
+def main(vdir, out, cis=None):
+    man = json.load(open(f'{vdir}/kit_manifest.json'))
+    os.makedirs(out, exist_ok=True)
+    paged = seq_slots(man, cis)
+    sel = [c for _, slots in enumerate(paged) for _, c in slots]
 
     geo = {}
     def geom(c):
