@@ -3,8 +3,10 @@
 Magnet polarity sheet — which pole faces OUT of every pocket.
 
 One global rule governs the whole machine: every magnet's N pole points
-toward creature RIGHT / UP / FRONT (+x/+y/+z). Hence +faces have N
-outward, −faces have S outward, and any two mating faces attract.
+toward creature LEFT / DOWN / BACK (−x/−y/−z). Hence −faces have N
+outward, +faces have S outward, and any two mating faces attract.
+(Flipped 2026-08 to match the user's physical reference magnet; a global
+N↔S swap is physically equivalent as long as EVERYTHING follows it.)
 
 But on the print plate each variant is rotated (flat show-face down), so
 "which pocket gets N-out" depends on the variant's plate orientation.
@@ -55,7 +57,7 @@ def plate_faces(mask):
         n = np.zeros(3)
         n[axis] = 1 if pos else -1
         w = tuple(int(round(v)) for v in rot @ n)
-        out.append((w, ('N' if pos else 'S') if (axis, pos) in mask else None))
+        out.append((w, ('S' if pos else 'N') if (axis, pos) in mask else None))
     return out
 
 
@@ -95,12 +97,12 @@ def main(vdir, out=None):
         ax.set_title(f'{code} ×{variants[code]["n"]}', fontsize=10,
                      family='monospace')
     fig.suptitle('磁铁极性卡 · 方块按打印盘上的姿态画(展开图) · N=红 S=蓝 = 朝外那面的极\n'
-                 '总规则:全机磁铁 N 极统一指向 右/上/前 —— 装配后用基准磁铁抽查即可\n'
+                 '总规则:全机磁铁 N 极统一指向 左/下/后 —— 装配后用基准磁铁抽查即可\n'
                  '操作:①取一颗磁铁涂红一面记作 N(基准) ②新磁铁吸上红面,露出的那面就是 N\n'
                  '③对照本卡:标 N 的袋,N 面朝外压入;标 S 的袋反之 ④趁方块还在盘上装,别先拆',
                  fontsize=11, family='monospace', y=0.995, va='top')
     fig.text(0.02, 0.005,
-             '眼罩缝 Ø2×1 与 MC02 背板磁位同一总规则(背板 8 颗:N 朝前=朝方块)· 涂 Loctite 凝胶再压入',
+             '眼罩缝 Ø2×1 与 MC02 背板磁位同一总规则(背板 8 颗:S 朝前=朝方块)· 涂 Loctite 凝胶再压入',
              fontsize=8.5, family='monospace', color='#8a8880')
     fig.savefig(f'{out}/magnet_polarity.png', dpi=140, facecolor='#f6f5f0',
                 bbox_inches='tight')
