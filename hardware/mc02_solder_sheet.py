@@ -89,7 +89,7 @@ def main(out='.'):
             family='monospace', color='#8a6a1e')
     ax.add_patch(Rectangle((19, 22), 46, 61, fc='#dcd6f2', ec=ACC, lw=1.4,
                            alpha=0.6))
-    ax.text(42, 50, 'MC02-AB 46×61\n(柱高9·板下净空6)', ha='center', va='center',
+    ax.text(42, 50, 'MC02-AB 46×61\n(柱高6.5·电池在板下)', ha='center', va='center',
             fontsize=7.5, family='monospace', color=ACC)
     for px, py in ((22, 25), (62, 25), (22, 80), (62, 80)):
         ax.add_patch(Circle((px, py), 3, fc='#ffffff', ec=ACC, lw=1))
@@ -118,15 +118,15 @@ def main(out='.'):
     ax = fig.add_subplot(gs[1, 0])
     ax.set_facecolor(BG); ax.axis('off')
     layers = [(0, 3, '背板 MC02-P', '#d8d4c8'),
-              (3, 9, '电池 6.0(凹槽内·板下)', '#f7edd9'),
-              (12, 1.6, '合板 1.6', '#dcd6f2'),
-              (13.6, 8, '元件区 ≤8(XIAO+排母最高)', '#ffffff')]
+              (3, 6.5, '柱6.5·电池6.0在板下', '#f7edd9'),
+              (9.5, 1.6, '合板 1.6', '#dcd6f2'),
+              (11.1, 12.5, '元件区 ≤12.5(排母8.5+XIAO)', '#ffffff')]
     for z0, dz, label, fc in layers:
         ax.add_patch(Rectangle((0, z0), 60, dz, fc=fc, ec=INK, lw=0.8))
         ax.text(62, z0 + dz / 2, f'{label}', va='center', fontsize=7,
                 family='monospace')
     ax.plot([0, 60], [24, 24], ls='--', color='#c14953', lw=1.2)
-    ax.text(62, 24, '腔体前沿(3+21)· 余量2.4', va='center', fontsize=7,
+    ax.text(62, 24, '腔体前沿(3+21)· 余量0.4', va='center', fontsize=7,
             family='monospace', color='#c14953')
     ax.set_xlim(0, 130); ax.set_ylim(-2, 30)
     ax.set_title('侧视堆叠(mm)', fontsize=9, family='monospace')

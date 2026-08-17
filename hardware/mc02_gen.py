@@ -33,7 +33,7 @@ from brick_lib import (mosaic_cube, B, D, U as UN, face_cyl,
                        MAG_R, MAG_D, NUB_R, NUB_H, OFF, P)
 
 PW, PH, PT = 84.0, 84.0, 3.0          # plate w/h/thickness
-BOSS_H = 9.0                          # board standoff (battery 6 + play)
+BOSS_H = 6.5                          # board standoff: battery 6 fits below, standard 8.5 socket + XIAO clears the 21 cavity above
 
 # wall coupling cells (i, j) of the 7×7 zone the plate overlaps
 WALL_CELLS = ([(0, j) for j in range(7)] + [(6, j) for j in range(7)]
