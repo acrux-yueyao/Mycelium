@@ -40,36 +40,38 @@ def main(out='.'):
                           left=0.04, right=0.98, top=0.92, bottom=0.03,
                           wspace=0.14, hspace=0.16)
 
-    # ---- board panel ----
+    # ---- board panel (46×61 = 18×24-hole perfboard) ----
     ax = fig.add_subplot(gs[0, 0])
     ax.set_facecolor(BG); ax.axis('off')
-    ax.add_patch(Rectangle((0, 0), 55, 60, fc='#efe9db', ec=INK, lw=1.6))
-    for hx, hy in ((3, 3), (52, 3), (3, 57), (52, 57)):
+    ax.add_patch(Rectangle((0, 0), 46, 61, fc='#efe9db', ec=INK, lw=1.6))
+    for hx, hy in ((3, 3), (43, 3), (3, 58), (43, 58)):
         ax.add_patch(Circle((hx, hy), 1.1, fc=BG, ec=INK, lw=1.0))
-    rect(ax, 16, 40, 22, 18, 'XIAO ESP32-S3', fc='#dcd6f2',
-         sub='两条7P排母·USB朝上')
-    rect(ax, 2, 6, 16, 16, 'MAX98357A', sub='功放·喇叭焊盘朝下')
-    rect(ax, 32, 6, 21, 16, 'MPU6050', sub='箭头X朝右=机器人右')
-    rect(ax, 2, 25, 15, 30, 'MPR121', fc='#ffffff', sub='触摸·竖放')
-    for i, (name, sub) in enumerate((('J1 ToF', '4芯·H1'), ('J2 麦', '5芯·H2'),
-                                     ('J3 双屏', '6芯·H3'), ('J4 电源', '2芯·H4'),
-                                     ('J5 灯', '3芯·H7'))):
-        rect(ax, 46, 26 + i * 6.6, 9, 5.6, name.split()[0], fs=6, sub=None)
-        ax.text(45, 26 + i * 6.6 + 2.8, f'{name.split()[1]} {sub}', ha='right',
-                va='center', fontsize=5.5, family='monospace', color=DIM)
-    ax.plot([20, 20], [2, 38], ls='--', lw=1, color='#c14953')
-    ax.plot([23, 23], [2, 38], ls='--', lw=1, color=INK)
-    ax.text(19, 20, '3V3', rotation=90, fontsize=6, color='#c14953',
-            ha='right', va='center', family='monospace')
-    ax.text(24, 20, 'GND', rotation=90, fontsize=6, ha='left', va='center',
-            family='monospace')
-    ax.annotate('', xy=(27, 63), xytext=(27, 58.5),
+    rect(ax, 12, 42, 21, 18, 'XIAO ESP32-S3', fc='#dcd6f2',
+         sub='7P排母×2·USB朝上')
+    rect(ax, 3, 41, 6, 16, 'J3', fs=6)
+    ax.text(3, 59.3, 'J3双屏 6芯·H3', fontsize=5.5, family='monospace',
+            color=DIM)
+    rect(ax, 37, 44, 6, 12, 'J1', fs=6)
+    ax.text(44, 57.5, 'J1 ToF 4芯·H1', fontsize=5.5, family='monospace',
+            color=DIM, ha='right')
+    rect(ax, 2, 8, 20, 30, 'MPR121', fc='#ffffff', sub='触摸·竖放')
+    rect(ax, 25, 25, 20, 16, 'MPU6050', sub='箭头X朝右')
+    rect(ax, 25, 8, 16, 16, 'MAX98357A', sub='功放')
+    for x0, w, name, sub in ((8, 13, 'J2', '麦5芯·H2'), (23, 7, 'J4', '电2芯·H4'),
+                             (32, 9, 'J5', '灯3芯·H7')):
+        rect(ax, x0, 1, w, 5, name, fs=6)
+        ax.text(x0 + w / 2, -1.8, sub, ha='center', fontsize=5.2,
+                family='monospace', color=DIM)
+    ax.plot([23.4, 23.4], [8, 40], ls='--', lw=1, color='#c14953')
+    ax.text(23.4, 41.5, '3V3|GND 母线', fontsize=5.5, color='#c14953',
+            ha='center', family='monospace')
+    ax.annotate('', xy=(6, 64.5), xytext=(6, 58),
                 arrowprops=dict(arrowstyle='->', lw=1.2, color=ACC))
-    ax.text(28.5, 61, 'H3 → T块通道 → 眼罩', fontsize=6.5, color=ACC,
+    ax.text(8, 63, 'H3 → T块通道 → 眼罩', fontsize=6.5, color=ACC,
             family='monospace')
-    ax.set_xlim(-8, 62); ax.set_ylim(-4, 66)
+    ax.set_xlim(-8, 54); ax.set_ylim(-5, 67)
     ax.set_aspect('equal')
-    ax.set_title('MC02-AB 合板 55×60(洞洞板 21×23 孔)· 元件面朝腔内',
+    ax.set_title('MC02-AB 合板 46×61(洞洞板 18×24 孔)· 元件面朝腔内',
                  fontsize=10, family='monospace')
 
     # ---- cavity plan panel ----
@@ -81,15 +83,15 @@ def main(out='.'):
             wall = i in (0, 6) or j == 0
             ax.add_patch(Rectangle((i * 12, j * 12), 12, 12, fill=False,
                                    ec=DIM, lw=0.6, ls=':' if not wall else '-'))
-    ax.add_patch(Rectangle((6, 24), 41, 41, fc='#f7edd9', ec='#c9a35a',
+    ax.add_patch(Rectangle((26, 29), 32, 42, fc='#f7edd9', ec='#c9a35a',
                            lw=1.1, ls='--'))
-    ax.text(26.5, 61, '电池603040凹槽\n(板后·魔术贴)', ha='center', fontsize=6.5,
+    ax.text(42, 66, '电池603040竖放凹槽\n(板后·魔术贴)', ha='center', fontsize=6.5,
             family='monospace', color='#8a6a1e')
-    ax.add_patch(Rectangle((14.5, 22), 55, 60, fc='#dcd6f2', ec=ACC, lw=1.4,
-                           alpha=0.75))
-    ax.text(42, 52, 'MC02-AB\n(柱高9·板下净空6)', ha='center', va='center',
+    ax.add_patch(Rectangle((19, 22), 46, 61, fc='#dcd6f2', ec=ACC, lw=1.4,
+                           alpha=0.6))
+    ax.text(42, 50, 'MC02-AB 46×61\n(柱高9·板下净空6)', ha='center', va='center',
             fontsize=7.5, family='monospace', color=ACC)
-    for px, py in ((17.5, 25), (66.5, 25), (17.5, 79), (66.5, 79)):
+    for px, py in ((22, 25), (62, 25), (22, 80), (62, 80)):
         ax.add_patch(Circle((px, py), 3, fc='#ffffff', ec=ACC, lw=1))
         ax.add_patch(Circle((px, py), 0.9, fc=ACC, ec='none'))
     rect(ax, 31.5, 13, 21, 8, 'TP4057', fc='#f6d9d9', fs=6.5,

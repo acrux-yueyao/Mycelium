@@ -12,8 +12,9 @@ a giant cube face. Cavity in front of it: 60×72×21.
 Front-face features (z=3 is the front / cube side):
   - 38 pins Ø2.4×0.5 on the wall cells' diagonals (mate standard dimples)
   - 8 magnet pockets Ø4.3×2.1 (glue Ø4×2, N facing out per convention)
-  - 4 board bosses Ø6×9, Ø1.7 pilots — combo board 55×60 on M2 screws
-  - battery recess 41×31×0.4 (behind-board layer, velcro)
+  - 4 board bosses Ø6×9, Ø1.7 pilots — combo board 46×61 on M2 screws
+    (18×24-hole perfboard; boss pitch 40×55)
+  - battery recess 32×42×0.4 (behind-board layer, velcro, battery upright)
   - engraved MC02-P + polarity arrow on the back
 
 Usage: python3 hardware/mc02_gen.py out_dir
@@ -61,14 +62,14 @@ def build_plate():
         if (i, j) in MAG_CELLS:       # magnet pocket, open to the front
             m = D(m, CYL_Z(cx, cy, PT - MAG_D, PT + 1, MAG_R))
 
-    # board bosses (combo board 55×60, y 22..82, centred x)
-    bx0, bx1 = (PW - 55) / 2, (PW + 55) / 2
-    for px, py in [(bx0 + 3, 25), (bx1 - 3, 25), (bx0 + 3, 79), (bx1 - 3, 79)]:
+    # board bosses — combo board 46×61 (18×24-hole perfboard), y 22..83,
+    # centred x; M2 holes 3mm in from the board corners
+    for px, py in [(22, 25), (62, 25), (22, 80), (62, 80)]:
         m = UN([m, CYL_Z(px, py, PT - 0.02, PT + BOSS_H, 3.0)])
         m = D(m, CYL_Z(px, py, PT + BOSS_H - 6, PT + BOSS_H + 1, 0.85))
 
-    # battery recess 41×31×0.4 (left, behind-board layer)
-    m = D(m, B(6, 24, PT - 0.4, 47, 65, PT + 0.1))
+    # battery recess 32×42×0.4 — 603040 stands vertical between the bosses
+    m = D(m, B(26, 29, PT - 0.4, 58, 71, PT + 0.1))
     m.fix_normals()
     return m
 
@@ -126,7 +127,7 @@ if __name__ == '__main__':
     locs, _, _ = plate.ray.intersects_location([[6, 6, 20]], [[0, 0, -1]])
     print(f'magnet pocket floor z = {max(l[2] for l in locs):.2f} (expect {PT - MAG_D:.1f})')
     # boss top + pilot
-    locs, _, _ = plate.ray.intersects_location([[(PW - 55) / 2 + 3, 25, 30]], [[0, 0, -1]])
+    locs, _, _ = plate.ray.intersects_location([[22, 25, 30]], [[0, 0, -1]])
     zs = sorted((l[2] for l in locs), reverse=True)
     print(f'boss: pilot floor z = {zs[0]:.2f} (expect {PT + BOSS_H - 6:.1f})')
     # U cube slot through
