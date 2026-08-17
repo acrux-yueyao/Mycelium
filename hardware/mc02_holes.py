@@ -25,8 +25,8 @@ C = {'3V3': '#c14953', 'GND': '#1c1c1a', 'SDA0': '#3e6fb8', 'SCL0': '#4a7d43',
 
 # (col, row, label, net) — nets pick the dot colour
 HOLES = []
-# 4 vertical buses, rows 3..16
-for r in range(3, 17):
+# 4 vertical buses, rows 3..15
+for r in range(3, 16):
     HOLES += [(8, r, '', '3V3'), (9, r, '', 'GND'),
               (10, r, '', 'SDA0'), (11, r, '', 'SCL0')]
 # XIAO socket: left col 6 D0..D6 (top->bottom), right col 12 5V..D7
@@ -40,24 +40,24 @@ for i, (lab, net) in enumerate((('3V3', '3V3'), ('GND', 'GND'),
                                 ('SDA0', 'SDA0'), ('SCL0', 'SCL0'),
                                 ('SDA1', 'BUS1'), ('SCL1', 'BUS1'))):
     HOLES.append((2, 22 - i, lab, net))
-# J1 ToF 4P, row 21 cols 15..18
+# J1 ToF 4P, row 23 cols 15..18(弯针朝上出板)
 for i, (lab, net) in enumerate((('3V3', '3V3'), ('GND', 'GND'),
                                 ('SDA0', 'SDA0'), ('SCL0', 'SCL0'))):
-    HOLES.append((15 + i, 21, lab, net))
-# MPU6050 8P row 13 cols 11..18 (VCC GND SCL SDA XDA XCL AD0 INT)
+    HOLES.append((15 + i, 23, lab, net))
+# MPU6050 8P row 16 cols 11..18(体朝下) (VCC GND SCL SDA XDA XCL AD0 INT)
 for i, (lab, net) in enumerate((('VCC', '3V3'), ('GND', 'GND'),
                                 ('SCL', 'SCL0'), ('SDA', 'SDA0'),
                                 ('XDA', 'PIN'), ('XCL', 'PIN'),
                                 ('AD0', 'PIN'), ('INT', 'PIN'))):
-    HOLES.append((11 + i, 13, lab, net))
-# MAX98357A 7P row 5 cols 12..18 (按模块丝印对号入座)
+    HOLES.append((11 + i, 16, lab, net))
+# MAX98357A 7P row 3 cols 12..18(体朝上) (按模块丝印对号入座)
 for i, lab in enumerate(('LRC', 'BCLK', 'DIN', 'GAIN', 'SD', 'GND', 'VIN')):
     net = {'GND': 'GND', 'VIN': '3V3'}.get(lab, 'I2S')
-    HOLES.append((12 + i, 5, lab, net))
-# MPR121 4P col 2 rows 12..9
+    HOLES.append((12 + i, 3, lab, net))
+# MPR121 4P col 2 rows 11..8
 for i, (lab, net) in enumerate((('VCC', '3V3'), ('GND', 'GND'),
                                 ('SDA', 'SDA0'), ('SCL', 'SCL0'))):
-    HOLES.append((2, 12 - i, lab, net))
+    HOLES.append((2, 11 - i, lab, net))
 # bottom row 2: J2 mic 5P cols 2..6 · J4 battery 2P cols 8..9 · J5 led 3P cols 11..13
 for i, (lab, net) in enumerate((('VDD', '3V3'), ('GND', 'GND'),
                                 ('SCK', 'MIC'), ('WS', 'MIC'), ('SD', 'MIC'))):
@@ -66,11 +66,12 @@ HOLES += [(15, 2, 'BAT+', 'BAT'), (16, 2, 'BAT-', 'GND')]
 for i, (lab, net) in enumerate((('B+', 'BAT'), ('GND', 'GND'), ('DIN', 'MIC'))):
     HOLES.append((11 + i, 2, lab, net))
 
-ZONES = [(1, 4, 7, 15, 'MPR121 竖放(体)'), (11, 9, 18, 15, 'MPU6050(体)'),
-         (12, 3, 18, 8, 'MAX98357A(体)'), (5, 17, 13, 23, 'XIAO(插排母)')]
+ZONES = [(1, 4, 9, 15, 'MPR121 竖放(体)'), (11, 10, 18, 16, 'MPU6050(体)'),
+         (12, 3, 18, 9, 'MAX98357A(体)'), (5, 17, 13, 23, 'XIAO(插排母)')]
 
 NOTES = [
-    '母线: 8=3V3(红) 9=GND(黑) 10=SDA0(蓝) 11=SCL0(绿), 行3拉到行16',
+    '母线: 8=3V3(红) 9=GND(黑) 10=SDA0(蓝) 11=SCL0(绿), 行3拉到行15',
+    'J1-J5 全用弯排针(90°), 壳体朝板边外出线; 直针+杜邦壳太高放不进腔',
     'XIAO 底面 BAT+→孔(15,2) BAT−→孔(16,2), 线从两排母之间垂下',
     'D4→SDA0母线 · D5→SCL0母线 · D0→(2,18) · D7→(2,17)  [背面飞线]',
     'D2/D1/D3→MAX的BCLK/LRC/DIN · D8/D9/D10→(4,2)(5,2)(6,2) · D6→(13,2)',
