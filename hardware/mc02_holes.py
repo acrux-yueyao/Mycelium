@@ -44,39 +44,39 @@ for i, (lab, net) in enumerate((('3V3', '3V3'), ('GND', 'GND'),
 for i, (lab, net) in enumerate((('3V3', '3V3'), ('GND', 'GND'),
                                 ('SDA0', 'SDA0'), ('SCL0', 'SCL0'))):
     HOLES.append((15 + i, 23, lab, net))
-# MPU6050 8P row 16 cols 11..18(体朝下) (VCC GND SCL SDA XDA XCL AD0 INT)
+# MPU6050 8P 竖装: 列12 行11..4, VCC在最上, 体朝右
 for i, (lab, net) in enumerate((('VCC', '3V3'), ('GND', 'GND'),
                                 ('SCL', 'SCL0'), ('SDA', 'SDA0'),
                                 ('XDA', 'PIN'), ('XCL', 'PIN'),
                                 ('AD0', 'PIN'), ('INT', 'PIN'))):
-    HOLES.append((11 + i, 16, lab, net))
-# MAX98357A 7P row 3 cols 12..18(体朝上) (按模块丝印对号入座)
-for i, lab in enumerate(('LRC', 'BCLK', 'DIN', 'GAIN', 'SD', 'GND', 'VIN')):
-    net = {'GND': 'GND', 'VIN': '3V3'}.get(lab, 'I2S')
-    HOLES.append((12 + i, 3, lab, net))
+    HOLES.append((12, 11 - i, lab, net))
 # MPR121 4P col 2 rows 11..8
 for i, (lab, net) in enumerate((('VCC', '3V3'), ('GND', 'GND'),
                                 ('SDA', 'SDA0'), ('SCL', 'SCL0'))):
     HOLES.append((2, 11 - i, lab, net))
-# bottom row 2: J2 mic 5P cols 2..6 · J4 battery 2P cols 8..9 · J5 led 3P cols 11..13
+# bottom row 2: J2 mic 1-5 · J6 amp 7-11 · J5 led 13-15 · J4 battery 17-18
 for i, (lab, net) in enumerate((('VDD', '3V3'), ('GND', 'GND'),
                                 ('SCK', 'MIC'), ('WS', 'MIC'), ('SD', 'MIC'))):
-    HOLES.append((2 + i, 2, lab, net))
-HOLES += [(15, 2, 'BAT+', 'BAT'), (16, 2, 'BAT-', 'GND')]
+    HOLES.append((1 + i, 2, lab, net))
+for i, (lab, net) in enumerate((('VIN', '3V3'), ('GND', 'GND'), ('BCLK', 'I2S'),
+                                ('LRC', 'I2S'), ('DIN', 'I2S'))):
+    HOLES.append((7 + i, 2, lab, net))
 for i, (lab, net) in enumerate((('B+', 'BAT'), ('GND', 'GND'), ('DIN', 'MIC'))):
-    HOLES.append((11 + i, 2, lab, net))
+    HOLES.append((13 + i, 2, lab, net))
+HOLES += [(17, 2, 'BAT+', 'BAT'), (18, 2, 'BAT-', 'GND')]
 
-ZONES = [(1, 4, 9, 15, 'MPR121 竖放(体)'), (11, 10, 18, 16, 'MPU6050(体)'),
-         (12, 3, 18, 9, 'MAX98357A(体)'), (5, 17, 13, 23, 'XIAO(插排母)')]
+ZONES = [(1, 4, 9, 15, 'MPR121 竖放(体)'), (12, 2, 18, 11, 'MPU6050(体朝右)'),
+         (5, 17, 13, 23, 'XIAO(插排母)')]
 
 NOTES = [
     '母线: 8=3V3(红) 9=GND(黑) 10=SDA0(蓝) 11=SCL0(绿), 行3拉到行15',
     'J1-J5 全用弯排针(90°), 壳体朝板边外出线; 直针+杜邦壳太高放不进腔',
-    'XIAO 底面 BAT+→孔(15,2) BAT−→孔(16,2), 线从两排母之间垂下',
+    'XIAO 底面 BAT+→孔(17,2) BAT−→孔(18,2), 线从两排母之间垂下',
+    'MAX98357A 不上板! 双面胶贴腔底喇叭旁, 5芯线走 J6(行2 列8-12)',
     'D4→SDA0母线 · D5→SCL0母线 · D0→(2,18) · D7→(2,17)  [背面飞线]',
-    'D2/D1/D3→MAX的BCLK/LRC/DIN · D8/D9/D10→(4,2)(5,2)(6,2) · D6→(13,2)',
-    'BAT+(15,2) 另引一根去 TP4057 B+ · BAT−(16,2)与GND母线共地并去 B− (=H5)',
-    'MAX 第4/5脚(GAIN/SD)孔留空不焊 · MPU 后4孔(XDA..INT)留空',
+    'D2/D1/D3→J6 的 BCLK/LRC/DIN · D8/D9/D10→(3,2)(4,2)(5,2) · D6→(15,2)',
+    'BAT+(17,2) 另引一根去 TP4057 B+ · BAT−(18,2)与GND母线共地并去 B− (=H5)',
+    'MAX 的 GAIN/SD 悬空不接 · MPU 后4孔(XDA..INT)留空',
     '土黄=电池轨(3.7-4.2V)! 绝不可碰 3V3 母线',
     '看图方向=元件面; 翻到背面焊接时左右镜像, 先数孔再下烙铁',
 ]
