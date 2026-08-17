@@ -137,8 +137,8 @@ def main(out='.'):
     rows = [('H1', 'J1→ToF(前壁W窗)', '4芯 70mm', 'VIN GND SDA0 SCL0'),
             ('H2', 'J2→INMP441(M孔)', '5芯 70mm', '3V3 GND SCK WS SD'),
             ('H3', 'J3→眼罩双屏', '6芯 110mm', '3V3 GND SDA0 SCL0 SDA1 SCL1'),
-            ('H4', 'J4→TP4057 OUT', '2芯 60mm', 'OUT+ OUT−'),
-            ('H5', 'TP4057 B±→电池', '2芯 40mm', '装前验极性!'),
+            ('H4', '电池JST→J4(电池轨)', '2芯 50mm', 'BAT+ BAT− 验极性!'),
+            ('H5', 'J4轨→TP4057 B±', '2芯 60mm', '只用B±·OUT空着'),
             ('H6', 'MAX→喇叭焊盘', '2芯 60mm', 'SPK+ SPK−'),
             ('H7', 'J5→WS2812(可选)', '3芯 80mm', '5V GND DIN')]
     ax.text(0, 1.0, '线束表(28AWG 硅胶线,长度含余量)', fontsize=9,
