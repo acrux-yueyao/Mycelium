@@ -50,11 +50,11 @@ for i, (lab, net) in enumerate((('VCC', '3V3'), ('GND', 'GND'),
                                 ('XDA', 'PIN'), ('XCL', 'PIN'),
                                 ('AD0', 'PIN'), ('INT', 'PIN'))):
     HOLES.append((12, 11 - i, lab, net))
-# MPR121 6P col 2 rows 11..6: 3V3 IRQ SCL SDA ADD GND (上→下)
+# MPR121 6P col 2 rows 12..7: 3V3 IRQ SCL SDA ADD GND (上→下)
 for i, (lab, net) in enumerate((('3V3', '3V3'), ('IRQ', 'PIN'),
                                 ('SCL', 'SCL0'), ('SDA', 'SDA0'),
                                 ('ADD', 'PIN'), ('GND', 'GND'))):
-    HOLES.append((2, 11 - i, lab, net))
+    HOLES.append((2, 12 - i, lab, net))
 # bottom row 2: J2 mic 1-5 · J6 amp 7-11 · J5 led 13-15 · J4 battery 17-18
 for i, (lab, net) in enumerate((('VDD', '3V3'), ('GND', 'GND'),
                                 ('SCK', 'MIC'), ('WS', 'MIC'), ('SD', 'MIC'))):
@@ -66,7 +66,7 @@ for i, (lab, net) in enumerate((('B+', 'BAT'), ('GND', 'GND'), ('DIN', 'MIC'))):
     HOLES.append((13 + i, 2, lab, net))
 HOLES += [(17, 2, 'BAT+', 'BAT'), (18, 2, 'BAT-', 'GND')]
 
-ZONES = [(1, 4, 9, 15, 'MPR121 竖放(体)'), (12, 2, 18, 11, 'MPU6050(体朝右)'),
+ZONES = [(1, 3, 9, 15, 'MPR121 竖放(体)'), (12, 2, 18, 11, 'MPU6050(体朝右)'),
          (5, 17, 13, 23, 'XIAO(插排母)')]
 
 NOTES = [
