@@ -50,9 +50,10 @@ for i, (lab, net) in enumerate((('VCC', '3V3'), ('GND', 'GND'),
                                 ('XDA', 'PIN'), ('XCL', 'PIN'),
                                 ('AD0', 'PIN'), ('INT', 'PIN'))):
     HOLES.append((12, 11 - i, lab, net))
-# MPR121 4P col 2 rows 11..8
-for i, (lab, net) in enumerate((('VCC', '3V3'), ('GND', 'GND'),
-                                ('SDA', 'SDA0'), ('SCL', 'SCL0'))):
+# MPR121 6P col 2 rows 11..6: 3V3 IRQ SCL SDA ADD GND (上→下)
+for i, (lab, net) in enumerate((('3V3', '3V3'), ('IRQ', 'PIN'),
+                                ('SCL', 'SCL0'), ('SDA', 'SDA0'),
+                                ('ADD', 'PIN'), ('GND', 'GND'))):
     HOLES.append((2, 11 - i, lab, net))
 # bottom row 2: J2 mic 1-5 · J6 amp 7-11 · J5 led 13-15 · J4 battery 17-18
 for i, (lab, net) in enumerate((('VDD', '3V3'), ('GND', 'GND'),
@@ -76,7 +77,7 @@ NOTES = [
     'D4→SDA0母线 · D5→SCL0母线 · D0→(2,18) · D7→(2,17)  [背面飞线]',
     'D2/D1/D3→J6 的 BCLK/LRC/DIN · D8/D9/D10→(3,2)(4,2)(5,2) · D6→(15,2)',
     'BAT+(17,2) 另引一根去 TP4057 B+ · BAT−(18,2)与GND母线共地并去 B− (=H5)',
-    'MAX 的 GAIN/SD 悬空不接 · MPU 后4孔(XDA..INT)留空',
+    'MAX 的 GAIN/SD 悬空不接 · MPU 后4孔(XDA..INT)留空 · MPR 的 IRQ/ADD 留空',
     '土黄=电池轨(3.7-4.2V)! 绝不可碰 3V3 母线',
     '看图方向=元件面; 翻到背面焊接时左右镜像, 先数孔再下烙铁',
 ]
