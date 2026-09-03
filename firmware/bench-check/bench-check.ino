@@ -9,10 +9,18 @@
  */
 #include <Wire.h>
 
+// 板型自动识别:IDE 选 XIAO ESP32S3 → 合板脚位;选 ESP32 Dev → WROOM 面包板脚位
+#if defined(ARDUINO_XIAO_ESP32S3)
+#define SDA_PIN  D4
+#define SCL_PIN  D5
+#define SDA2_PIN D0
+#define SCL2_PIN D7
+#else
 #define SDA_PIN  21
 #define SCL_PIN  22
 #define SDA2_PIN 18
 #define SCL2_PIN 19
+#endif
 #define TEST_SCREEN 0     // 改成 1 开启屏幕显示测试
 
 #if TEST_SCREEN

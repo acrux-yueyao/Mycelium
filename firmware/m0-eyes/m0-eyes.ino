@@ -42,8 +42,14 @@
 
 #define TWO_BUS 1     // 1 = 右眼走第二组 I2C(两块屏都是 0x3C,不用改地址)
 
+// 板型自动识别:XIAO ESP32S3(装舱合板)或 WROOM-32(面包板)
+#if defined(ARDUINO_XIAO_ESP32S3)
+constexpr int PIN_SDA = D4, PIN_SCL = D5;
+constexpr int PIN_SDA2 = D0, PIN_SCL2 = D7;
+#else
 constexpr int PIN_SDA = 21, PIN_SCL = 22;
 constexpr int PIN_SDA2 = 18, PIN_SCL2 = 19;
+#endif
 constexpr uint8_t ADDR_L = 0x3C;
 constexpr uint8_t ADDR_R = TWO_BUS ? 0x3C : 0x3D;
 

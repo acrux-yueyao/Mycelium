@@ -17,8 +17,14 @@
 #include <driver/i2s.h>
 #include <math.h>
 
+// 板型自动识别:XIAO ESP32S3 = 合板脚位(J2/J6);WROOM = 面包板脚位
+#if defined(ARDUINO_XIAO_ESP32S3)
+constexpr int MIC_SCK = D8, MIC_WS = D9, MIC_SD = D10;
+constexpr int AMP_BCLK = D2, AMP_LRC = D1, AMP_DIN = D3;
+#else
 constexpr int MIC_SCK = 14, MIC_WS = 15, MIC_SD = 32;
 constexpr int AMP_BCLK = 26, AMP_LRC = 25, AMP_DIN = 27;
+#endif
 
 constexpr int SAMPLE_RATE = 16000;
 constexpr i2s_port_t PORT_AMP = I2S_NUM_0;
