@@ -1042,7 +1042,7 @@ body.kiosk-mode .field-prompt { display: none; }
 body.kiosk-mode .hand-toggle,
 body.kiosk-mode .mute-toggle { display: none; }
 /* large 1080p panels run hot: pull saturation back a touch at night */
-body.kiosk-mode .dither-canvas { filter: saturate(0.66) brightness(0.94); }
+body.kiosk-mode .dither-canvas { filter: saturate(0.54) brightness(0.94); }
 
 /* The field kiosk's QR doorway — wordless, grown from the field's motes. */
 .kiosk-invite {
@@ -1075,8 +1075,11 @@ body.kiosk-mode .archive-card {
 .sky-item { position: absolute; display: flex; flex-direction: column; align-items: center; }
 /* night sky: the palette was tuned for paper; lift it so creatures glow —
    restrained now so distant stars read as light, not neon */
-body.kiosk-mode .sky-item { filter: saturate(0.78) brightness(1.18); }
+body.kiosk-mode .sky-item { filter: saturate(0.64) brightness(1.18); }
 body.kiosk-mode .sky-item canvas { image-rendering: pixelated; }
+/* strip (archive) + micro spores: same overall saturation drop */
+body.kiosk-mode .archive-thumb canvas { filter: saturate(0.75); }
+body.kiosk-mode .micro-stage canvas { filter: saturate(0.75); }
 /* the newest star answers the newest whisper on the field below */
 .sky-newest-glow {
   position: absolute;

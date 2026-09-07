@@ -35,7 +35,7 @@ export function SkyScene({ creatures, population }: Props) {
         creature: c,
         left: 4 + r() * 88,          // vw
         top: 6 + r() * 82,           // vh
-        height: isNewest ? 170 : 70 + r() * 110, // px — legible at tower distance
+        height: isNewest ? 220 : 90 + r() * 145, // px — enlarged for tower distance
         dur: 14 + r() * 18,          // s — a wandering you can actually see
         delay: -r() * 40,
         dx: 24 + r() * 42,           // px — visible drift radius
