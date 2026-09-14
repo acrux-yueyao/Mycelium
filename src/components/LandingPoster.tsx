@@ -51,7 +51,7 @@ export function LandingPoster({ population, onEnter }: Props) {
       </motion.div>
 
       <motion.div className="landing-meta" variants={riseItem}>
-        H&amp;R BLOCK<br />ARTSPACE<br />MYCELIUM FIELD
+        MYCELIUM FIELD
         <div className="landing-date">whisper a sentence<br />→ grow a specimen</div>
       </motion.div>
 
