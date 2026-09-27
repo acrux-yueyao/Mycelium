@@ -3,11 +3,11 @@
  * the Archive grid and the Feedback specimen card. Deterministic; static.
  */
 import { useEffect, useRef } from 'react';
-import { creatureSpec, drawMoshCreature, type CreatureSeed } from '../core/fieldRender';
+import { agedSpec, drawMoshCreature, type CreatureSeed } from '../core/fieldRender';
 import { Rng, xmur3 } from '../core/seed';
 
 interface Props {
-  creature: CreatureSeed;
+  creature: CreatureSeed & { bornAt?: number };
   /** pixel size per cell. */
   cell?: number;
   /** display height in px (width auto from aspect). */
@@ -19,7 +19,7 @@ export function CreatureThumb({ creature, cell = 6, height = 120 }: Props) {
   useEffect(() => {
     const cv = ref.current;
     if (!cv) return;
-    const spec = creatureSpec(creature);
+    const spec = agedSpec(creature, creature.bornAt ?? null);
     const pad = 6; // cells of margin for streak tails
     const w = (spec.cols + pad) * cell;
     const h = (spec.rows + pad) * cell;

@@ -37,6 +37,7 @@ export function ObserveCard({ info, onClose }: Props) {
       </div>
       <div className="observe-row">on stage 在场 <b>{presence(info.presentMs)}</b></div>
       <div className="observe-row">bonds 连接 <b>{info.bonds}</b></div>
+      <div className="observe-row">growth 生长期 <b>{info.stage === 0 ? 'newborn 初生' : `stage ${info.stage}`}</b></div>
       <div className="observe-dye">
         {dye ? (
           dye.phase === 'exchanging' ? (

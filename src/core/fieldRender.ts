@@ -144,6 +144,73 @@ export function creatureSpec(c: CreatureSeed): MosaicSpec {
   });
 }
 
+// ---- growth: spores change with age ------------------------------------
+// A spore revisited days later should not look frozen at its birth moment.
+// Growth is DETERMINISTIC from (id, birth time): no state is stored, and
+// every visitor sees the same stage. Each stage deepens the palette a
+// touch and sprouts a few new edge tiles where the body touches air.
+const GROWTH_DAYS = [2, 5, 10, 20, 40];   // days at which a new stage begins
+
+/** 0 = newborn look; +1 per threshold in GROWTH_DAYS (max 5). */
+export function growthStage(bornAt?: number | null): number {
+  if (!bornAt || bornAt < 1e12) return 0;  // needs a real epoch birth time
+  const days = (Date.now() - bornAt) / 86_400_000;
+  let stage = 0;
+  for (const d of GROWTH_DAYS) if (days >= d) stage++;
+  return stage;
+}
+
+const HSL_RE = /hsla?\(\s*([\d.]+)[,\s]+([\d.]+)%[,\s]+([\d.]+)%/;
+
+/** The creature's spec at its current age (creatureSpec + growth pass). */
+export function agedSpec(c: CreatureSeed, bornAt?: number | null): MosaicSpec {
+  const base = creatureSpec(c);
+  const stage = growthStage(bornAt);
+  if (!stage) return base;
+  const rng = new Rng(xmur3(`${c.id}·grow${stage}`)());
+  const cells = base.cells.map((cl) => ({ ...cl }));
+  const mask = base.mask.slice();
+
+  // palette maturation — colours settle a little deeper each stage
+  for (const cl of cells) {
+    const m = cl.color.match(HSL_RE);
+    if (!m) continue;
+    const sat = Math.min(100, parseFloat(m[2]) + stage * 1.5);
+    const lig = Math.max(10, parseFloat(m[3]) - stage * 1.2);
+    cl.color = `hsl(${m[1]}, ${sat}%, ${lig}%)`;
+  }
+
+  // budding — a few new tiles sprout at the silhouette edge (never near
+  // the eye line, so the face stays readable)
+  const at = (col: number, row: number) => row * base.cols + col;
+  const nearEyes = (col: number, row: number) =>
+    Math.abs(row - base.eyes.row) <= 1 && col >= base.eyes.L0 - 1 && col <= base.eyes.R0 + 2;
+  const order = cells.slice();
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = (rng.next() * (i + 1)) | 0;
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  let buds = 0;
+  const want = stage * 3;
+  outer: for (const cl of order) {
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      if (buds >= want) break outer;
+      const nc = cl.col + dx, nr = cl.row + dy;
+      if (nc < 0 || nr < 0 || nc >= base.cols || nr >= base.rows) continue;
+      if (mask[at(nc, nr)] || nearEyes(nc, nr)) continue;
+      if (rng.next() > 0.4) continue;
+      const m = cl.color.match(HSL_RE);
+      const color = m
+        ? `hsl(${(parseFloat(m[1]) + rng.next() * 14 - 7 + 360) % 360}, ${m[2]}%, ${Math.min(92, parseFloat(m[3]) + 6)}%)`
+        : cl.color;
+      cells.push({ col: nc, row: nr, color, alpha: 0.68 + rng.next() * 0.22, dyeBase: rng.next() });
+      mask[at(nc, nr)] = true;
+      buds++;
+    }
+  }
+  return { ...base, cells, mask };
+}
+
 /**
  * Draw a creature at (ox,oy) top-left, cell px `cell`, with datamosh:
  * downward pixel-sort streaks behind, a horizontal glitch row, and a

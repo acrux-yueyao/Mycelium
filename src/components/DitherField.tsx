@@ -15,7 +15,7 @@
  * residents.
  */
 import { useEffect, useRef } from 'react';
-import { drawDitherField, drawMoshCreature, creatureSpec, type CreatureSeed } from '../core/fieldRender';
+import { drawDitherField, drawMoshCreature, agedSpec, growthStage, type CreatureSeed } from '../core/fieldRender';
 import type { MosaicSpec, MosaicPaletteSpec } from '../core/mosaic';
 import { compatibility, type CharId } from '../data/characters';
 import { nameFor } from '../core/names';
@@ -33,6 +33,8 @@ export interface ObserveInfo {
   /** ms this spore has been on stage in this session. */
   presentMs: number;
   bonds: number; mine: boolean;
+  /** deterministic growth stage (0 = newborn, up to 5). */
+  stage: number;
   dye: null | { from: string; progress: number; phase: 'exchanging' | 'holding' | 'fading' };
   /** carries a permanent residual tint from a past long encounter. */
   perm: boolean;
@@ -185,7 +187,9 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
     const cooldown = new Map<string, number>();
     const specCache = new Map<string, MosaicSpec>();
     const specOf = (c: FieldCreature) => {
-      let s = specCache.get(c.id); if (!s) { s = creatureSpec(c); specCache.set(c.id, s); } return s;
+      // cache per growth stage: a spore that has aged re-derives its spec
+      const key = `${c.id}@${growthStage(c.bornAt)}`;
+      let s = specCache.get(key); if (!s) { s = agedSpec(c, c.bornAt); specCache.set(key, s); } return s;
     };
     const bodyById = new Map<string, Body>();
 
@@ -305,6 +309,7 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
         id: b.id, name: b.name, charId: b.charId,
         presentMs: now - b.appearAt,
         bonds: bondCountOf(b.id), mine: b.id === mineRef.current,
+        stage: growthStage(b.bornAt),
         dye: dp && dp.p > 0.001 && b.dyePal
           ? { from: b.dyeFrom ?? '…', progress: dp.p, phase: dp.phase }
           : null,
