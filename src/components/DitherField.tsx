@@ -431,6 +431,8 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
       // isolated creature — the supporter (a) of each live support bond.
       const supporterIds = new Set<string>();
       for (const bd of bonds.values()) { if (bd.support) supporterIds.add(bd.a); }
+      // tower kiosk (15.6 field) enlarges the spores overall for viewing distance
+      const kioskZoom = document.body.classList.contains('kiosk-mode') ? 1.3 : 1;
       for (const a of bodies) {
         let gz = seed01(a.id) < 0.5 ? -0.85 : 0.85;
         const pid = partnerOf.get(a.id);
@@ -507,7 +509,7 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
         // little larger, with a gentle sway and the occasional flicker — a
         // quiet living "elder" presence rather than a glowing halo.
         const isMother = supporterIds.has(a.id);
-        let dcell = a.cell, sway = 0, mAlpha = 1;
+        let dcell = a.cell * kioskZoom, sway = 0, mAlpha = 1;
         if (isMother) {
           const s = seed01(a.id);
           dcell = a.cell * 1.4;                                  // bigger
