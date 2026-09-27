@@ -198,6 +198,15 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
     let dragX = 0, dragY = 0, dragPX = 0, dragPY = 0, dragPT = 0;
     // tap-to-observe: a short, still press selects; the same on empty space closes
     let pressX = 0, pressY = 0, pressT = 0, pressBody: string | null = null;
+    // cursor presence — the colony notices the mouse: position, velocity,
+    // and which creature is being hovered (for petting)
+    let curX = -9999, curY = -9999, curVX = 0, curVY = 0, curMoveT = 0;
+    let hoverId: string | null = null, hoverSince = 0;
+    // little rising tiles emitted while a creature is petted
+    let petFx: Array<{ x: number; y: number; born: number; color: string; drift: number }> = [];
+    let petEmitAt = 0;
+    // per-family temperament toward the cursor: + approaches, − shies away
+    const TEMPER: Record<number, number> = { 0: 0.006, 1: -0.010, 2: 0.016, 3: 0.009, 4: 0.013, 5: -0.016 };
     // landing cursor parallax — the whole field leans toward the cursor
     let paraX = 0, paraY = 0, paraTX = 0, paraTY = 0;
     const PARA_AMP = 26;
@@ -402,6 +411,23 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
         }
       }
 
+      // cursor presence: curious families drift toward a resting cursor,
+      // shy ones ease away; a fast swipe startles everyone it passes.
+      if (!dragId && curX > -9000) {
+        const sp = Math.hypot(curVX, curVY);
+        for (const a of bodies) {
+          const dx = curX - a.x, dy = curY - a.y, d = Math.hypot(dx, dy) || 1;
+          if (d < 260) {
+            const t = TEMPER[a.charId] ?? 0;
+            if (t) { const f = t * (1 - d / 260); a.vx += (dx / d) * f; a.vy += (dy / d) * f; }
+          }
+          if (sp > 18 && d < 96) {
+            const f = Math.min(0.9, sp * 0.02) * (1 - d / 96);
+            a.vx -= (dx / d) * f; a.vy -= (dy / d) * f;
+          }
+        }
+      }
+
       // forces
       const smallW = W < 640;
       const huddle = clusteredRef.current;
@@ -526,14 +552,20 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
         if (t) {
           gz = t.x > a.x ? 0.85 : -0.85;
         } else {
-          // idle: glance toward the nearest neighbour if one is close
-          let nn: Body | null = null, best = GAZE_R;
-          for (const o of bodies) {
-            if (o === a) continue;
-            const d = Math.hypot(o.x - a.x, o.y - a.y);
-            if (d < best) { best = d; nn = o; }
+          // idle: watch the cursor if it is near, else glance at the
+          // nearest neighbour
+          const dc = Math.hypot(curX - a.x, curY - a.y);
+          if (curX > -9000 && dc < 240) {
+            gz = curX > a.x ? 0.8 : -0.8;
+          } else {
+            let nn: Body | null = null, best = GAZE_R;
+            for (const o of bodies) {
+              if (o === a) continue;
+              const d = Math.hypot(o.x - a.x, o.y - a.y);
+              if (d < best) { best = d; nn = o; }
+            }
+            if (nn) gz = nn.x > a.x ? 0.7 : -0.7;
           }
-          if (nn) gz = nn.x > a.x ? 0.7 : -0.7;
         }
 
         // blink schedule — closed for BLINK_MS, then reschedule
@@ -599,6 +631,24 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
         // near-common phase: the colony inhales together, with a faint
         // ripple across bodies so it reads as alive rather than mechanical
         if (breath > 0) dcell *= 1 + breath * Math.sin(now * breathW + seed01(a.id) * 0.9);
+        // petting: a slow cursor resting on a creature makes it squint
+        // contentedly, wiggle, and shed a few soft tiles
+        const petted = !dragId && hoverId === a.id && now - hoverSince > 500 &&
+          Math.hypot(curVX, curVY) < 6;
+        if (petted) {
+          dcell *= 1 + 0.05 * Math.sin(now * 0.018);
+          blink = blink || (now % 1400) < 320;          // happy squint
+          if (now > petEmitAt && petFx.length < 24) {
+            petEmitAt = now + 160 + seed01(a.id + (now | 0)) * 160;
+            const ww2 = a.spec.cols * dcell;
+            petFx.push({
+              x: a.x + (seed01(a.id + 'p' + (now | 0)) - 0.5) * ww2 * 0.9,
+              y: a.y - (a.spec.rows * dcell) / 2,
+              born: now, color: sigColor(a),
+              drift: (seed01(a.id + 'd' + (now | 0)) - 0.5) * 14,
+            });
+          }
+        }
         const dw = a.spec.cols * dcell, dh = a.spec.rows * dcell;
         const drawA = mAlpha * (clusteredRef.current && W < 640 ? 0.55 : 1);
         if (drawA < 1) ctx.globalAlpha = drawA;
@@ -651,6 +701,22 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
         }
         ctx.globalAlpha = 1;
         packets = keep;
+      }
+
+      // pet tiles: tiny squares rising off a petted creature, then gone
+      if (petFx.length) {
+        const keep2: typeof petFx = [];
+        for (const f of petFx) {
+          const t = (now - f.born) / 900;
+          if (t >= 1) continue;
+          ctx.fillStyle = f.color;
+          ctx.globalAlpha = 0.8 * (1 - t);
+          const sz = 4 - t * 2;
+          ctx.fillRect(f.x + f.drift * t - sz / 2, f.y - t * 26 - sz / 2, sz, sz);
+          keep2.push(f);
+        }
+        ctx.globalAlpha = 1;
+        petFx = keep2;
       }
 
       // === observation mode: one spore watched up close ===
@@ -719,13 +785,20 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
     const onMove = (e: PointerEvent) => {
       paraTX = (e.clientX / W - 0.5) * PARA_AMP;
       paraTY = (e.clientY / H - 0.5) * PARA_AMP;
+      // cursor presence: position + smoothed velocity (px/frame-ish)
+      const tNow = performance.now();
+      const dt = Math.max(8, tNow - curMoveT);
+      const nvx = ((e.clientX - curX) / dt) * 16, nvy = ((e.clientY - curY) / dt) * 16;
+      if (curX > -9000) { curVX = curVX * 0.6 + nvx * 0.4; curVY = curVY * 0.6 + nvy * 0.4; }
+      curX = e.clientX; curY = e.clientY; curMoveT = tNow;
       if (dragId) { dragX = e.clientX; dragY = e.clientY; return; }
-      // hover affordance: cursor turns to a grab hand over a creature
-      let over = false;
+      // hover affordance + pet target: which creature is under the cursor
+      let over: string | null = null;
       for (const b of bodies) {
         const ww = b.spec.cols * b.cell, hh = b.spec.rows * b.cell;
-        if (Math.hypot(b.x - e.clientX, b.y - e.clientY) < Math.max(ww, hh) / 2 + 12) { over = true; break; }
+        if (Math.hypot(b.x - e.clientX, b.y - e.clientY) < Math.max(ww, hh) / 2 + 12) { over = b.id; break; }
       }
+      if (over !== hoverId) { hoverId = over; hoverSince = tNow; }
       canvas.style.cursor = over ? 'grab' : 'default';
     };
     const onUp = (e: PointerEvent) => {
@@ -750,6 +823,13 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onUp);
+
+    // debug hook: expose live body positions so automated layout checks
+    // can park the cursor on a creature (only under ?debug)
+    if (new URLSearchParams(window.location.search).has('debug')) {
+      (window as unknown as Record<string, unknown>).__fieldBodies =
+        () => bodies.map((b) => ({ id: b.id, x: b.x, y: b.y, name: b.name }));
+    }
 
     buildBackdrop();
     frame();
