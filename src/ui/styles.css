@@ -738,6 +738,8 @@ body,
   .scene-nav-links { gap: 15px; }
   .scene-nav-link { font-size: 11px; letter-spacing: 0.06em; }
   .scene-nav-pop { font-size: 11px; letter-spacing: 0.04em; }
+  /* one row can't hold brand + links + population on a phone */
+  .scene-nav-pop { display: none; }
 }
 @media (max-width: 380px) { .scene-nav-pop { display: none; } }
 

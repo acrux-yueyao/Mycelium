@@ -237,7 +237,8 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
       if (!W || !H) return; // not laid out yet: don't seed bodies at 0,0
       // fewer live creatures on a phone so the small canvas doesn't turn into
       // an unreadable pile (extras stay baked into the backdrop / off-stage).
-      const cap = window.innerWidth < 640 ? 60 : CAP;
+      const small = window.innerWidth < 640;
+      const cap = small ? 34 : CAP;
       for (const c of creaturesRef.current) {
         if (known.has(c.id) || bodies.length >= cap) continue;
         known.add(c.id);
@@ -245,7 +246,8 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
         const b: Body = {
           id: c.id, charId: c.charId,
           x: c.x * W, y: c.y * H, vx: Math.cos(a) * 0.3, vy: Math.sin(a) * 0.3,
-          bornAt: c.bornAt ?? now, lastBondAt: now, cell: c.cell, spec: specOf(c),
+          bornAt: c.bornAt ?? now, lastBondAt: now,
+          cell: c.cell * (small ? 0.82 : 1), spec: specOf(c),
           name: c.name ?? nameFor(c.id), appearAt: now,
           blinkAt: now + BLINK_MIN + seed01(c.id + 'blink') * BLINK_VAR,
         };
@@ -401,9 +403,15 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
       }
 
       // forces
-      const cx = W / 2, cy = H * 0.5;
+      const smallW = W < 640;
       const huddle = clusteredRef.current;
-      const HUDDLE_R = Math.min(W, H) * HUDDLE_R_FRAC;
+      // phones: the landing huddle drops to the lower third and tightens,
+      // so the colony gathers beneath the poster text instead of on it
+      // phones: gather lower-right, denser — clear of the left-aligned poster
+      const cx = huddle && smallW ? W * 0.62 : W / 2;
+      const cy = huddle && smallW ? H * 0.80 : H * 0.5;
+      const HUDDLE_R = Math.min(W, H) * (huddle && smallW ? 0.15 : HUDDLE_R_FRAC);
+      const sepR = smallW ? 46 : SEP_R;
       // On a phone the fixed 220px input hole and 70px wall margins eat almost
       // the whole width, so scale them to the viewport (desktop keeps its values).
       const centerR = Math.min(CENTER_R, W * 0.30);
@@ -413,7 +421,7 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
         for (const b of bodies) {
           if (b === a) continue;
           const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
-          if (d < SEP_R) { const f = SEP_K * (1 - d / SEP_R); fx -= (dx / d) * f; fy -= (dy / d) * f; }
+          if (d < sepR) { const f = SEP_K * (1 - d / sepR); fx -= (dx / d) * f; fy -= (dy / d) * f; }
         }
         // bond attraction: stay near a partner while the bond lasts
         for (const bd of bonds.values()) {
@@ -592,11 +600,16 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
         // ripple across bodies so it reads as alive rather than mechanical
         if (breath > 0) dcell *= 1 + breath * Math.sin(now * breathW + seed01(a.id) * 0.9);
         const dw = a.spec.cols * dcell, dh = a.spec.rows * dcell;
-        if (mAlpha < 1) ctx.globalAlpha = mAlpha;
+        const drawA = mAlpha * (clusteredRef.current && W < 640 ? 0.55 : 1);
+        if (drawA < 1) ctx.globalAlpha = drawA;
         drawMoshCreature(ctx, a.spec, a.x + sway - dw / 2, a.y - dh / 2, dcell, a.id, gz, dye, blink);
-        if (mAlpha < 1) ctx.globalAlpha = 1;
+        if (drawA < 1) ctx.globalAlpha = 1;
 
         // resident name tag — small mono label beneath each creature.
+        // phones: tags only for your own / the observed spore (and none on
+        // the landing huddle) — a full colony of labels reads as noise.
+        const smallTag = W < 640;
+        if (smallTag && (clusteredRef.current || !(mine || a.id === observedRef.current))) continue;
         const label = mine ? `${a.name.toLowerCase()} · you` : a.name.toLowerCase();
         ctx.font = `${mine ? '700' : '600'} 10px "JetBrains Mono", ui-monospace, monospace`;
         ctx.textAlign = 'center';
