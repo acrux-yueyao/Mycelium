@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { DitherField, type FieldCreature } from './components/DitherField';
+import { DitherField, type FieldCreature, type ObserveInfo } from './components/DitherField';
+import { ObserveCard } from './components/ObserveCard';
 import { LandingPoster } from './components/LandingPoster';
 import { SceneNav, type Scene } from './components/SceneNav';
 import { ArchiveScene } from './components/ArchiveScene';
@@ -184,6 +185,8 @@ export default function App() {
   // Scene: the landing poster gates entry into the live field. Debug
   // mode skips straight into the field.
   const [scene, setScene] = useState<Scene>(kiosk ?? (showDebug ? 'field' : 'landing'));
+  // observation mode: the spore currently on the field's watch bench
+  const [observed, setObserved] = useState<ObserveInfo | null>(null);
   // The creature this visitor most recently grew — shown on the feedback
   // card. Null until they whisper their first sentence.
   const [latestCreature, setLatestCreature] = useState<FieldCreature | null>(null);
@@ -935,7 +938,17 @@ export default function App() {
        *  colony huddles together; entering the field spreads it as the
        *  input box shoves a hole through the centre. */}
       {scene !== 'sky' && scene !== 'micro' && !(kiosk && scene === 'archive') && (
-        <DitherField creatures={colony} clustered={scene === 'landing'} mineId={latestCreature?.id ?? null} />
+        <DitherField
+          creatures={colony}
+          clustered={scene === 'landing'}
+          mineId={latestCreature?.id ?? null}
+          observable={scene === 'field'}
+          observedId={scene === 'field' ? observed?.id ?? null : null}
+          onObserve={setObserved}
+        />
+      )}
+      {observed && scene === 'field' && (
+        <ObserveCard info={observed} onClose={() => setObserved(null)} />
       )}
 
       {testMode && (

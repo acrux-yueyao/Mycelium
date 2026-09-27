@@ -27,6 +27,17 @@ export interface FieldCreature extends CreatureSeed {
   text?: string;
 }
 
+/** live snapshot of one spore, for the observation card. */
+export interface ObserveInfo {
+  id: string; name: string; charId: CharId;
+  /** ms this spore has been on stage in this session. */
+  presentMs: number;
+  bonds: number; mine: boolean;
+  dye: null | { from: string; progress: number; phase: 'exchanging' | 'holding' | 'fading' };
+  /** carries a permanent residual tint from a past long encounter. */
+  perm: boolean;
+}
+
 interface Props {
   creatures: FieldCreature[];
   /** landing: the colony huddles together in the middle; field: it spreads
@@ -34,6 +45,11 @@ interface Props {
   clustered?: boolean;
   /** id of THIS visitor's own creature — highlighted so they can find it. */
   mineId?: string | null;
+  /** observation mode: tap a spore to watch it up close. Controlled id +
+   *  callback; clicks only register while `observable`. */
+  observable?: boolean;
+  observedId?: string | null;
+  onObserve?: (info: ObserveInfo | null) => void;
 }
 
 const CAP = 150;
@@ -54,7 +70,7 @@ const MOTHER_AGE = 40_000, ISOLATION_MS = 16_000, MOTHER_REACH = 380, SUPPORT_LI
 // how long the visitor's own creature stays visually flagged
 const MINE_HIGHLIGHT_MS = 5 * 60_000;
 // matter exchange — little mosaic tiles ferried between bonded partners
-const MATTER_MIN = 620, MATTER_MAX = 1150, PACKET_CAP = 140;
+const MATTER_MIN = 900, MATTER_MAX = 1600, PACKET_CAP = 140;
 // closed loop: how often to poll the live cultivation chamber's telemetry
 const BIO_POLL_MS = 10_000;
 
@@ -65,7 +81,7 @@ interface Body {
   blinkAt: number;  // wall-clock ms when the next blink starts
   // tile-swap dye toward a partner's palette during an encounter
   dyePal?: MosaicPaletteSpec | null; dyeStart?: number; dyeRelease?: number | null;
-  dyeDirX?: number; dyeDirY?: number; dyeSeam?: string;
+  dyeDirX?: number; dyeDirY?: number; dyeSeam?: string; dyeFrom?: string;
   // permanent residual tint left by a long past encounter (never released)
   permPal?: MosaicPaletteSpec | null; permProg?: number; permDX?: number; permDY?: number;
 }
@@ -74,10 +90,12 @@ interface Bond { a: string; b: string; born: number; life: number; support: bool
 // as the two of them trading bits of substance.
 interface Packet { toId: string; sx: number; sy: number; born: number; dur: number; color: string; size: number; perp: number }
 
-// Colour exchange is slow and partial: it ramps in over ~6s and never
+// Colour exchange is slow and partial: it ramps in over ~14s and never
 // covers more than ~45% of a creature, so everyone permanently keeps the
-// palette they were born with — an encounter tints them, never rewrites them.
-const DYE_RAMP = 6000, DYE_MAX = 0.45, DYE_RELEASE = 3000;
+// palette they were born with. After parting, the borrowed tint HOLDS for
+// ~20s before fading out over ~12s — an encounter stays visible on the
+// body for a while instead of vanishing at once.
+const DYE_RAMP = 14000, DYE_MAX = 0.45, DYE_HOLD = 20000, DYE_RELEASE = 12000;
 // blink + idle gaze
 const BLINK_MS = 130, BLINK_MIN = 2600, BLINK_VAR = 4600, GAZE_R = 260;
 // permanent hybridisation — a long encounter leaves a small, permanent
@@ -108,7 +126,7 @@ function sigColor(b: Body): string {
   return best;
 }
 
-export function DitherField({ creatures, clustered, mineId }: Props) {
+export function DitherField({ creatures, clustered, mineId, observable, observedId, onObserve }: Props) {
   const ref = useRef<HTMLCanvasElement | null>(null);
   const creaturesRef = useRef(creatures);
   creaturesRef.current = creatures;
@@ -116,6 +134,12 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
   clusteredRef.current = !!clustered;
   const mineRef = useRef<string | null>(mineId ?? null);
   mineRef.current = mineId ?? null;
+  const observableRef = useRef(!!observable);
+  observableRef.current = !!observable;
+  const observedRef = useRef<string | null>(observedId ?? null);
+  observedRef.current = observedId ?? null;
+  const onObserveRef = useRef(onObserve);
+  onObserveRef.current = onObserve;
   // closed loop: latest telemetry from the physical cultivation chamber.
   // `live` stays false until a real frame arrives, so with no installation
   // connected the colony looks exactly as it does today (zero added motion).
@@ -168,6 +192,8 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
     // pointer drag — pick a creature up, fling it on release
     let dragId: string | null = null;
     let dragX = 0, dragY = 0, dragPX = 0, dragPY = 0, dragPT = 0;
+    // tap-to-observe: a short, still press selects; the same on empty space closes
+    let pressX = 0, pressY = 0, pressT = 0, pressBody: string | null = null;
     // landing cursor parallax — the whole field leans toward the cursor
     let paraX = 0, paraY = 0, paraTX = 0, paraTY = 0;
     const PARA_AMP = 26;
@@ -229,6 +255,7 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
       target.dyeStart = now; target.dyeRelease = null;
       target.dyeDirX = dx / d; target.dyeDirY = dy / d;
       target.dyeSeam = sigColor(partner);
+      target.dyeFrom = partner.name;
     };
 
     // Freeze a small permanent tint of the partner's palette onto target,
@@ -239,6 +266,52 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
       target.permProg = PERM_PROG;
       target.permDX = dx / d; target.permDY = dy / d;
     };
+
+    // dye progress with the hold-then-fade release (shared by the field
+    // draw, the magnifier, and the observation card).
+    const dyeProgress = (a: Body, now: number):
+      | { p: number; phase: 'exchanging' | 'holding' | 'fading' } | null => {
+      if (!a.dyePal || a.dyeStart == null) return null;
+      if (a.dyeRelease == null) {
+        return { p: Math.min(DYE_MAX, (now - a.dyeStart) / DYE_RAMP), phase: 'exchanging' };
+      }
+      const atRelease = Math.min(DYE_MAX, (a.dyeRelease - a.dyeStart) / DYE_RAMP);
+      const since = now - a.dyeRelease;
+      if (since <= DYE_HOLD) return { p: atRelease, phase: 'holding' };
+      return { p: atRelease * Math.max(0, 1 - (since - DYE_HOLD) / DYE_RELEASE), phase: 'fading' };
+    };
+    const dyeVisual = (a: Body, now: number) => {
+      const dp = dyeProgress(a, now);
+      if (dp) {
+        if (dp.phase === 'fading' && dp.p <= 0.001) { a.dyePal = null; a.dyeRelease = null; }
+        else if (a.dyePal && dp.p > 0) {
+          return { palette: a.dyePal, progress: dp.p, dirX: a.dyeDirX ?? 0, dirY: a.dyeDirY ?? 0, seam: a.dyeSeam };
+        }
+      }
+      // no active/releasing dye → the permanent residual tint, if any
+      if (a.permPal && (a.permProg ?? 0) > 0) {
+        return { palette: a.permPal, progress: a.permProg!, dirX: a.permDX ?? 0, dirY: a.permDY ?? 0 };
+      }
+      return null;
+    };
+    const bondCountOf = (id: string) => {
+      let n = 0;
+      for (const bd of bonds.values()) if (bd.a === id || bd.b === id) n++;
+      return n;
+    };
+    const observeInfo = (b: Body, now: number): ObserveInfo => {
+      const dp = dyeProgress(b, now);
+      return {
+        id: b.id, name: b.name, charId: b.charId,
+        presentMs: now - b.appearAt,
+        bonds: bondCountOf(b.id), mine: b.id === mineRef.current,
+        dye: dp && dp.p > 0.001 && b.dyePal
+          ? { from: b.dyeFrom ?? '…', progress: dp.p, phase: dp.phase }
+          : null,
+        perm: !!(b.permPal && (b.permProg ?? 0) > 0),
+      };
+    };
+    let lastObsEmit = 0;
 
     const step = (now: number) => {
       // active-bond count per body
@@ -273,7 +346,7 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
           const d = Math.hypot(A.x - B.x, A.y - B.y);
           if (d >= CONNECT_R) continue;
           if (compatibility(A.charId, B.charId) <= 0) continue;
-          bonds.set(k, { a: A.id, b: B.id, born: now, life: 5000 + seed01(k) * 6000, support: false });
+          bonds.set(k, { a: A.id, b: B.id, born: now, life: 8000 + seed01(k) * 8000, support: false });
           bcount.set(A.id, (bcount.get(A.id) ?? 0) + 1);
           bcount.set(B.id, (bcount.get(B.id) ?? 0) + 1);
           A.lastBondAt = now; B.lastBondAt = now;
@@ -457,23 +530,9 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
           else a.blinkAt = now + BLINK_MIN + seed01(a.id + (now | 0)) * BLINK_VAR;
         }
 
-        // dye progress: ramp up while bonded, fade back after parting
-        let dye = null as null | { palette: MosaicPaletteSpec; progress: number; dirX: number; dirY: number; seam?: string };
-        if (a.dyePal && a.dyeStart != null) {
-          let p: number;
-          if (a.dyeRelease == null) {
-            p = Math.min(DYE_MAX, (now - a.dyeStart) / DYE_RAMP);
-          } else {
-            const atRelease = Math.min(DYE_MAX, (a.dyeRelease - a.dyeStart) / DYE_RAMP);
-            p = atRelease * Math.max(0, 1 - (now - a.dyeRelease) / DYE_RELEASE);
-            if (p <= 0.001) { a.dyePal = null; a.dyeRelease = null; }
-          }
-          if (a.dyePal && p > 0) dye = { palette: a.dyePal, progress: p, dirX: a.dyeDirX ?? 0, dirY: a.dyeDirY ?? 0, seam: a.dyeSeam };
-        }
-        // no active/releasing dye → fall back to the permanent residual tint
-        if (!dye && a.permPal && (a.permProg ?? 0) > 0) {
-          dye = { palette: a.permPal, progress: a.permProg!, dirX: a.permDX ?? 0, dirY: a.permDY ?? 0 };
-        }
+        // dye: ramp up while bonded, hold then fade after parting; falls
+        // back to the permanent residual tint (shared helper).
+        const dye = dyeVisual(a, now);
 
         const ww = a.spec.cols * a.cell, hh = a.spec.rows * a.cell;
         // your own creature is highlighted — but only for the first 5
@@ -576,6 +635,42 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
         packets = keep;
       }
 
+      // === observation mode: one spore watched up close ===
+      const obs = observedRef.current ? bodyById.get(observedRef.current) : null;
+      if (obs) {
+        // keep the card's numbers (dye %, phase, presence) ticking
+        if (onObserveRef.current && now - lastObsEmit > 700) {
+          lastObsEmit = now;
+          onObserveRef.current(observeInfo(obs, now));
+        }
+        // dashed ring on the field body so you can see who is on the bench
+        const rr = (Math.max(obs.spec.cols, obs.spec.rows) * obs.cell) / 2 + 12;
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(obs.x, obs.y, rr, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(91,79,208,0.75)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([5, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // live magnifier: the same spore, big, with its current dye + blink
+        const small = W < 640;
+        const box = small ? Math.min(230, W - 48) : 230;
+        const cxm = small ? W / 2 : W - 160;
+        const cym = small ? box / 2 + 78 : 212;
+        ctx.fillStyle = 'rgba(246,245,240,0.94)';
+        ctx.strokeStyle = 'rgba(28,28,26,0.55)';
+        ctx.lineWidth = 1;
+        ctx.fillRect(cxm - box / 2, cym - box / 2, box, box);
+        ctx.strokeRect(cxm - box / 2, cym - box / 2, box, box);
+        const mk = Math.min(3.4, (box - 44) / (Math.max(obs.spec.cols, obs.spec.rows) * obs.cell));
+        const mcell = obs.cell * mk;
+        const mw = obs.spec.cols * mcell, mh = obs.spec.rows * mcell;
+        const mblink = now >= obs.blinkAt && now < obs.blinkAt + BLINK_MS;
+        drawMoshCreature(ctx, obs.spec, cxm - mw / 2, cym - mh / 2, mcell, obs.id, 0, dyeVisual(obs, now), mblink);
+        ctx.restore();
+      }
+
       raf = requestAnimationFrame(frame);
     };
 
@@ -595,6 +690,7 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
         const d = Math.hypot(b.x - x, b.y - y);
         if (d < r && d < bestD) { bestD = d; best = b; }
       }
+      pressX = x; pressY = y; pressT = performance.now(); pressBody = best?.id ?? null;
       if (best) {
         dragId = best.id;
         dragX = dragPX = x; dragY = dragPY = y; dragPT = performance.now();
@@ -614,7 +710,24 @@ export function DitherField({ creatures, clustered, mineId }: Props) {
       }
       canvas.style.cursor = over ? 'grab' : 'default';
     };
-    const onUp = () => { if (dragId) { dragId = null; canvas.style.cursor = 'grab'; } };
+    const onUp = (e: PointerEvent) => {
+      // a short, still press = observe; dragging & flinging is untouched
+      if (observableRef.current && onObserveRef.current) {
+        const moved = Math.hypot(e.clientX - pressX, e.clientY - pressY);
+        if (performance.now() - pressT < 350 && moved < 8) {
+          if (pressBody) {
+            observedRef.current = pressBody;
+            const b = bodyById.get(pressBody);
+            if (b) onObserveRef.current(observeInfo(b, performance.now()));
+          } else if (observedRef.current) {
+            observedRef.current = null;
+            onObserveRef.current(null);
+          }
+        }
+      }
+      pressBody = null;
+      if (dragId) { dragId = null; canvas.style.cursor = 'grab'; }
+    };
     canvas.addEventListener('pointerdown', onDown);
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
