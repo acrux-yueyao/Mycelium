@@ -64,7 +64,11 @@ body,
   transform-origin: center;
   animation: collectiveBreath 7s ease-in-out infinite;
   will-change: transform;
+  /* the wrapper must not swallow clicks meant for the colony canvas
+     beneath it — children that need pointer input re-enable it */
+  pointer-events: none;
 }
+.stage-breath > * { pointer-events: auto; }
 
 /* ---- Background layers ----
  * Stacking (back → front):
@@ -1176,3 +1180,13 @@ body.kiosk-mode .micro-stage canvas { filter: saturate(0.75); }
 @media (max-width: 640px) {
   .observe-card { left: 12px; right: 12px; width: auto; top: auto; bottom: 84px; }
 }
+
+/* observation scene: the quiet invitation line */
+.observe-invite {
+  position: fixed; left: 50%; bottom: 64px; transform: translateX(-50%);
+  z-index: 5; text-align: center; pointer-events: none;
+  font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.12em;
+  color: var(--ink-dim); animation: observe-breathe 3.2s ease-in-out infinite;
+}
+.observe-invite span { display: block; margin-top: 4px; font-size: 10.5px; color: var(--ink-soft); }
+@keyframes observe-breathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }

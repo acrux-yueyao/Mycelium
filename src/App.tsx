@@ -942,13 +942,19 @@ export default function App() {
           creatures={colony}
           clustered={scene === 'landing'}
           mineId={latestCreature?.id ?? null}
-          observable={scene === 'field'}
-          observedId={scene === 'field' ? observed?.id ?? null : null}
+          observable={scene === 'field' || scene === 'observe'}
+          observedId={scene === 'field' || scene === 'observe' ? observed?.id ?? null : null}
+          centerHole={scene !== 'observe'}
           onObserve={setObserved}
         />
       )}
-      {observed && scene === 'field' && (
+      {observed && (scene === 'field' || scene === 'observe') && (
         <ObserveCard info={observed} onClose={() => setObserved(null)} />
+      )}
+      {scene === 'observe' && !observed && (
+        <div className="observe-invite">
+          tap a spore to watch it for a while<span>点一只孢子,看它一会儿</span>
+        </div>
       )}
 
       {testMode && (

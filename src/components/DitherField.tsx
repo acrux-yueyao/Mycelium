@@ -52,6 +52,8 @@ interface Props {
   observable?: boolean;
   observedId?: string | null;
   onObserve?: (info: ObserveInfo | null) => void;
+  /** keep the centre clear for the whisper input (field scene only). */
+  centerHole?: boolean;
 }
 
 const CAP = 150;
@@ -128,7 +130,7 @@ function sigColor(b: Body): string {
   return best;
 }
 
-export function DitherField({ creatures, clustered, mineId, observable, observedId, onObserve }: Props) {
+export function DitherField({ creatures, clustered, mineId, observable, observedId, onObserve, centerHole }: Props) {
   const ref = useRef<HTMLCanvasElement | null>(null);
   const creaturesRef = useRef(creatures);
   creaturesRef.current = creatures;
@@ -138,6 +140,8 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
   mineRef.current = mineId ?? null;
   const observableRef = useRef(!!observable);
   observableRef.current = !!observable;
+  const centerHoleRef = useRef(centerHole !== false);
+  centerHoleRef.current = centerHole !== false;
   const observedRef = useRef<string | null>(observedId ?? null);
   observedRef.current = observedId ?? null;
   const onObserveRef = useRef(onObserve);
@@ -469,7 +473,7 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
             fx -= (ddx / dc) * f;
             fy -= (ddy / dc) * f;
           }
-        } else if (dc < centerR) {
+        } else if (centerHoleRef.current && dc < centerR) {
           // field: the input box shoves a clear hole through the centre,
           // so anyone caught in the middle gets pushed outward.
           const p = (centerR - dc) / centerR * CENTER_K;
