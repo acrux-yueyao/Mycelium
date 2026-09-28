@@ -27,7 +27,7 @@ const TEST =
   new URLSearchParams(window.location.search).has('test');
 
 /* ⚠ 上线前必填(IRB Section H/I 承诺):删除请求联系方式 + 场地支持资源 */
-const DELETION_CONTACT = '[research contact — set before launch / 研究联系邮箱待填]';
+const DELETION_CONTACT = 'nikkiyao814@gmail.com';
 const SUPPORT_LINES_EN =
   'In the US: call or text 988 (Suicide & Crisis Lifeline) · emergency: 911 · elsewhere: findahelpline.com';
 const SUPPORT_LINES_ZH =
