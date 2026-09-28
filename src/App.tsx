@@ -14,7 +14,6 @@ import { useCreatures } from './hooks/useCreatures';
 import { DebugSpawnBar } from './components/DebugSpawnBar';
 import { Entity, type HybridSource } from './components/Entity';
 import { Gallery } from './components/Gallery';
-import { HandLayer } from './components/HandLayer';
 import { HeatmapLayer } from './components/HeatmapLayer';
 import { SparkleLayer } from './components/SparkleLayer';
 import { TendrilLayer } from './components/TendrilLayer';
@@ -1035,14 +1034,8 @@ export default function App() {
 
       {scene === 'field' && (
         <>
-          <HandLayer
-            videoRef={handVideoRef}
-            state={hand.state}
-            snapshotRef={hand.snapshotRef}
-            onEnable={hand.enable}
-            onDisable={hand.disable}
-          />
-
+          {/* HandLayer (webcam gesture capture) removed from the corner —
+           *  the tracking hook stays dormant; restore by re-mounting it. */}
           {showDebug && <DebugSpawnBar onSpawn={handleDebugSpawn} />}
 
           {/* Mute toggle — tiny corner button, wakes the audio context on
