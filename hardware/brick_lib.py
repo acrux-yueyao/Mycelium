@@ -393,3 +393,50 @@ if __name__ == '__main__':
     for name, m in coupons.items():
         print(name, 'watertight', m.is_watertight, 'tris', len(m.faces))
         m.export(f'{out}/{name}.stl')
+
+
+# ---- two-screen eyes: frame pieces around a 2x1 eye socket --------------
+# GME12864-11 (0.96" SSD1306): module 27.5 x 27.8 x 3.5 mm, viewing area
+# 23.7 x 12.9, active 21.7 x 10.9 — one screen is exactly one 2x1-cell eye.
+# The two socket cells stay empty (the glass is the eye); the ten cells
+# around them host a shared pocket from the back, and their 4mm front skin
+# overlaps the module edge so it cannot fall out forward.
+EYE_MODULE = (28.1, 28.4)          # pocket footprint (module + 0.3/side)
+EYE_POCKET_D = 8.0                 # pocket depth from the rear face
+SEAM_R, SEAM_D = 1.15, 1.1         # O2.3 x 1.1 pocket for O2x1 seam magnets
+SEAM_DEPTH = 4.0                   # seam couplings sit in the front band (h + 4)
+
+
+def eye_frame_piece(pocket, std_faces, seam_faces, pitch=P, pocket_d=EYE_POCKET_D):
+    """One cube of an eye frame.
+
+    pocket     (x0, x1, y0, y1) of the shared screen pocket in this cube's
+               local mm (x = axis 0, y = vertical axis 2); may extend past
+               the cube, it is clipped by the cube itself.
+    std_faces  faces carrying the standard centre-magnet coupling.
+    seam_faces faces the pocket crosses toward another frame cube: they
+               couple in the solid front band with O2x1 magnets and one pin.
+    Axis 1 is depth: rear at 0, show face at `pitch`.
+    """
+    c = B(0, 0, 0, pitch, pitch, pitch)
+    x0, x1, y0, y1 = pocket
+    c = D(c, B(x0, -1, y0, x1, pocket_d, y1))
+    for axis, pos in std_faces:
+        c = D(c, face_cyl(axis, pos, MAG_R, MAG_D, pitch=pitch))
+        for s_ in (+OFF, -OFF):
+            if pos:
+                c = U([c, face_cyl(axis, True, NUB_R, NUB_H, s_, s_, add=True, pitch=pitch)])
+            else:
+                c = D(c, face_cyl(axis, False, DIM_R, DIM_D, s_, s_, pitch=pitch))
+    for axis, pos in seam_faces:
+        if axis == 0:       # in-plane (axis1 depth, axis2 vertical)
+            mag, pin = (SEAM_DEPTH, 0.0), (SEAM_DEPTH, OFF)
+        else:               # axis 2: in-plane (axis0, axis1 depth)
+            mag, pin = (0.0, SEAM_DEPTH), (OFF, SEAM_DEPTH)
+        c = D(c, face_cyl(axis, pos, SEAM_R, SEAM_D, mag[0], mag[1], pitch=pitch))
+        if pos:
+            c = U([c, face_cyl(axis, True, NUB_R, NUB_H, pin[0], pin[1], add=True, pitch=pitch)])
+        else:
+            c = D(c, face_cyl(axis, False, DIM_R, DIM_D, pin[0], pin[1], pitch=pitch))
+    c.fix_normals()
+    return c

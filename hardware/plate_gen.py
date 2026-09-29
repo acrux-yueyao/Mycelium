@@ -25,7 +25,7 @@ import trimesh
 from trimesh.transformations import translation_matrix as TM
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from kit_cubes import orient_flat_down, variant_mesh
+from kit_cubes import orient_flat_down, variant_mesh, cell_mesh, orient_mask
 
 PITCH, GRID = 16.0, 13                  # 13×13 → 220 mm envelope
 
@@ -57,16 +57,16 @@ def main(vdir, out):
     os.makedirs(out, exist_ok=True)
 
     geo_cache = {}
-    def geom(code, mask):
+    def geom(code, mask, eye=None):
         if code not in geo_cache:
-            m = variant_mesh(code, [tuple(k) for k in mask])
-            geo_cache[code] = orient_flat_down(m, {tuple(k) for k in mask})
+            m = cell_mesh(code, [tuple(k) for k in mask], eye)
+            geo_cache[code] = orient_flat_down(m, orient_mask(mask, eye))
         return geo_cache[code]
 
     # 按颜色分组;全耦合(无平面)单独一盘
     groups = {}
     for c in cells:
-        mesh, orient = geom(c['code'], c['mask'])
+        mesh, orient = geom(c['code'], c['mask'], c.get('eye'))
         hard = orient.startswith('⚠')
         key = 'ream' if hard else c['ci']
         groups.setdefault(key, []).append(c)
@@ -96,7 +96,7 @@ def main(vdir, out):
         for n0, slots in enumerate(paged):
             parts, counts = [], {}
             for k, gi, c in slots:
-                mesh, _ = geom(c['code'], c['mask'])
+                mesh, _ = geom(c['code'], c['mask'], c.get('eye'))
                 p = mesh.copy()
                 gx, gy = k % GRID, k // GRID
                 lo = p.bounds[0]

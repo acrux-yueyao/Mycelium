@@ -177,6 +177,22 @@ def variant_mesh(code, mask, pitch=12.0):
     return m
 
 
+def cell_mesh(code, mask, eye=None):
+    """Geometry for one kit cube: eye frame piece, or a variant cube."""
+    if eye:
+        from brick_lib import eye_frame_piece
+        return eye_frame_piece(tuple(eye['pocket']), [tuple(k) for k in eye['std']],
+                               [tuple(k) for k in eye['seam']])
+    return variant_mesh(code, mask)
+
+
+def orient_mask(mask, eye=None):
+    """Faces that must NOT land on the bed (coupled, or the pocket side)."""
+    if eye:
+        return {tuple(k) for k in eye['orient']}
+    return {tuple(k) for k in mask}
+
+
 # 平面朝下的优先级(前后 → 下上 → 左右)与对应的放倒旋转
 FLAT_PREF = [(1, True), (1, False), (2, False), (2, True), (0, False), (0, True)]
 FLAT_ROT = {(1, True):  RM(-np.pi/2, [1, 0, 0]),   # 前面(+y)贴床
@@ -244,17 +260,40 @@ def main(base, out_dir):
     patch_xy = {(c, rows - 1 - r) for c in range(ep_c0, ep_c0 + 3)
                 for r in range(er - 1, er + 2)}
     added = set()
+    eye_frame = {}          # (x,y,z) -> {'side','pocket'} for zone builds
+    eye_socket = set()      # (x,y) of the empty 2x1 socket cells
     if zone:
-        # eye patch flat on the skin plane (option A): the 3x3 screen module
-        # needs one plane, and at the skin its ribbon drops straight into
-        # the cavity. Anything in front of it in those columns goes.
-        patch = {(x, y, SKIN_Z) for x, y in patch_xy}
-        kit = {k for k in kit if not ((k[0], k[1]) in patch_xy and k[2] >= SKIN_Z)}
+        # two screens, one per eye, at the drawn eyes (GME12864-11 viewing
+        # area 23.7x12.9 = one 2x1-cell eye). Socket cells stay empty (the
+        # glass is the eye); the 4x3 ring around each on the skin plane
+        # carries a shared pocket from behind. Only the socket columns are
+        # cleared in front; bulges on the frame stay.
+        from brick_lib import EYE_MODULE
+        ye = rows - 1 - er
+        patch = set()
+        patch_xy = set()
+        for side, e0 in (('L', a['L0']), ('R', a['R0'])):
+            cx, cy = (e0 + 1) * 12.0, (ye + 0.5) * 12.0      # socket centre (mm)
+            px0, px1 = cx - EYE_MODULE[0] / 2, cx + EYE_MODULE[0] / 2
+            py0, py1 = cy - EYE_MODULE[1] / 2, cy + EYE_MODULE[1] / 2
+            for x in range(e0 - 1, e0 + 3):
+                for y in range(ye - 1, ye + 2):
+                    patch_xy.add((x, y))
+                    if y == ye and x in (e0, e0 + 1):
+                        eye_socket.add((x, y))
+                        continue
+                    eye_frame[(x, y, SKIN_Z)] = {
+                        'side': side, 'i': x - (e0 - 1), 'j': y - (ye - 1),
+                        'pocket': [px0 - x * 12, px1 - x * 12, py0 - y * 12, py1 - y * 12]}
+        kit = {k for k in kit if not ((k[0], k[1]) in eye_socket and k[2] >= SKIN_Z)}
+        for k in eye_frame:
+            if k not in kit:
+                kit.add(k); added.add(k)
         # close skin holes over the cavity: a missing skin cube leaves the
         # bulge in front of it hanging and opens the cavity to the face
         for x in range(tx + 1, tx + 6):
             for y in range(ty + 1, ty + 7):
-                if (x, y) not in patch_xy and (x, y, SKIN_Z) not in kit:
+                if (x, y) not in eye_socket and (x, y, SKIN_Z) not in kit:
                     kit.add((x, y, SKIN_Z)); added.add((x, y, SKIN_Z))
     else:
         patch = {(c, y, fzall.get((c, y), zf)) for c, y in patch_xy}
@@ -309,7 +348,7 @@ def main(base, out_dir):
         return target <= seen
 
     removed = set()
-    for c in sorted(c for c in kit if all(n in kit for n in nb6(c))):
+    for c in sorted(c for c in kit if c not in eye_frame and all(n in kit for n in nb6(c))):
         kit.discard(c)
         nbrs = [n for n in nb6(c) if n in kit]
         if still_linked(nbrs):
@@ -349,7 +388,7 @@ def main(base, out_dir):
             front_of[(k[0], k[1])] = max(front_of.get((k[0], k[1]), -1), k[2])
         exposed = sorted((x, y) for x in range(tx + 1, tx + 6) for y in range(ty + 1, ty + 7)
                          if (x, y) not in patch_xy and front_of.get((x, y)) == SKIN_Z)
-        pcx = sum(x for x, _ in patch_xy) / 9
+        pcx = sum(x for x, _ in patch_xy) / max(1, len(patch_xy))
         pby = min(y for _, y in patch_xy)
         if exposed:
             w = min(exposed, key=lambda c: (abs(c[0] - pcx) + abs(c[1] - (pby - 1)), c))
@@ -435,14 +474,62 @@ def main(base, out_dir):
     for k in patch:
         vmap[f'{k[0]},{k[1]},{k[2]}'] = 'EYEPATCH'
     solid = kit | patch
+
+    def pocket_hits(pk, key):
+        x0, x1, y0, y1 = pk
+        xo = x0 < 12 - 1e-6 and x1 > 1e-6
+        yo = y0 < 12 - 1e-6 and y1 > 1e-6
+        axis, pos = key
+        if axis == 0:
+            return yo and (x1 >= 12 - 1e-6 if pos else x0 <= 1e-6)
+        if axis == 2:
+            return xo and (y1 >= 12 - 1e-6 if pos else y0 <= 1e-6)
+        return (not pos) and xo and yo               # rear face only
+
+    def eye_faces(k):
+        """(std, seam) coupled faces of an eye frame cube."""
+        ef = eye_frame[k]
+        std, seam = [], []
+        for key, _ in FACE_KEYS:
+            n = (k[0] + DIRS[key][0], k[1] + DIRS[key][1], k[2] + DIRS[key][2])
+            if n not in solid:
+                continue
+            if pocket_hits(ef['pocket'], key):
+                if n in eye_frame and eye_frame[n]['side'] == ef['side']:
+                    seam.append(key)
+            else:
+                std.append(key)
+        return std, seam
+
+    def blocked_from(n, key_toward_k):
+        """True if the eye frame cube n refuses coupling on the face that
+        points back at us (pocket crosses it)."""
+        opp = (key_toward_k[0], not key_toward_k[1])
+        return n in eye_frame and pocket_hits(eye_frame[n]['pocket'], opp)
+
     for (x, y, z) in sorted(kit):
         if (x, y, z) in patch:
             vmap[f'{x},{y},{z}'] = 'EYEPATCH'
             continue
+        if (x, y, z) in eye_frame:
+            ef = eye_frame[(x, y, z)]
+            std, seam = eye_faces((x, y, z))
+            mask = tuple(sorted(std + seam))
+            code = f"E-{ef['side']}{ef['i']}{ef['j']}"
+            orient = set(mask) | ({(1, False)} if pocket_hits(ef['pocket'], (1, False)) else set())
+            variants.setdefault(code, {'mask': mask, 'count': 0, 'eye': {
+                'pocket': ef['pocket'], 'std': [list(k) for k in std],
+                'seam': [list(k) for k in seam], 'orient': [list(k) for k in sorted(orient)]}})['count'] += 1
+            vmap[f'{x},{y},{z}'] = code
+            percube.append({'x': x, 'y': y, 'z': z, 'code': code, 'mask': [list(k) for k in mask],
+                            'ci': ci_of[(x, y, z)], 'tag': 'eye',
+                            'eye': variants[code]['eye']})
+            continue
         # 眼件外侧面带标准耦合,邻居照常算耦合面
         mask = tuple(sorted(
             key for key, _ in FACE_KEYS
-            if (x + DIRS[key][0], y + DIRS[key][1], z + DIRS[key][2]) in solid))
+            if (x + DIRS[key][0], y + DIRS[key][1], z + DIRS[key][2]) in solid
+            and not blocked_from((x + DIRS[key][0], y + DIRS[key][1], z + DIRS[key][2]), key)))
         tag0 = special.get((x, y, z))
         if tag0 in FUNC_VERTICAL:
             # vertical bore through the cube: no magnet pocket on top/bottom
@@ -461,9 +548,9 @@ def main(base, out_dir):
              f'eyepatch cells {sum(1 for v in vmap.values() if v == "EYEPATCH")}'
              f' · variants {len(variants)}', '']
     for code, v in sorted(variants.items(), key=lambda kv: -kv[1]['count']):
-        m = variant_mesh(code, v['mask'])
+        m = cell_mesh(code, v['mask'], v.get('eye'))
         assert m.is_watertight, code
-        m, orient = orient_flat_down(m, set(v['mask']))
+        m, orient = orient_flat_down(m, orient_mask(v['mask'], v.get('eye')))
         m.export(f'{out_dir}/{code}.stl')
         names = [n for k, n in FACE_KEYS if k in v['mask']]
         flat = [n for k, n in FACE_KEYS if k not in v['mask']]

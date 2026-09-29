@@ -31,7 +31,7 @@ import trimesh
 from trimesh.transformations import translation_matrix as TM
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from kit_cubes import orient_flat_down, variant_mesh
+from kit_cubes import orient_flat_down, variant_mesh, cell_mesh, orient_mask
 from magnet_polarity import plate_faces
 from plate_gen import GRID, PITCH
 
@@ -189,7 +189,7 @@ def main(vdir, out, cis=None, by_color=False):
         code = c['code']
         if code not in geo:
             mask = [tuple(m) for m in c['mask']]
-            geo[code] = orient_flat_down(variant_mesh(code, mask), set(mask))
+            geo[code] = orient_flat_down(cell_mesh(code, mask, c.get('eye')), orient_mask(mask, c.get('eye')))
         return geo[code][0]
 
     if by_color:
