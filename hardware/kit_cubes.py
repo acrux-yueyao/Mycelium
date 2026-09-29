@@ -516,7 +516,7 @@ def main(base, out_dir):
             std, seam = eye_faces((x, y, z))
             mask = tuple(sorted(std + seam))
             code = f"E-{ef['side']}{ef['i']}{ef['j']}"
-            orient = set(mask) | ({(1, False)} if pocket_hits(ef['pocket'], (1, False)) else set())
+            orient = set(mask)          # a pocketed rear still prints fine face-down
             variants.setdefault(code, {'mask': mask, 'count': 0, 'eye': {
                 'pocket': ef['pocket'], 'std': [list(k) for k in std],
                 'seam': [list(k) for k in seam], 'orient': [list(k) for k in sorted(orient)]}})['count'] += 1

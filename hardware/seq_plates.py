@@ -124,30 +124,27 @@ def render_page(man, geom, out, stem, slots, fil_name, lines):
         x0, y0 = gx * PITCH, gy * PITCH
         ax.add_patch(Rectangle((x0, y0), 12, 12, fc=man['colors'][c['ci']],
                                ec='#1c1c1a', lw=0.5, alpha=0.3))
-        poles = dict(plate_faces({tuple(m) for m in c['mask']}))
+        small = {tuple(k) for k in c['eye']['seam']} if c.get('eye') else set()
+        poles = dict(plate_faces({tuple(m) for m in c['mask']}, small))
+        COL = {None: FC, 'N': NC, 'S': SC, 'n': NC, 's': SC}
         up = poles.get((0, 0, 1))
-        ax.add_patch(Circle((x0 + 6, y0 + 5.2), 2.3,
-                            fc={None: FC, 'N': NC, 'S': SC}[up],
-                            ec='#1c1c1a', lw=0.5))
+        ax.add_patch(Circle((x0 + 6, y0 + 5.2), 2.3 if up is None or up.isupper() else 1.3,
+                            fc=COL[up], ec='#1c1c1a', lw=0.5))
         ax.text(x0 + 6, y0 + 5.2, up or '平', ha='center', va='center',
-                fontsize=7 if up else 5, family='monospace',
+                fontsize=(7 if up.isupper() else 5.5) if up else 5, family='monospace',
                 fontweight='bold' if up else 'normal',
                 color='#ffffff' if up else '#6d6a62')
-        for w, (ex, ey) in EDGE.items():
+        for w, (ex, ey) in list(EDGE.items()):
             p_ = poles.get(w)
-            if p_ and (ex, ey) != (6, 1.7):
-                ax.add_patch(Rectangle((x0 + ex - 1.1, y0 + ey - 1.1),
-                                       2.2, 2.2, fc={'N': NC, 'S': SC}[p_],
-                                       ec='#1c1c1a', lw=0.4))
-                ax.text(x0 + ex, y0 + ey, p_, ha='center', va='center',
-                        fontsize=5.2, family='monospace', color='#ffffff')
-        p_ = poles.get((0, -1, 0))
-        if p_:
-            ax.add_patch(Rectangle((x0 + 6 - 1.1, y0 + 1.7 - 1.1), 2.2, 2.2,
-                                   fc={'N': NC, 'S': SC}[p_],
-                                   ec='#1c1c1a', lw=0.4))
-            ax.text(x0 + 6, y0 + 1.7, p_, ha='center', va='center',
-                    fontsize=5.2, family='monospace', color='#ffffff')
+            if not p_:
+                continue
+            sz = 2.2 if p_.isupper() else 1.4
+            ax.add_patch(Rectangle((x0 + ex - sz / 2, y0 + ey - sz / 2), sz, sz,
+                                   fc=COL[p_], ec='#1c1c1a', lw=0.4))
+            ax.text(x0 + ex, y0 + ey, p_, ha='center', va='center',
+                    fontsize=5.2 if p_.isupper() else 4.2, family='monospace', color='#ffffff')
+        if c.get('eye'):
+            ax.add_patch(Rectangle((x0, y0), 12, 12, fill=False, ec='#3b82f6', lw=1.2, ls='--'))
         ax.text(x0 + 1.0, y0 + 10.5, str(c['seq']), ha='left', va='center',
                 fontsize=6.6, family='monospace', fontweight='bold',
                 color='#1c1c1a')
@@ -165,7 +162,7 @@ def render_page(man, geom, out, stem, slots, fil_name, lines):
     ax.set_title(f'{fname} ' + (f'· 耗材 {fil_name} ' if fil_name else '顺序盘 ')
                  + f'· {len(slots)}颗 · 序号{s0}–{s1}\n'
                  '左上粗体=拼装序号(按序剥取) · 空位=换层 · 圆=上袋极性 '
-                 '边块=侧袋 · 红N 蓝S · 右上小字=变体号 · 底色=区域',
+                 '边块=侧袋 · 红N 蓝S · 小写小块=Ø2×1小磁铁 · 蓝虚框=眼框块 · 右上小字=变体号',
                  fontsize=10, family='monospace')
     fig.savefig(f'{out}/{stem}_sheet.png', dpi=140,
                 facecolor='#f6f5f0', bbox_inches='tight')
