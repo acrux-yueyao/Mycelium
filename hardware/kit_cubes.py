@@ -203,9 +203,17 @@ FLAT_ROT = {(1, True):  RM(-np.pi/2, [1, 0, 0]),   # 前面(+y)贴床
             (0, True):  RM(+np.pi/2, [0, 1, 0])}   # 右面贴床
 
 
-def orient_flat_down(m, mask):
+def flat_pref(code=''):
+    """Bed-face preference. Vertical-bore function cubes (U, G) stand on
+    their bored face so the bore prints vertical instead of as a bridge."""
+    if code[:1] in FUNC_VERTICAL:
+        return [(2, False), (2, True)] + [k for k in FLAT_PREF if k[0] != 2]
+    return FLAT_PREF
+
+
+def orient_flat_down(m, mask, code=''):
     """把一个没有耦合特征的外露面转到床面,返回 (mesh, 说明)."""
-    for key in FLAT_PREF:
+    for key in flat_pref(code):
         if key not in mask:
             r = FLAT_ROT[key]
             if r is not None:
@@ -550,7 +558,7 @@ def main(base, out_dir):
     for code, v in sorted(variants.items(), key=lambda kv: -kv[1]['count']):
         m = cell_mesh(code, v['mask'], v.get('eye'))
         assert m.is_watertight, code
-        m, orient = orient_flat_down(m, orient_mask(v['mask'], v.get('eye')))
+        m, orient = orient_flat_down(m, orient_mask(v['mask'], v.get('eye')), code)
         m.export(f'{out_dir}/{code}.stl')
         names = [n for k, n in FACE_KEYS if k in v['mask']]
         flat = [n for k, n in FACE_KEYS if k not in v['mask']]

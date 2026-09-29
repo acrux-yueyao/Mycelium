@@ -60,7 +60,7 @@ def main(vdir, out):
     def geom(code, mask, eye=None):
         if code not in geo_cache:
             m = cell_mesh(code, [tuple(k) for k in mask], eye)
-            geo_cache[code] = orient_flat_down(m, orient_mask(mask, eye))
+            geo_cache[code] = orient_flat_down(m, orient_mask(mask, eye), code)
         return geo_cache[code]
 
     # 按颜色分组;全耦合(无平面)单独一盘
@@ -173,7 +173,7 @@ def main(vdir, out):
             fc = col if gi % 2 == 0 else shade(col)
             ax.add_patch(Rectangle((x0, y0), 12, 12, fc=fc, ec='#1c1c1a',
                                    lw=0.5, alpha=0.35))
-            poles = dict(plate_faces({tuple(m) for m in c['mask']}))
+            poles = dict(plate_faces({tuple(m) for m in c['mask']}, code=c['code']))
             up = poles.get((0, 0, 1))
             ax.add_patch(Circle((x0 + 6, y0 + 6), 2.5,
                                 fc={None: FC, 'N': NC, 'S': SC}[up],

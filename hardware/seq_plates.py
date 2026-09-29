@@ -125,7 +125,7 @@ def render_page(man, geom, out, stem, slots, fil_name, lines):
         ax.add_patch(Rectangle((x0, y0), 12, 12, fc=man['colors'][c['ci']],
                                ec='#1c1c1a', lw=0.5, alpha=0.3))
         small = {tuple(k) for k in c['eye']['seam']} if c.get('eye') else set()
-        poles = dict(plate_faces({tuple(m) for m in c['mask']}, small))
+        poles = dict(plate_faces({tuple(m) for m in c['mask']}, small, c['code']))
         COL = {None: FC, 'N': NC, 'S': SC, 'n': NC, 's': SC}
         up = poles.get((0, 0, 1))
         ax.add_patch(Circle((x0 + 6, y0 + 5.2), 2.3 if up is None or up.isupper() else 1.3,
@@ -186,7 +186,7 @@ def main(vdir, out, cis=None, by_color=False):
         code = c['code']
         if code not in geo:
             mask = [tuple(m) for m in c['mask']]
-            geo[code] = orient_flat_down(cell_mesh(code, mask, c.get('eye')), orient_mask(mask, c.get('eye')))
+            geo[code] = orient_flat_down(cell_mesh(code, mask, c.get('eye')), orient_mask(mask, c.get('eye')), code)
         return geo[code][0]
 
     if by_color:
