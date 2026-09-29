@@ -52,6 +52,13 @@
       "owned": true
     },
     {
+      "id": "deep-green",
+      "zh": "深绿色",
+      "en": "deep green",
+      "hex": "#3d8a6a",
+      "owned": true
+    },
+    {
       "id": "green",
       "zh": "青绿色",
       "en": "green",
