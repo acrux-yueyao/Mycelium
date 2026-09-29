@@ -57,16 +57,16 @@ def main(vdir, out):
     os.makedirs(out, exist_ok=True)
 
     geo_cache = {}
-    def geom(code, mask, eye=None):
+    def geom(code, mask, eye=None, bed=None):
         if code not in geo_cache:
             m = cell_mesh(code, [tuple(k) for k in mask], eye)
-            geo_cache[code] = orient_flat_down(m, orient_mask(mask, eye), code)
+            geo_cache[code] = orient_flat_down(m, orient_mask(mask, eye), code, bed)
         return geo_cache[code]
 
     # 按颜色分组;全耦合(无平面)单独一盘
     groups = {}
     for c in cells:
-        mesh, orient = geom(c['code'], c['mask'], c.get('eye'))
+        mesh, orient = geom(c['code'], c['mask'], c.get('eye'), c.get('bed'))
         hard = orient.startswith('⚠')
         key = 'ream' if hard else c['ci']
         groups.setdefault(key, []).append(c)
@@ -96,7 +96,7 @@ def main(vdir, out):
         for n0, slots in enumerate(paged):
             parts, counts = [], {}
             for k, gi, c in slots:
-                mesh, _ = geom(c['code'], c['mask'], c.get('eye'))
+                mesh, _ = geom(c['code'], c['mask'], c.get('eye'), c.get('bed'))
                 p = mesh.copy()
                 gx, gy = k % GRID, k // GRID
                 lo = p.bounds[0]
@@ -173,7 +173,7 @@ def main(vdir, out):
             fc = col if gi % 2 == 0 else shade(col)
             ax.add_patch(Rectangle((x0, y0), 12, 12, fc=fc, ec='#1c1c1a',
                                    lw=0.5, alpha=0.35))
-            poles = dict(plate_faces({tuple(m) for m in c['mask']}, code=c['code']))
+            poles = dict(plate_faces({tuple(m) for m in c['mask']}, code=c['code'], bed=c.get('bed')))
             up = poles.get((0, 0, 1))
             ax.add_patch(Circle((x0 + 6, y0 + 6), 2.5,
                                 fc={None: FC, 'N': NC, 'S': SC}[up],

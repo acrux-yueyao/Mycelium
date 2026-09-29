@@ -125,7 +125,7 @@ def render_page(man, geom, out, stem, slots, fil_name, lines):
         ax.add_patch(Rectangle((x0, y0), 12, 12, fc=man['colors'][c['ci']],
                                ec='#1c1c1a', lw=0.5, alpha=0.3))
         small = {tuple(k) for k in c['eye']['seam']} if c.get('eye') else set()
-        poles = dict(plate_faces({tuple(m) for m in c['mask']}, small, c['code']))
+        poles = dict(plate_faces({tuple(m) for m in c['mask']}, small, c['code'], c.get('bed')))
         COL = {None: FC, 'N': NC, 'S': SC, 'n': NC, 's': SC}
         up = poles.get((0, 0, 1))
         ax.add_patch(Circle((x0 + 6, y0 + 5.2), 2.3 if up is None or up.isupper() else 1.3,
@@ -145,6 +145,10 @@ def render_page(man, geom, out, stem, slots, fil_name, lines):
                     fontsize=5.2 if p_.isupper() else 4.2, family='monospace', color='#ffffff')
         if c.get('eye'):
             ax.add_patch(Rectangle((x0, y0), 12, 12, fill=False, ec='#3b82f6', lw=1.2, ls='--'))
+        bot = poles.get((0, 0, -1))
+        if bot:                      # a dimpled face is on the bed: it has a pocket too
+            ax.text(x0 + 1.0, y0 + 1.4, f'底{bot}', ha='left', va='center', fontsize=5.2,
+                    family='monospace', fontweight='bold', color=COL[bot])
         ax.text(x0 + 1.0, y0 + 10.5, str(c['seq']), ha='left', va='center',
                 fontsize=6.6, family='monospace', fontweight='bold',
                 color='#1c1c1a')
@@ -162,7 +166,7 @@ def render_page(man, geom, out, stem, slots, fil_name, lines):
     ax.set_title(f'{fname} ' + (f'· 耗材 {fil_name} ' if fil_name else '顺序盘 ')
                  + f'· {len(slots)}颗 · 序号{s0}–{s1}\n'
                  '左上粗体=拼装序号(按序剥取) · 空位=换层 · 圆=上袋极性 '
-                 '边块=侧袋 · 红N 蓝S · 小写小块=Ø2×1小磁铁 · 蓝虚框=眼框块 · 右上小字=变体号',
+                 '边块=侧袋 · 底X=贴床面也有袋 · 红N 蓝S · 小写=Ø2×1小磁铁 · 蓝虚框=眼框块',
                  fontsize=10, family='monospace')
     fig.savefig(f'{out}/{stem}_sheet.png', dpi=140,
                 facecolor='#f6f5f0', bbox_inches='tight')
@@ -186,7 +190,7 @@ def main(vdir, out, cis=None, by_color=False):
         code = c['code']
         if code not in geo:
             mask = [tuple(m) for m in c['mask']]
-            geo[code] = orient_flat_down(cell_mesh(code, mask, c.get('eye')), orient_mask(mask, c.get('eye')), code)
+            geo[code] = orient_flat_down(cell_mesh(code, mask, c.get('eye')), orient_mask(mask, c.get('eye')), code, c.get('bed'))
         return geo[code][0]
 
     if by_color:

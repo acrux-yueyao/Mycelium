@@ -43,12 +43,12 @@ CROSS = {(0, 0, 1): (1, 2, '上'), (0, 0, -1): (1, 0, '下·贴床'),
          (0, -1, 0): (1, 1, '前·朝你'), (0, 1, 0): (1, 3, '后')}
 
 
-def plate_faces(mask, small=(), code=''):
+def plate_faces(mask, small=(), code='', bed=None):
     """mask (set of face keys) → list of (plate_dir, pole|None) per face.
     Faces in `small` (eye seams, O2x1 magnets) report a lowercase pole."""
     rot = np.eye(3)
-    for key in flat_pref(code):
-        if key not in mask:
+    for key in ([tuple(bed)] if bed is not None else flat_pref(code)):
+        if bed is not None or key not in mask:
             r = FLAT_ROT[key]
             if r is not None:
                 rot = np.asarray(r)[:3, :3]

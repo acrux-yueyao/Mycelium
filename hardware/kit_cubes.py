@@ -211,8 +211,52 @@ def flat_pref(code=''):
     return FLAT_PREF
 
 
-def orient_flat_down(m, mask, code=''):
+def overhang_area(m):
+    """Downward-facing area steeper than 45deg that is not on the bed."""
+    n, c = m.face_normals, m.triangles_center
+    lo = m.bounds[0][2]
+    sel = (n[:, 2] < -0.707) & (c[:, 2] > lo + 0.3)
+    return float(m.area_faces[sel].sum())
+
+
+def best_bed(m, mask, code=''):
+    """Bed face for this cube.
+
+    Default is the usual preference (show face down, flat faces first).
+    With KIT_REORIENT=1, and only when that leaves a real cantilever - more than CANTILEVER_MM2 of
+    extra unsupported overhang compared with the best alternative - is
+    another face used. Alternatives are flat faces and dimple-only
+    coupled faces (no pins may touch the bed)."""
+    def score(key):
+        r = FLAT_ROT[key]
+        g = m.copy()
+        if r is not None:
+            g.apply_transform(r)
+        return overhang_area(g)
+    default = next((k for k in flat_pref(code) if k not in mask), None)
+    cands = [k for k, _ in FACE_KEYS if not (k in mask and k[1])]
+    best = min(cands, key=lambda k: (score(k) + (30.0 if k in mask else 0.0), k not in (default,)))
+    if default is None:
+        return best
+    if os.environ.get('KIT_REORIENT') == '1' and score(default) - score(best) > CANTILEVER_MM2:
+        return best
+    return default
+
+
+CANTILEVER_MM2 = 40.0
+
+
+def orient_flat_down(m, mask, code='', bed=None):
     """把一个没有耦合特征的外露面转到床面,返回 (mesh, 说明)."""
+    if bed is not None:
+        key = tuple(bed)
+        r = FLAT_ROT[key]
+        if r is not None:
+            m = m.copy()
+            m.apply_transform(r)
+        lo = m.bounds[0]
+        m.apply_transform(TM([-lo[0], -lo[1], -lo[2]]))
+        return m, f"贴床面 {dict(FACE_KEYS)[key]}" + (' (带凹窝)' if key in mask else '')
     for key in flat_pref(code):
         if key not in mask:
             r = FLAT_ROT[key]
@@ -558,7 +602,8 @@ def main(base, out_dir):
     for code, v in sorted(variants.items(), key=lambda kv: -kv[1]['count']):
         m = cell_mesh(code, v['mask'], v.get('eye'))
         assert m.is_watertight, code
-        m, orient = orient_flat_down(m, orient_mask(v['mask'], v.get('eye')), code)
+        v['bed'] = list(best_bed(m, set(v['mask']), code))
+        m, orient = orient_flat_down(m, orient_mask(v['mask'], v.get('eye')), code, v['bed'])
         m.export(f'{out_dir}/{code}.stl')
         names = [n for k, n in FACE_KEYS if k in v['mask']]
         flat = [n for k, n in FACE_KEYS if k not in v['mask']]
@@ -568,6 +613,8 @@ def main(base, out_dir):
         f'{k[0]},{k[1]},{k[2]} → {t}' for k, t in special.items() if k in kit)]
     open(f'{out_dir}/variant_bill.txt', 'w').write('\n'.join(lines) + '\n')
     json.dump(vmap, open(f'{out_dir}/variant_map.json', 'w'), indent=0)
+    for c in percube:
+        c['bed'] = variants[c['code']]['bed']
     json.dump({'colors': plate_colors, 'color_names': color_names, 'cells': percube},
               open(f'{out_dir}/kit_manifest.json', 'w'), indent=0)
     print('\n'.join(lines[:3 + min(len(variants), 40)]))
