@@ -80,6 +80,14 @@
       "owned": true
     },
     {
+      "id": "cream",
+      "zh": "奶油黄",
+      "en": "cream yellow",
+      "hex": "#e6dca0",
+      "owned": true,
+      "_src": "from shelf photo"
+    },
+    {
       "id": "serene",
       "zh": "宁静蓝",
       "en": "serene blue",
@@ -92,6 +100,14 @@
       "en": "klein blue",
       "hex": "#2462c8",
       "owned": true
+    },
+    {
+      "id": "navy",
+      "zh": "藏青蓝",
+      "en": "navy",
+      "hex": "#2d3672",
+      "owned": true,
+      "_src": "from shelf photo"
     },
     {
       "id": "lavender",
