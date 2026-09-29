@@ -15,6 +15,7 @@ import os
 import sys
 
 import matplotlib
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 matplotlib.use('Agg')
 matplotlib.rcParams['font.family'] = 'monospace'
 matplotlib.rcParams['font.monospace'] = ['Noto Sans Mono CJK SC', 'DejaVu Sans Mono']
@@ -31,8 +32,11 @@ def main(vdir, out=None):
     out = out or vdir
     man = json.load(open(f'{vdir}/kit_manifest.json'))
     colors, cells = man['colors'], man['cells']
-    for i, c in enumerate(sorted(cells, key=lambda c: (c['y'], c['z'], c['x']))):
+    from seq_plates import build_order
+    ordered, hanging = build_order(cells)
+    for i, c in enumerate(ordered):
         c['seq'] = i + 1                       # global assembly order
+    hang = set(hanging)
     cols = max(c['x'] for c in cells) + 1
     Z = max(c['z'] for c in cells) + 1
     layers = sorted({c['y'] for c in cells})
@@ -53,6 +57,9 @@ def main(vdir, out=None):
             col = colors[c['ci']]
             ax.add_patch(Rectangle((c['x'], c['z']), 1, 1, fc=col,
                                    ec='#1c1c1a', lw=0.5))
+            if (c['x'], c['y'], c['z']) in hang:
+                ax.add_patch(Rectangle((c['x'] + 0.06, c['z'] + 0.06), 0.88, 0.88,
+                                       fill=False, ec='#e0302a', lw=2.0))
             tc = '#1c1c1a' if luma(col) > 130 else '#f6f5f0'
             ax.text(c['x'] + 0.5, c['z'] + 0.42, str(c['seq']), ha='center',
                     va='center', fontsize=6, family='monospace',
@@ -74,6 +81,9 @@ def main(vdir, out=None):
     fig.suptitle('逐层装配图 · 粗体=拼装序号(=顺序盘剥取次序) · 小字=变体号 · '
                  '底色=区域(盘号) · 每格上沿=背面,下沿=正面',
                  fontsize=12, family='monospace')
+    if hang:
+        fig.text(0.99, 0.005, f'红框 = 悬空块 {len(hang)} 颗(本层无依托、下方无方块)· 需改几何',
+                 fontsize=9, family='monospace', color='#e0302a', ha='right')
     fig.text(0.01, 0.005, '眼罩 3×3(EP9)与功能块另装,见 variant_map.json',
              fontsize=8, family='monospace', color='#8a8880')
     fig.savefig(f'{out}/assembly_sheet.png', dpi=140, facecolor='#f6f5f0',

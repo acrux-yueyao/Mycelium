@@ -47,11 +47,40 @@ EDGE = {(-1, 0, 0): (1.7, 6), (1, 0, 0): (10.3, 6),
         (0, 1, 0): (6, 10.3), (0, -1, 0): (6, 1.7)}
 
 
+def build_order(cells):
+    """Assembly order in which no cube is placed into thin air.
+
+    Layer by layer, bottom-up. Inside a layer, cubes resting on the layer
+    below go first (back-to-front, left-to-right), then the layer grows
+    outward from them one neighbour at a time, so every cube touches an
+    already-placed cube the moment it goes down. Cubes with no support
+    below and no path to one inside their layer are appended last and
+    returned as `hanging` - those need a geometry fix, not a new order.
+    """
+    from collections import deque
+    S = {(c['x'], c['y'], c['z']): c for c in cells}
+    placed, order, hanging = set(), [], []
+    for y in sorted({k[1] for k in S}):
+        layer = {k for k in S if k[1] == y}
+        seeds = sorted((k for k in layer if y == 0 or (k[0], y - 1, k[2]) in placed),
+                       key=lambda k: (k[2], k[0]))
+        q, seen = deque(seeds), set(seeds)
+        while q:
+            k = q.popleft()
+            order.append(S[k]); placed.add(k)
+            for dx, dz in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                n = (k[0] + dx, y, k[2] + dz)
+                if n in layer and n not in seen:
+                    seen.add(n); q.append(n)
+        for k in sorted(layer - seen, key=lambda k: (k[2], k[0])):
+            order.append(S[k]); placed.add(k); hanging.append(k)
+    return order, hanging
+
+
 def seq_slots(man, cis=None):
-    """Global assembly order → pages of (slot, cell): layer bottom-up,
-    back-to-front, left-to-right; one blank slot per layer boundary.
-    Cells gain c['seq']. Shared by the plates and the storage trays."""
-    cells = sorted(man['cells'], key=lambda c: (c['y'], c['z'], c['x']))
+    """Global assembly order → pages of (slot, cell), one blank slot per
+    layer boundary. Cells gain c['seq']. Shared by plates and trays."""
+    cells, _ = build_order(man['cells'])
     for i, c in enumerate(cells):
         c['seq'] = i + 1
     sel = [c for c in cells if cis is None or c['ci'] in cis]
