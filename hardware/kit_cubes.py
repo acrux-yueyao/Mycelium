@@ -116,11 +116,42 @@ _INPLANE = {0: (1, 2), 1: (0, 2), 2: (0, 1)}
 _OFF = 3.5                      # brick_lib pin/dimple diagonal offset
 
 
+# function cubes: W = ToF window, M = mic hole (bores along the depth
+# axis, local 1); U = USB-C plug slot, G = speaker grille (vertical,
+# local 2 - these lose their top/bottom magnet pockets).
+FUNC_VERTICAL = ('U', 'G')
+
+
+def _function_cut(kind, pitch=12.0):
+    from trimesh.creation import box, cylinder
+    h = pitch / 2
+    if kind in ('W', 'M'):
+        r = 3.0 if kind == 'W' else 1.25
+        c = cylinder(radius=r, height=pitch + 4, sections=32)
+        c.apply_transform(RM(np.pi / 2, [1, 0, 0]))
+        c.apply_transform(TM([h, h, h]))
+        return [c]
+    if kind == 'U':
+        return [box(extents=[10.0, 6.0, pitch + 4], transform=TM([h, h, h]))]
+    if kind == 'G':
+        out = []
+        for gx in (3.0, 6.0, 9.0):
+            for gy in (3.5, 6.0, 8.5):
+                c = cylinder(radius=0.6, height=pitch + 4, sections=16)
+                c.apply_transform(TM([gx, gy, h]))
+                out.append(c)
+        return out
+    return []
+
+
 def variant_mesh(code, mask, pitch=12.0):
     """mosaic_cube + engraving: on every coupled face, the pole letter
     (N/S out) in one free corner and the 2-hex variant code in the other.
-    Hidden after assembly; identifies loose cubes. ENGRAVE=0 disables."""
+    Hidden after assembly; identifies loose cubes. ENGRAVE=0 disables.
+    Codes prefixed W/M/U/G are function cubes and get their bore cut."""
     m = mosaic_cube(faces=list(mask))
+    if code[0] in 'WMUG':
+        m = trimesh.boolean.difference([m] + _function_cut(code[0], pitch))
     import os as _os
     if _os.environ.get('ENGRAVE', '1') == '0':
         return m
@@ -210,9 +241,23 @@ def main(base, out_dir):
     zf = Z - 1
     er = a['eyeRow']
     ep_c0 = a['L0'] + 1                       # patch centred on the eye pair
-    patch = {(c, rows - 1 - r, fzall.get((c, rows - 1 - r), zf))
-             for c in range(ep_c0, ep_c0 + 3)
-             for r in range(er - 1, er + 2)}
+    patch_xy = {(c, rows - 1 - r) for c in range(ep_c0, ep_c0 + 3)
+                for r in range(er - 1, er + 2)}
+    added = set()
+    if zone:
+        # eye patch flat on the skin plane (option A): the 3x3 screen module
+        # needs one plane, and at the skin its ribbon drops straight into
+        # the cavity. Anything in front of it in those columns goes.
+        patch = {(x, y, SKIN_Z) for x, y in patch_xy}
+        kit = {k for k in kit if not ((k[0], k[1]) in patch_xy and k[2] >= SKIN_Z)}
+        # close skin holes over the cavity: a missing skin cube leaves the
+        # bulge in front of it hanging and opens the cavity to the face
+        for x in range(tx + 1, tx + 6):
+            for y in range(ty + 1, ty + 7):
+                if (x, y) not in patch_xy and (x, y, SKIN_Z) not in kit:
+                    kit.add((x, y, SKIN_Z)); added.add((x, y, SKIN_Z))
+    else:
+        patch = {(c, y, fzall.get((c, y), zf)) for c, y in patch_xy}
     # mic / vents (manual hole_cube substitution)
     tcx = vc0 + 3
     special = {(tcx, rows - 1 - (er + 2), zf): 'M-mic',
@@ -277,10 +322,65 @@ def main(base, out_dir):
     kit -= zero
     strays |= zero
 
+    if zone:
+        special.clear()                       # legacy anchors don't apply
+        # no cube may be placed into thin air: give every hanging island
+        # the shortest support chain straight down or straight back
+        from seq_plates import build_order
+        for _ in range(40):
+            cells = [{'x': k[0], 'y': k[1], 'z': k[2]} for k in kit | patch]
+            _, hang = build_order(cells)
+            if not hang:
+                break
+            k, best = hang[0], None
+            for dy, dz in ((-1, 0), (0, -1)):
+                chain, q = [], (k[0], k[1] + dy, k[2] + dz)
+                while q[1] >= 0 and q[2] >= 0 and q not in kit and q not in patch and len(chain) < 6:
+                    chain.append(q); q = (q[0], q[1] + dy, q[2] + dz)
+                if (q in kit or q in patch) and (best is None or len(chain) < len(best)):
+                    best = chain
+            if best is None:
+                kit.discard(k); strays.add(k)
+            else:
+                kit.update(best); added.update(best)
+        # front function cubes on exposed skin cells: ToF window + mic hole
+        front_of = {}
+        for k in kit | patch:
+            front_of[(k[0], k[1])] = max(front_of.get((k[0], k[1]), -1), k[2])
+        exposed = sorted((x, y) for x in range(tx + 1, tx + 6) for y in range(ty + 1, ty + 7)
+                         if (x, y) not in patch_xy and front_of.get((x, y)) == SKIN_Z)
+        pcx = sum(x for x, _ in patch_xy) / 9
+        pby = min(y for _, y in patch_xy)
+        if exposed:
+            w = min(exposed, key=lambda c: (abs(c[0] - pcx) + abs(c[1] - (pby - 1)), c))
+            special[(w[0], w[1], SKIN_Z)] = 'W'
+            rest = [c for c in exposed if c != w]
+            if rest:
+                m = min(rest, key=lambda c: (abs(c[0] - pcx) + abs(c[1] - (pby - 3)), c))
+                special[(m[0], m[1], SKIN_Z)] = 'M'
+        # bottom wall: speaker grille (left) and USB-C slot (right), one
+        # cube behind the skin; the cloud cube under each is bored too so
+        # sound / the plug reach the dock below
+        zc = SKIN_Z - 1
+        for tag, x in (('G', tx + 1), ('U', tx + 4)):
+            for y in (ty, ty - 1):
+                if (x, y, zc) in kit:
+                    special[(x, y, zc)] = tag
+
     # 颜色量化(与 kit_sheet 同思路,≤8 色 → 每盘一种耗材)
     hexes = {}
     for x, y, z, hx, *_ in meta['voxels']:
         hexes[(x, y, z)] = hx
+    # added support / skin cubes borrow the colour of the nearest original
+    # voxel (same column first, then any neighbour) - they are hidden or
+    # sit flush with the skin, so they should read as the body around them
+    for k in sorted(added):
+        col = [(abs(z - k[2]), h) for (x, y, z), h in hexes.items()
+               if x == k[0] and y == k[1]]
+        if not col:
+            col = [(abs(x - k[0]) + abs(y - k[1]) + abs(z - k[2]), h)
+                   for (x, y, z), h in hexes.items()]
+        hexes[k] = min(col)[1]
     import numpy as _np
     kcols = [hexes.get(c, '#b0aca0') for c in sorted(kit)]
     rgbs = _np.array([[int(h[1:3], 16), int(h[3:5], 16), int(h[5:7], 16)]
@@ -332,6 +432,9 @@ def main(base, out_dir):
 
     percube = []
     variants, vmap = {}, {}
+    for k in patch:
+        vmap[f'{k[0]},{k[1]},{k[2]}'] = 'EYEPATCH'
+    solid = kit | patch
     for (x, y, z) in sorted(kit):
         if (x, y, z) in patch:
             vmap[f'{x},{y},{z}'] = 'EYEPATCH'
@@ -339,8 +442,12 @@ def main(base, out_dir):
         # 眼件外侧面带标准耦合,邻居照常算耦合面
         mask = tuple(sorted(
             key for key, _ in FACE_KEYS
-            if (x + DIRS[key][0], y + DIRS[key][1], z + DIRS[key][2]) in kit))
-        code = 'C-%02X' % sum(1 << FACE_BIT[k] for k in mask)
+            if (x + DIRS[key][0], y + DIRS[key][1], z + DIRS[key][2]) in solid))
+        tag0 = special.get((x, y, z))
+        if tag0 in FUNC_VERTICAL:
+            # vertical bore through the cube: no magnet pocket on top/bottom
+            mask = tuple(k for k in mask if k[0] != 2)
+        code = ('C-%02X' if not tag0 else f'{tag0[0]}-%02X') % sum(1 << FACE_BIT[k] for k in mask)
         variants.setdefault(code, {'mask': mask, 'count': 0})['count'] += 1
         tag = special.get((x, y, z))
         vmap[f'{x},{y},{z}'] = f'{code}{"·" + tag if tag else ""}'
