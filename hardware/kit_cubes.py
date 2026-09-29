@@ -57,6 +57,25 @@ DIRS = {(0, True): (1, 0, 0), (0, False): (-1, 0, 0),
 # 极性总规则:全机磁铁 N 极统一指向 左/下/后 → −面 N 朝外,+面 S 朝外
 POLE = lambda positive: 'S' if positive else 'N'
 
+
+def load_filaments():
+    """Owned spools from hardware/filaments.json (None if missing)."""
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'filaments.json')
+    if not os.path.exists(p):
+        return None
+    return [f for f in json.load(open(p))['filaments'] if f.get('owned')]
+
+
+def _lab(hexcol):
+    """sRGB hex → CIELAB (D65), for perceptual nearest-colour snapping."""
+    c = [int(hexcol[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+    c = [((v + 0.055) / 1.055) ** 2.4 if v > 0.04045 else v / 12.92 for v in c]
+    x = (c[0] * 0.4124 + c[1] * 0.3576 + c[2] * 0.1805) / 0.95047
+    y = (c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722)
+    z = (c[0] * 0.0193 + c[1] * 0.1192 + c[2] * 0.9505) / 1.08883
+    f = lambda t: t ** (1 / 3) if t > 0.008856 else 7.787 * t + 16 / 116
+    return (116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z)))
+
 # ---- 耦合面刻字:极性字母 + 变体号,0.4 深,占销钉对角线之外的两个空角 ----
 ENG_DEPTH = 0.55
 _glyphs = {}
@@ -268,18 +287,36 @@ def main(base, out_dir):
                       for h in kcols], float)
     import os as _os
     n_colors = int(_os.environ.get('KIT_COLORS', '8'))
-    uq = _np.unique(rgbs, axis=0)
-    kq = min(n_colors, len(uq))
-    cent = uq[_np.linspace(0, len(uq) - 1, kq).astype(int)].copy()
-    for _ in range(12):
+    palette_mode = _os.environ.get('KIT_PALETTE', 'filaments')
+    color_names = None
+    fil = load_filaments() if palette_mode == 'filaments' else None
+    if fil:
+        # snap every cube to the nearest OWNED filament (CIELAB distance);
+        # KIT_COLORS then keeps only the N most-used filaments and re-snaps,
+        # so the kit never asks for a spool you don't have.
+        flab = _np.array([_lab(f['hex']) for f in fil])
+        clab = _np.array([_lab(h) for h in kcols])
+        d = ((clab[:, None] - flab[None]) ** 2).sum(2)
+        lb = d.argmin(1)
+        use = _np.bincount(lb, minlength=len(fil))
+        keep = [i for i in _np.argsort(-use) if use[i] > 0][:n_colors]
+        d2 = d[:, keep]
+        lb = d2.argmin(1)
+        plate_colors = [fil[i]['hex'] for i in keep]
+        color_names = [f"{fil[i]['zh']} {fil[i]['en']}" for i in keep]
+    else:
+        uq = _np.unique(rgbs, axis=0)
+        kq = min(n_colors, len(uq))
+        cent = uq[_np.linspace(0, len(uq) - 1, kq).astype(int)].copy()
+        for _ in range(12):
+            dd = ((rgbs[:, None] - cent[None]) ** 2).sum(2)
+            lb = dd.argmin(1)
+            for i_ in range(kq):
+                if (lb == i_).any():
+                    cent[i_] = rgbs[lb == i_].mean(0)
         dd = ((rgbs[:, None] - cent[None]) ** 2).sum(2)
         lb = dd.argmin(1)
-        for i_ in range(kq):
-            if (lb == i_).any():
-                cent[i_] = rgbs[lb == i_].mean(0)
-    dd = ((rgbs[:, None] - cent[None]) ** 2).sum(2)
-    lb = dd.argmin(1)
-    plate_colors = ['#%02x%02x%02x' % tuple(int(v) for v in c) for c in cent]
+        plate_colors = ['#%02x%02x%02x' % tuple(int(v) for v in c) for c in cent]
     ci_of = {c: int(l) for c, l in zip(sorted(kit), lb)}
 
     percube = []
@@ -318,7 +355,7 @@ def main(base, out_dir):
         f'{k[0]},{k[1]},{k[2]} → {t}' for k, t in special.items() if k in kit)]
     open(f'{out_dir}/variant_bill.txt', 'w').write('\n'.join(lines) + '\n')
     json.dump(vmap, open(f'{out_dir}/variant_map.json', 'w'), indent=0)
-    json.dump({'colors': plate_colors, 'cells': percube},
+    json.dump({'colors': plate_colors, 'color_names': color_names, 'cells': percube},
               open(f'{out_dir}/kit_manifest.json', 'w'), indent=0)
     print('\n'.join(lines[:3 + min(len(variants), 40)]))
     print(f'→ {len(variants)} variant STLs in {out_dir}')

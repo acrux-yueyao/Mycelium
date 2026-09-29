@@ -1,0 +1,22 @@
+{
+  "_note": "Owned filament palette. hex values are first estimates read from the shop photos — print hardware/filament_swatch output, photograph under daylight, and correct them here. Only entries with owned:true are used for snapping.",
+  "brand": "PLA+ 1.75mm 1kg (Taobao 高韧 平光系列)",
+  "filaments": [
+    {"id": "white",       "zh": "白色",       "en": "white",          "hex": "#f2f1ec", "owned": true},
+    {"id": "aqua",        "zh": "青水蓝",     "en": "aqua blue",      "hex": "#8ed1cc", "owned": true},
+    {"id": "sea-mist",    "zh": "海雾蓝",     "en": "sea mist blue",  "hex": "#a9c9cf", "owned": true},
+    {"id": "rouge-snow",  "zh": "胭脂雪",     "en": "rouge snow",     "hex": "#c9b6e4", "owned": true},
+    {"id": "rose",        "zh": "蔷薇粉",     "en": "rose pink",      "hex": "#e77fa8", "owned": true},
+    {"id": "dragonfruit", "zh": "火龙果",     "en": "dragon fruit",   "hex": "#c8409b", "owned": true},
+    {"id": "green",       "zh": "青绿色",     "en": "green",          "hex": "#3fae3a", "owned": true},
+    {"id": "avocado",     "zh": "牛油果绿",   "en": "avocado green",  "hex": "#8ccb3e", "owned": true},
+    {"id": "yellow",      "zh": "黄色",       "en": "yellow",         "hex": "#f5c400", "owned": true},
+    {"id": "serene",      "zh": "宁静蓝",     "en": "serene blue",    "hex": "#5b8fd6", "owned": true},
+    {"id": "klein",       "zh": "克莱因蓝",   "en": "klein blue",     "hex": "#2462c8", "owned": true},
+    {"id": "lavender",    "zh": "薰衣草紫",   "en": "lavender",       "hex": "#7b6fd6", "owned": true},
+    {"id": "purple",      "zh": "紫色",       "en": "purple",         "hex": "#6a45c9", "owned": true},
+    {"id": "orange",      "zh": "橙色",       "en": "orange",         "hex": "#f07a2a", "owned": true},
+    {"id": "red",         "zh": "红色",       "en": "red",            "hex": "#d22b2b", "owned": true},
+    {"id": "first-love",  "zh": "初恋粉",     "en": "first-love pink","hex": "#f6c6d3", "owned": true}
+  ]
+}

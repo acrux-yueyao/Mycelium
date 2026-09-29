@@ -53,6 +53,7 @@ def layout_slots(cs, cap=GRID * GRID):
 def main(vdir, out):
     man = json.load(open(f'{vdir}/kit_manifest.json'))
     colors, cells = man['colors'], man['cells']
+    names = man.get('color_names') or [None] * len(colors)
     os.makedirs(out, exist_ok=True)
 
     geo_cache = {}
@@ -108,7 +109,7 @@ def main(vdir, out):
             plates.append((fname, col, slots, counts))
             tagn = sum(1 for _, _, c in slots if c.get('tag'))
             lines.append(
-                f'{fname:22s} 区域色 {col} · {len(slots):3d} 颗 · '
+                f'{fname:22s} 耗材 {(names[key] + " ") if key != "ream" and names[key] else ""}{col} · {len(slots):3d} 颗 · '
                 + ' '.join(f'{k}×{v}' for k, v in sorted(counts.items()))
                 + (f' · 功能位{tagn}(见map)' if tagn else '')
                 + (' · ⚠全耦合:床面磁袋打完手工扩' if key == 'ream' else ''))
