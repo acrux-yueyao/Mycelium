@@ -208,7 +208,21 @@ export default function App() {
     // blocked context just stays suspended until a real gesture.
     ensureAudioContext();
     ambientStart();
-    return () => document.body.classList.remove('kiosk-mode');
+    // The tower keyboard has a touchpad: a visitor's right-click / drag /
+    // middle-click must never open Chromium menus, a view-source tab, or
+    // navigate away from the kiosk. (Creature dragging uses pointer events,
+    // not HTML5 drag-and-drop, so it is unaffected.)
+    const block = (e: Event) => e.preventDefault();
+    const blockMiddle = (e: MouseEvent) => { if (e.button === 1) e.preventDefault(); };
+    const guards: Array<[string, EventListener]> = [
+      ['contextmenu', block], ['dragstart', block], ['dragover', block], ['drop', block],
+      ['auxclick', blockMiddle as EventListener], ['mousedown', blockMiddle as EventListener],
+    ];
+    for (const [t, h] of guards) window.addEventListener(t, h, true);
+    return () => {
+      document.body.classList.remove('kiosk-mode');
+      for (const [t, h] of guards) window.removeEventListener(t, h, true);
+    };
   }, [kiosk]);
   const [muted, setMutedState] = useState(false);
   const { loading, error, read, clearError } = useEmotion();

@@ -101,11 +101,26 @@ export function TreeHoleInput({ onSubmit, disabled, loading, immediate }: TreeHo
   }, [immediate]);
 
   useEffect(() => {
-    if (!visible) return;
-    // Focus the textarea only after it's actually revealed.
+    if (!visible || disabled) return;
+    // Focus the textarea once it's revealed — and again every time it's
+    // re-enabled after a submission (a disabled element drops focus, and a
+    // kiosk with a physical keyboard has no mouse to click it back).
     const id = window.setTimeout(() => textareaRef.current?.focus(), 300);
     return () => window.clearTimeout(id);
-  }, [visible]);
+  }, [visible, disabled]);
+
+  // Kiosk + physical keyboard: any typing key pulls focus back into the
+  // textarea, so a keystroke is never lost to wherever focus drifted.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!document.body.classList.contains('kiosk-mode')) return;
+      const el = textareaRef.current;
+      if (!el || el.disabled || document.activeElement === el) return;
+      if (e.key.length === 1 || e.key === 'Backspace' || e.key === 'Enter') el.focus();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
 
   // Auto-resize the textarea to fit content
   useEffect(() => {
