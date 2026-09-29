@@ -297,6 +297,17 @@ def main(base, out_dir):
         flab = _np.array([_lab(f['hex']) for f in fil])
         clab = _np.array([_lab(h) for h in kcols])
         d = ((clab[:, None] - flab[None]) ** 2).sum(2)
+        # designer overrides: <base>.filmap.json maps a source colour to a
+        # chosen spool id — for in-between hues no owned spool matches
+        fm_path = base + '.filmap.json'
+        if os.path.exists(fm_path):
+            fmap = {k.lower(): v for k, v in json.load(open(fm_path)).items()}
+            fidx = {f['id']: i for i, f in enumerate(fil)}
+            for row, h in enumerate(kcols):
+                fid = fmap.get(h.lower())
+                if fid in fidx:
+                    d[row, :] = 1e9
+                    d[row, fidx[fid]] = 0
         lb = d.argmin(1)
         use = _np.bincount(lb, minlength=len(fil))
         keep = [i for i in _np.argsort(-use) if use[i] > 0][:n_colors]
