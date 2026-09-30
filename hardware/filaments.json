@@ -51,11 +51,11 @@
     },
     {
       "id": "cream",
-      "zh": "奶油黄",
-      "en": "cream yellow",
+      "zh": "奶油黄(大理石)",
+      "en": "yellow marble",
       "hex": "#e6dca0",
-      "owned": false,
-      "_src": "not owned (confirmed 2026-09-30)"
+      "owned": true,
+      "_src": "yellow marble spool, speckled finish (confirmed 2026-09-30); hex is the base tone"
     },
     {
       "id": "avocado",
