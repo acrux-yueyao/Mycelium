@@ -175,12 +175,12 @@
     },
     {
       "id": "pink-marble",
-      "zh": "粉色大理石",
+      "zh": "淡粉(大理石)",
       "en": "pink marble",
-      "hex": "#f9dbe2",
+      "hex": "#efd6de",
       "owned": true,
       "no": "16.5",
-      "_src": "marble spool, speckled finish; like 16 first-love but lighter (hex estimated 2026-09-30)"
+      "_src": "Inland PLA pink marble (Ingeo), 190-230C, bed 25-60C; speckled; hex from spool-window photo 2026-09-30, lighter than 16 first-love"
     }
   ]
 }
