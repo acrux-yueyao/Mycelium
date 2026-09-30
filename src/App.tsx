@@ -198,8 +198,6 @@ export default function App() {
   // On the tower field the close-up doesn't sit on the field (no white card,
   // no magnifier); it streams over the LAN bus to the micro kiosk instead.
   const towerField = kiosk === 'field';
-  const colonyRef = useRef(colony);
-  colonyRef.current = colony;
   const wasObserving = useRef(false);
   useEffect(() => {
     if (!towerField) return;
@@ -209,8 +207,10 @@ export default function App() {
       return;
     }
     wasObserving.current = true;
-    const c = colonyRef.current.find((x) => x.id === observed.id);
-    if (!c) return;
+    // the body's own record, not a colony lookup: a spore can outlive its
+    // entry in `colony` (boot-time demo spores stay on stage after the real
+    // list replaces them) and must still reach the micro
+    const c = observed.src;
     // the seed never carries the whispered sentence — whispers stay private
     towerPublish({
       t: 'obs',

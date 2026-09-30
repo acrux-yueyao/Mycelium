@@ -38,6 +38,10 @@ export interface ObserveInfo {
   dye: null | { from: string; progress: number; phase: 'exchanging' | 'holding' | 'fading' };
   /** carries a permanent residual tint from a past long encounter. */
   perm: boolean;
+  /** the creature record this body grew from — kept on the body because a
+   *  spore can outlive its entry in `creatures` (e.g. the boot-time demo
+   *  colony is replaced by the real list but its bodies stay on stage). */
+  src: FieldCreature;
 }
 
 interface Props {
@@ -94,6 +98,7 @@ interface Body {
   id: string; charId: CharId; x: number; y: number; vx: number; vy: number;
   bornAt: number; lastBondAt: number; cell: number; spec: MosaicSpec; name: string;
   appearAt: number; // when it first showed up on this client (for birth fx)
+  src: FieldCreature; // the record it grew from (may have left `creatures` since)
   blinkAt: number;  // wall-clock ms when the next blink starts
   // tile-swap dye toward a partner's palette during an encounter
   dyePal?: MosaicPaletteSpec | null; dyeStart?: number; dyeRelease?: number | null;
@@ -277,7 +282,7 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
           x: c.x * W, y: c.y * H, vx: Math.cos(a) * 0.3, vy: Math.sin(a) * 0.3,
           bornAt: c.bornAt ?? now, lastBondAt: now,
           cell: c.cell * (small ? 0.82 : 1), spec: specOf(c),
-          name: c.name ?? nameFor(c.id), appearAt: now,
+          name: c.name ?? nameFor(c.id), appearAt: now, src: c,
           blinkAt: now + BLINK_MIN + seed01(c.id + 'blink') * BLINK_VAR,
         };
         bodies.push(b); bodyById.set(b.id, b);
@@ -345,6 +350,7 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
           ? { from: b.dyeFrom ?? '…', progress: dp.p, phase: dp.phase }
           : null,
         perm: !!(b.permPal && (b.permProg ?? 0) > 0),
+        src: b.src,
       };
     };
     let lastObsEmit = 0, lastFrameEmit = 0, lastFrameX = 0, lastFrameY = 0;
