@@ -55,7 +55,8 @@
       "en": "yellow marble",
       "hex": "#e6dca0",
       "owned": true,
-      "_src": "yellow marble spool, speckled finish (confirmed 2026-09-30); hex is the base tone"
+      "_src": "yellow marble spool, speckled finish (confirmed 2026-09-30); hex is the base tone",
+      "no": "03.5"
     },
     {
       "id": "avocado",
@@ -171,6 +172,15 @@
       "hex": "#f6c6d3",
       "owned": true,
       "no": "16"
+    },
+    {
+      "id": "pink-marble",
+      "zh": "粉色大理石",
+      "en": "pink marble",
+      "hex": "#f9dbe2",
+      "owned": true,
+      "no": "16.5",
+      "_src": "marble spool, speckled finish; like 16 first-love but lighter (hex estimated 2026-09-30)"
     }
   ]
 }
