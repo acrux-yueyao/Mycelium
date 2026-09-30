@@ -55,7 +55,7 @@
       "en": "cream yellow",
       "hex": "#e6dca0",
       "owned": false,
-      "_src": "not in the numbered inventory (2026-09-30) - confirm before re-enabling"
+      "_src": "not owned (confirmed 2026-09-30)"
     },
     {
       "id": "avocado",
@@ -83,8 +83,8 @@
     },
     {
       "id": "aqua",
-      "zh": "青水绿",
-      "en": "aqua green",
+      "zh": "青水蓝",
+      "en": "aqua blue",
       "hex": "#8ed1cc",
       "owned": true,
       "no": "07"
