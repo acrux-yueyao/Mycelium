@@ -23,13 +23,19 @@ const TEST_MODE =
   new URLSearchParams(window.location.search).has('test');
 
 export function useCreatures() {
-  const [colony, setColony] = useState<FieldCreature[]>(() => demoColony(9, Date.now()));
+  // Start EMPTY, not with demo spores: a boot-time placeholder colony put
+  // fake creatures on the real tower (and they lingered on the field). The
+  // demo colony is now only a fallback when there is no real data at all —
+  // backend not configured, the sandbox, or the API unreachable (local dev).
+  const [colony, setColony] = useState<FieldCreature[]>(() => (TEST_MODE ? demoColony(9, Date.now()) : []));
   const [population, setPopulation] = useState(6856);
   const [configured, setConfigured] = useState(false);
 
   useEffect(() => {
     if (TEST_MODE) return; // sandbox: don't touch the backend
     let alive = true;
+    // no real data to show → demo colony, but only into an EMPTY field
+    const fallback = () => setColony((cur) => (cur.length ? cur : demoColony(9, Date.now())));
     const load = () =>
       fetch('/api/creatures')
         .then((r) => r.json())
@@ -38,12 +44,14 @@ export function useCreatures() {
           if (d?.configured) setConfigured(true);
           if (Array.isArray(d?.creatures) && d.creatures.length) {
             setColony(d.creatures.slice(0, MAX_LOCAL));
+          } else if (!d?.configured) {
+            fallback();
           }
           if (typeof d?.population === 'number' && d.population > 0) {
             setPopulation(d.population);
           }
         })
-        .catch(() => {});
+        .catch(() => { if (alive) fallback(); });
     load();
     // Kiosk panels (the physical tower) keep themselves fresh: creatures
     // whispered from visitors' phones surface within ~20s on every screen.

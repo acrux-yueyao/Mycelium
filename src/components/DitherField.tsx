@@ -267,8 +267,25 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
       bg.globalAlpha = 1;
     };
 
+    let syncedList: FieldCreature[] | null = null;
     const sync = (now: number) => {
       if (!W || !H) return; // not laid out yet: don't seed bodies at 0,0
+      // the list changed: drop bodies whose creature is gone from it (e.g. a
+      // fallback demo colony replaced by the real one) so nothing lingers
+      if (creaturesRef.current !== syncedList) {
+        syncedList = creaturesRef.current;
+        const ids = new Set(syncedList.map((c) => c.id));
+        if (bodies.some((b) => !ids.has(b.id))) {
+          for (let i = bodies.length - 1; i >= 0; i--) {
+            const b = bodies[i];
+            if (ids.has(b.id)) continue;
+            bodies.splice(i, 1); bodyById.delete(b.id); known.delete(b.id);
+            if (dragId === b.id) dragId = null;
+            if (observedRef.current === b.id) { observedRef.current = null; onObserveRef.current?.(null); }
+          }
+          packets = packets.filter((p) => ids.has(p.toId));
+        }
+      }
       // fewer live creatures on a phone so the small canvas doesn't turn into
       // an unreadable pile (extras stay baked into the backdrop / off-stage).
       const small = window.innerWidth < 640;
