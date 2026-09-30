@@ -1157,6 +1157,15 @@ body.kiosk-mode .micro-stage canvas { filter: saturate(0.75); }
 .micro-name { font-size: 26px; font-weight: 700; letter-spacing: 0.04em; margin-bottom: 18px; }
 .micro-row { font-size: 13px; color: var(--ink-dim); letter-spacing: 0.05em; line-height: 2.0; }
 .micro-dim { color: var(--ink-soft); }
+/* tower link: the micro is showing the spore picked on the 15.6" field */
+/* one line: a wrapped status would shove the id row down as it changes */
+.micro-live { color: var(--ink); white-space: nowrap; }
+.micro-live-dot {
+  display: inline-block; width: 6px; height: 6px; margin-left: 10px;
+  vertical-align: middle; background: var(--ink); border-radius: 50%;
+  animation: micro-live-pulse 1.6s ease-in-out infinite;
+}
+@keyframes micro-live-pulse { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
 
 /* ===== Field observation card ===== */
 .observe-card {

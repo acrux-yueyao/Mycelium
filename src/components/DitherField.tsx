@@ -15,7 +15,7 @@
  * residents.
  */
 import { useEffect, useRef } from 'react';
-import { drawDitherField, drawMoshCreature, agedSpec, growthStage, type CreatureSeed } from '../core/fieldRender';
+import { drawDitherField, drawMoshCreature, agedSpec, growthStage, type CreatureSeed, type DyeState } from '../core/fieldRender';
 import type { MosaicSpec, MosaicPaletteSpec } from '../core/mosaic';
 import { compatibility, type CharId } from '../data/characters';
 import { nameFor } from '../core/names';
@@ -52,8 +52,20 @@ interface Props {
   observable?: boolean;
   observedId?: string | null;
   onObserve?: (info: ObserveInfo | null) => void;
+  /** draw the white magnifier box for the observed spore (default on). The
+   *  tower field turns it off — its close-up lives on the 7" micro screen. */
+  magnifier?: boolean;
+  /** ~8×/s live state of the observed spore (colour exchange, blink,
+   *  motion, held / petted) — streamed to the tower's micro screen. */
+  onObserveFrame?: (f: ObserveFrame) => void;
   /** keep the centre clear for the whisper input (field scene only). */
   centerHole?: boolean;
+}
+
+/** live per-frame state of the observed spore. */
+export interface ObserveFrame {
+  id: string; dye: DyeState | null; blink: boolean;
+  vx: number; vy: number; drag: boolean; pet: boolean;
 }
 
 const CAP = 150;
@@ -130,7 +142,7 @@ function sigColor(b: Body): string {
   return best;
 }
 
-export function DitherField({ creatures, clustered, mineId, observable, observedId, onObserve, centerHole }: Props) {
+export function DitherField({ creatures, clustered, mineId, observable, observedId, onObserve, magnifier, onObserveFrame, centerHole }: Props) {
   const ref = useRef<HTMLCanvasElement | null>(null);
   const creaturesRef = useRef(creatures);
   creaturesRef.current = creatures;
@@ -146,6 +158,10 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
   observedRef.current = observedId ?? null;
   const onObserveRef = useRef(onObserve);
   onObserveRef.current = onObserve;
+  const magnifierRef = useRef(magnifier !== false);
+  magnifierRef.current = magnifier !== false;
+  const onObserveFrameRef = useRef(onObserveFrame);
+  onObserveFrameRef.current = onObserveFrame;
   // closed loop: latest telemetry from the physical cultivation chamber.
   // `live` stays false until a real frame arrives, so with no installation
   // connected the colony looks exactly as it does today (zero added motion).
@@ -331,7 +347,8 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
         perm: !!(b.permPal && (b.permProg ?? 0) > 0),
       };
     };
-    let lastObsEmit = 0;
+    let lastObsEmit = 0, lastFrameEmit = 0, lastFrameX = 0, lastFrameY = 0;
+    let lastFrameId: string | null = null;
 
     const step = (now: number) => {
       // active-bond count per body
@@ -736,26 +753,47 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
         ctx.save();
         ctx.beginPath();
         ctx.arc(obs.x, obs.y, rr, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(91,79,208,0.75)';
-        ctx.lineWidth = 1.5;
+        // the tower field is dark: a pale ring, or visitors can't see their pick
+        const darkGround = document.body.classList.contains('kiosk-mode');
+        ctx.strokeStyle = darkGround ? 'rgba(237,236,227,0.8)' : 'rgba(91,79,208,0.75)';
+        ctx.lineWidth = darkGround ? 2 : 1.5;
         ctx.setLineDash([5, 4]);
         ctx.stroke();
         ctx.setLineDash([]);
-        // live magnifier: the same spore, big, with its current dye + blink
-        const small = W < 640;
-        const box = small ? Math.min(230, W - 48) : 230;
-        const cxm = small ? W / 2 : W - 160;
-        const cym = small ? box / 2 + 78 : 212;
-        ctx.fillStyle = 'rgba(246,245,240,0.94)';
-        ctx.strokeStyle = 'rgba(28,28,26,0.55)';
-        ctx.lineWidth = 1;
-        ctx.fillRect(cxm - box / 2, cym - box / 2, box, box);
-        ctx.strokeRect(cxm - box / 2, cym - box / 2, box, box);
-        const mk = Math.min(3.4, (box - 44) / (Math.max(obs.spec.cols, obs.spec.rows) * obs.cell));
-        const mcell = obs.cell * mk;
-        const mw = obs.spec.cols * mcell, mh = obs.spec.rows * mcell;
         const mblink = now >= obs.blinkAt && now < obs.blinkAt + BLINK_MS;
-        drawMoshCreature(ctx, obs.spec, cxm - mw / 2, cym - mh / 2, mcell, obs.id, 0, dyeVisual(obs, now), mblink);
+        const dv = dyeVisual(obs, now);
+        // live stream for the tower's micro screen (~8×/s)
+        if (onObserveFrameRef.current && now - lastFrameEmit > 120) {
+          // velocity from actual displacement (px per ~16ms frame): a held
+          // spore moves with the pointer, not with its own vx
+          const dtf = Math.max(16, now - lastFrameEmit);
+          const same = lastFrameId === obs.id;
+          const fvx = same ? ((obs.x - lastFrameX) / dtf) * 16 : 0;
+          const fvy = same ? ((obs.y - lastFrameY) / dtf) * 16 : 0;
+          lastFrameEmit = now; lastFrameId = obs.id; lastFrameX = obs.x; lastFrameY = obs.y;
+          onObserveFrameRef.current({
+            id: obs.id, dye: dv ?? null, blink: mblink,
+            vx: Math.round(fvx * 100) / 100, vy: Math.round(fvy * 100) / 100,
+            drag: dragId === obs.id,
+            pet: !dragId && hoverId === obs.id && now - hoverSince > 500,
+          });
+        }
+        // live magnifier: the same spore, big, with its current dye + blink
+        if (magnifierRef.current) {
+          const small = W < 640;
+          const box = small ? Math.min(230, W - 48) : 230;
+          const cxm = small ? W / 2 : W - 160;
+          const cym = small ? box / 2 + 78 : 212;
+          ctx.fillStyle = 'rgba(246,245,240,0.94)';
+          ctx.strokeStyle = 'rgba(28,28,26,0.55)';
+          ctx.lineWidth = 1;
+          ctx.fillRect(cxm - box / 2, cym - box / 2, box, box);
+          ctx.strokeRect(cxm - box / 2, cym - box / 2, box, box);
+          const mk = Math.min(3.4, (box - 44) / (Math.max(obs.spec.cols, obs.spec.rows) * obs.cell));
+          const mcell = obs.cell * mk;
+          const mw = obs.spec.cols * mcell, mh = obs.spec.rows * mcell;
+          drawMoshCreature(ctx, obs.spec, cxm - mw / 2, cym - mh / 2, mcell, obs.id, 0, dv, mblink);
+        }
         ctx.restore();
       }
 

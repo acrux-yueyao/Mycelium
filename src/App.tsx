@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { DitherField, type FieldCreature, type ObserveInfo } from './components/DitherField';
+import { DitherField, type FieldCreature, type ObserveInfo, type ObserveFrame } from './components/DitherField';
+import { towerPublish } from './core/towerBus';
 import { ObserveCard } from './components/ObserveCard';
 import { LandingPoster } from './components/LandingPoster';
 import { SceneNav, type Scene } from './components/SceneNav';
@@ -192,6 +193,53 @@ export default function App() {
   // The accumulated cross-user colony painted behind everything (loaded
   // from the shared store; demo colony until Upstash is configured).
   const { colony, population, testMode, add: addCreature } = useCreatures();
+
+  // === tower link: the field's observed spore → the 7" micro screen ===
+  // On the tower field the close-up doesn't sit on the field (no white card,
+  // no magnifier); it streams over the LAN bus to the micro kiosk instead.
+  const towerField = kiosk === 'field';
+  const colonyRef = useRef(colony);
+  colonyRef.current = colony;
+  const wasObserving = useRef(false);
+  useEffect(() => {
+    if (!towerField) return;
+    if (!observed) {
+      if (wasObserving.current) towerPublish({ t: 'rel', at: Date.now() });
+      wasObserving.current = false;
+      return;
+    }
+    wasObserving.current = true;
+    const c = colonyRef.current.find((x) => x.id === observed.id);
+    if (!c) return;
+    // the seed never carries the whispered sentence — whispers stay private
+    towerPublish({
+      t: 'obs',
+      seed: {
+        id: c.id, charId: c.charId, morphology: c.morphology, intensity: c.intensity,
+        secondaryLabel: c.secondaryLabel, name: observed.name, bornAt: c.bornAt,
+      },
+      info: { bonds: observed.bonds, stage: observed.stage, perm: observed.perm, dye: observed.dye },
+      at: Date.now(),
+    });
+  }, [towerField, observed]);
+  const onObserveFrame = useMemo(
+    () => (towerField ? (f: ObserveFrame) => towerPublish({ t: 'frame', ...f, at: Date.now() }) : undefined),
+    [towerField],
+  );
+  // a visitor who walks away: after 90s with no mouse/keyboard activity the
+  // spore goes back to the colony and the micro returns to the newest resident
+  useEffect(() => {
+    if (!towerField || !observed) return;
+    let last = Date.now();
+    const bump = () => { last = Date.now(); };
+    const evs = ['pointermove', 'pointerdown', 'keydown', 'wheel'];
+    for (const e of evs) window.addEventListener(e, bump, { passive: true });
+    const id = window.setInterval(() => { if (Date.now() - last > 90_000) setObserved(null); }, 5000);
+    return () => {
+      window.clearInterval(id);
+      for (const e of evs) window.removeEventListener(e, bump);
+    };
+  }, [towerField, observed?.id]);
 
   // ?debug: seed a sample specimen so the intro card can be previewed
   // without going through the emotion API.
@@ -959,9 +1007,11 @@ export default function App() {
           observedId={scene === 'field' || scene === 'observe' ? observed?.id ?? null : null}
           centerHole={scene !== 'observe'}
           onObserve={setObserved}
+          magnifier={!towerField}
+          onObserveFrame={onObserveFrame}
         />
       )}
-      {observed && (scene === 'field' || scene === 'observe') && (
+      {observed && !towerField && (scene === 'field' || scene === 'observe') && (
         <ObserveCard info={observed} onClose={() => setObserved(null)} />
       )}
       {scene === 'observe' && !observed && (
