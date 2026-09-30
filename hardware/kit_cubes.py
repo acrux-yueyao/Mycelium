@@ -63,7 +63,7 @@ def load_filaments():
     p = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'filaments.json')
     if not os.path.exists(p):
         return None
-    return [f for f in json.load(open(p))['filaments'] if f.get('owned')]
+    return [f for f in json.load(open(p))['filaments'] if f.get('owned') and not f.get('backup')]
 
 
 def _lab(hexcol):
@@ -480,6 +480,7 @@ def main(base, out_dir):
     n_colors = int(_os.environ.get('KIT_COLORS', '8'))
     palette_mode = _os.environ.get('KIT_PALETTE', 'filaments')
     color_names = None
+    color_nos = None
     fil = load_filaments() if palette_mode == 'filaments' else None
     if fil:
         # snap every cube to the nearest OWNED filament (CIELAB distance);
@@ -506,6 +507,7 @@ def main(base, out_dir):
         lb = d2.argmin(1)
         plate_colors = [fil[i]['hex'] for i in keep]
         color_names = [f"{fil[i]['zh']} {fil[i]['en']}" for i in keep]
+        color_nos = [fil[i].get('no', '') for i in keep]
     else:
         uq = _np.unique(rgbs, axis=0)
         kq = min(n_colors, len(uq))
@@ -615,7 +617,7 @@ def main(base, out_dir):
     json.dump(vmap, open(f'{out_dir}/variant_map.json', 'w'), indent=0)
     for c in percube:
         c['bed'] = variants[c['code']]['bed']
-    json.dump({'colors': plate_colors, 'color_names': color_names, 'cells': percube},
+    json.dump({'colors': plate_colors, 'color_names': color_names, 'color_nos': color_nos, 'cells': percube},
               open(f'{out_dir}/kit_manifest.json', 'w'), indent=0)
     print('\n'.join(lines[:3 + min(len(variants), 40)]))
     print(f'→ {len(variants)} variant STLs in {out_dir}')

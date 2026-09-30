@@ -41,7 +41,7 @@ def main(out, stl=False):
         x, y = (i % cols) * 2.5, -(i // cols) * 1.9
         ax.add_patch(Rectangle((x, y), 2.3, 1.2, fc=f['hex'], ec='#1c1c1a', lw=0.8))
         ink = '#1c1c1a' if luma(f['hex']) > 140 else '#f6f5f0'
-        ax.text(x + 0.12, y + 0.95, f['zh'], fontsize=12, color=ink, va='center')
+        ax.text(x + 0.12, y + 0.95, (f"{f['no']}  " if f.get('no') else '') + f['zh'] + (' (备选)' if f.get('backup') else ''), fontsize=12, color=ink, va='center')
         ax.text(x + 0.12, y + 0.62, f['en'], fontsize=8, color=ink, va='center')
         ax.text(x + 0.12, y + 0.25, f['hex'], fontsize=8, color=ink, va='center')
         ax.text(x + 0.12, y - 0.2, f['id'], fontsize=7.5, color='#8a8880', va='center')

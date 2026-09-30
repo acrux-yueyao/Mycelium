@@ -196,7 +196,9 @@ def main(vdir, out, cis=None, by_color=False):
     if by_color:
         # one filament per plate set; inside, still global assembly order
         used = sorted({c['ci'] for c in man['cells']} if cis is None else cis)
-        groups = [(f'plate_{_slug(names[ci], ci)}', names[ci] or man['colors'][ci],
+        nos = man.get('color_nos') or [''] * len(names)
+        groups = [(f"plate_{nos[ci] + '_' if nos[ci] else ''}{_slug(names[ci], ci)}",
+                   (f'{nos[ci]}号 ' if nos[ci] else '') + (names[ci] or man['colors'][ci]),
                    seq_slots(man, {ci})) for ci in used]
     else:
         groups = [('plate_seq', None, seq_slots(man, cis))]
