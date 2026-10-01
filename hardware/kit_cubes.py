@@ -235,7 +235,10 @@ def best_bed(m, mask, code=''):
         return overhang_area(g)
     default = next((k for k in flat_pref(code) if k not in mask), None)
     cands = [k for k, _ in FACE_KEYS if not (k in mask and k[1])]
-    best = min(cands, key=lambda k: (score(k) + (30.0 if k in mask else 0.0), k not in (default,)))
+    # rounded score + FLAT_PREF order: symmetric cubes tie up to boolean
+    # noise, which must not flip the bed face from one run to the next
+    best = min(cands, key=lambda k: (round(score(k) + (30.0 if k in mask else 0.0)),
+                                     k not in (default,), FLAT_PREF.index(k)))
     if default is None:
         return best
     if os.environ.get('KIT_REORIENT') == '1' and score(default) - score(best) > CANTILEVER_MM2:
