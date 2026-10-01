@@ -20,6 +20,7 @@ stands 6 proud for grabbing).  Tip for white-on-white legibility: rub a
 pencil or marker across the engraving and wipe — digits turn dark.
 
 Usage: python3 hardware/tray_gen.py <variants_dir> seq  [out_dir]
+       python3 hardware/tray_gen.py <variants_dir> range:295-310 [out_dir]
        python3 hardware/tray_gen.py <variants_dir> <ci> [out_dir]
 Reads  kit_manifest.json   Writes tray_seq_<n>.stl / tray_c<ci>_<n>.stl
 """
@@ -79,6 +80,17 @@ def main(vdir, mode, out=None):
                 wells.append((gx, gy, s, 8.5 - 1.3 * len(s)))
                 rows.setdefault(gy, str(c['seq']))
             build_tray(wells, out, f'tray_seq_{n0 + 1}.stl', rows)
+    elif mode.startswith('range:'):
+        # compact add-on tray for a run of sequence numbers (e.g. cubes
+        # added after the main trays were printed): 8 wells per row
+        a, b = (int(v) for v in mode[6:].split('-'))
+        seqs = list(range(a, b + 1))
+        wells, rows = [], {}
+        for i, sq in enumerate(seqs):
+            gx, gy = i % 8, i // 8
+            wells.append((gx, gy, str(sq), 8.5 - 1.3 * len(str(sq))))
+            rows.setdefault(gy, str(sq))
+        build_tray(wells, out, f'tray_seq_{a}-{b}.stl', rows)
     else:
         cs = sorted([c for c in man['cells'] if c['ci'] == int(mode)],
                     key=lambda c: c['code'])
