@@ -104,6 +104,10 @@ npx tsx scripts/spore_jewel.mts --text "…" --loop hole                        
 卷数决定零件数:3 卷身体色 ≈ 12–15 件/只,2 卷 ≈ 9–11 件,1 卷 ≈ 6–7 件(都含 4 片眼睛)。
 想要新配色,直接 `--spools "#…,#…" --plate "#…"`,或在 `jewel_palettes.ts` 加一行。
 
+**自己的耗材库**:把手头的卷录进 `design/filaments.json`(名字 + 实际打印出来的 hex),
+之后 `--spools "樱花粉,雾蓝" --plate 深灰` 直接按名字调;`--list-filaments` 列出已录入的。
+hex 建议对着打出来的试片取色,比包装标称色准。
+
 ## 3 · 三种件
 
 | 件 | 目标高度 | 格大小 | 成品(样本) | 重量(PLA) |

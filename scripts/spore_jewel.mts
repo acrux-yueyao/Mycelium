@@ -38,7 +38,9 @@
  *                for a whole batch of creatures); spools sorted dark→light take
  *                the lightness bands, or --spool-map nearest to keep family hues
  *                · --plate "#hex" plate colour · --palette <name> a named
- *                preset of both (see PALETTES / design/JEWELRY.md)
+ *                preset of both (see PALETTES / design/JEWELRY.md). Colours
+ *                may also be names from design/filaments.json, your own
+ *                spool inventory (--list-filaments prints it)
  *
  * Outputs (out/jewel/<name>*):
  *   .stl / .ply   the piece (relief) or _assembled.stl (assembly) · colour preview
@@ -95,11 +97,23 @@ const SPLIT = ASSEMBLY || flag('split');
 const COLORS = Number(arg('colors', ASSEMBLY ? '2' : flag('split') ? '3' : '0'));   // 0 = every palette band
 const EYES = arg('eyes', ASSEMBLY ? 'own' : SPLIT || COLORS > 0 ? 'merge' : 'own')!;
 const SMOOTH = !flag('no-smooth') && (SPLIT || COLORS > 0 || !!arg('spools'));
+// your own spool inventory (design/filaments.json): --spools / --plate accept its names as well as #rrggbb
+interface Filament { name: string; hex: string; brand?: string; material?: string; note?: string }
+const INVENTORY: Filament[] = (() => {
+  const f = path.resolve(process.cwd(), 'design/filaments.json');
+  try { return (JSON.parse(fs.readFileSync(f, 'utf8')).filaments ?? []) as Filament[]; } catch { return []; }
+})();
 const parseHex = (h: string): [number, number, number] => {
-  const m = h.trim().match(/^#?([0-9a-f]{6})$/i);
-  if (!m) throw new Error(`bad colour ${h} — use #rrggbb`);
+  const hit = INVENTORY.find((f) => f.name.toLowerCase() === h.trim().toLowerCase());
+  const src = hit ? hit.hex : h;
+  const m = src.trim().match(/^#?([0-9a-f]{6})$/i);
+  if (!m) throw new Error(`bad colour ${h} — use #rrggbb or a name from design/filaments.json (${INVENTORY.map((f) => f.name).join(', ') || 'empty'})`);
   return [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16)) as [number, number, number];
 };
+if (flag('list-filaments')) {
+  console.log(INVENTORY.length ? INVENTORY.map((f) => `${f.name}\t${f.hex}\t${f.brand ?? ''} ${f.material ?? ''} ${f.note ?? ''}`).join('\n') : 'design/filaments.json has no entries yet');
+  process.exit(0);
+}
 const PALETTE = arg('palette');
 if (PALETTE && !PALETTES[PALETTE]) throw new Error(`--palette must be one of ${Object.keys(PALETTES).join('|')}`);
 const SPOOLS = arg('spools') ? arg('spools')!.split(',').map(parseHex)

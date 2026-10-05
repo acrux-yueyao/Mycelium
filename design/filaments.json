@@ -1,0 +1,5 @@
+{
+  "_readme": "你的耗材库。spore_jewel 的 --spools / --plate 既认 #rrggbb,也认这里的 name。hex 用实际打印出来的颜色(拍一块试片对色),比包装标称准。",
+  "_example": { "name": "example-sakura-pink", "brand": "Bambu", "line": "PLA Basic", "material": "PLA", "hex": "#f5b7c5", "nozzle": "0.2 ok", "note": "示例条目,改成你自己的" },
+  "filaments": []
+}
