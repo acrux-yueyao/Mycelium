@@ -78,8 +78,8 @@ export interface MosaicInputs {
 /** Internal per-cell pixel resolution. Display scales this to the box. */
 export const CELL_PX = 12;
 
-/** Family base hues + saturation. Index = CharId. */
-const FAMILY = [
+/** Family base hues + saturation. Index = CharId. (Exported for the print pipelines.) */
+export const FAMILY = [
   { hue: 24, sat: 0.62, sparkle: false }, // 0 tender   — warm peach
   { hue: 205, sat: 0.50, sparkle: false }, // 1 calm     — cool blue
   { hue: 32, sat: 0.72, sparkle: false }, // 2 curious  — orange

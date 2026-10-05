@@ -4,6 +4,13 @@
 压成一块小马赛克牌:**底板挖好口袋,每种颜色的镶片单独打印,批量出件,胶水组装**。
 生成器:`scripts/spore_jewel.mts`(与 `spore3d.mts` 共用引擎、哈希和编号)。
 
+**形状与配色都跟网站一致**:
+- 形状 = 引擎 `buildMosaic` 实际画出来的格子,抖动留空的格就是空的(和 `spore3d` 一样),
+  不用轮廓包络补底色;只在外圈加一道 0.6 mm 细边当口袋壁。(`--plate-fill mask` 可切回整轮廓。)
+- 颜色 = 这只孢子自己的调色板(家族色相 + 句子带来的第二色相 + 强度),压成 2 卷耗材取均色;
+  底板 = 它最深一档再压暗。不同句子就是不同形象、不同颜色,目录里每张卡都是一只。
+- 需要跨作品批量时用 `--spool-map family`:六个家族各一组固定色卷(由引擎 FAMILY 表推出)。
+
 ```
 npx tsx scripts/spore_jewel.mts --text "轻轻地生长" --piece pendant            # 底板 + 镶片,各自 STL
 npx tsx scripts/spore_jewel.mts --text "轻轻地生长" --piece earring            # 自动镜像一对 _L/_R
@@ -41,7 +48,7 @@ npx tsx scripts/spore_jewel.mts --text "…" --loop hole                        
 
 | 件 | 做法 | 默认 |
 |---|---|---|
-| 底板 | 整个轮廓(mask)实心;没被抖动填色的格保持满高,成为深色"地面"纹理 | 吊坠 1.6 / 挂件 1.4 / 耳饰 1.2 mm |
+| 底板 | 只覆盖实际填色的格 + 外圈 `--rim` 0.6 mm 细边(口袋壁);抖动留空处是通孔,和网站一样 | 吊坠 1.6 / 挂件 1.4 / 耳饰 1.2 mm |
 | 口袋 | 所有镶片区域统一下挖 `--pocket`;相邻不同色的口袋连成一片,镶片之间只隔 2×fit | 0.6 mm(耳饰按底板 40%) |
 | 镶片 | 同色四连通的一片 = 一个零件;轮廓按 L∞ 向内缩 `--fit` | fit 0.1 mm/边 |
 | 浮雕 | 镶片顶面高出底板 `--relief`;半透明边缘格只高一半 | 0.8 / 0.7 / 0.6 mm |
@@ -60,8 +67,9 @@ npx tsx scripts/spore_jewel.mts --text "…" --loop hole                        
 | 开关 | 做什么 | 默认 |
 |---|---|---|
 | `--colors N` | 按明度分位把身体格压成 N 档,每档取均色 | assembly 2 档(+底板色) |
-| `--spools "#…,#…"` | **固定耗材色**:色卷按明暗排序接管明度档,整批作品共用同一组卷 | — |
-| `--spool-map nearest` | 改为就近取色(保留家族色相,但一只可能只用到一两卷) | bands |
+| `--spool-map auto` | **本色**:每卷 = 这只孢子该明度档的均色,底板 = 它最深档压暗(最忠实) | auto |
+| `--spool-map family` | **家族色卷**:tender 桃 / calm 蓝 / curious 橙 / dreamy 薰衣草 / companion 薄荷 / lonely 灰,每家族 1 底板 + N 身体色,整批共用 6 组卷 | — |
+| `--spools "#…,#…"` | 自定义固定色卷(按明暗接管明度档);`--spool-map nearest` 改为就近取色 | — |
 | `--plate "#hex"` | 底板耗材色(不填则取调色板最深一档再压暗) | — |
 | `--eyes own / merge` | 眼白瞳孔独立嵌件 / 眼白并入最浅色、瞳孔并入底板(少 4 片) | own |
 | 孤岛合并 | 四邻无同色的格并入周围多数色,去掉"一格一片"的碎件(`--no-smooth` 关) | 开 |
@@ -77,10 +85,13 @@ npx tsx scripts/spore_jewel.mts --text "…" --loop hole                        
 每只 6–8 个零件;终端打印 `N colours / M regions / P parts to glue`,调到自己接受为止。
 `--colors 1` = 底板 + 单一身体色,靠高低差表现抖动,零件最少。
 
-### 2.1 · 配色预设(`--palette <名>`)
+### 2.1 · 目录与风格款
 
-定义在 `scripts/jewel_palettes.ts`,底板色 + 身体色卷;`npx tsx scripts/jewel_catalog.mts` 把全部预设 × 几句话渲染成目录图
-(`out/jewel/catalog/catalog-*.png`,每页 4 个配色 + 一页三种件;本次渲染存档在 `design/jewelry/`)。
+`npx tsx scripts/jewel_catalog.mts` 渲染目录(`out/jewel/catalog/`,存档在 `design/jewelry/`):
+`catalog-own.png` 本色(12 句话、六个家族轮流,每只自己的形状和颜色)、`catalog-family.png` 家族色卷、
+`catalog-pieces.png` 三种件;加 `--styles` 才渲染下面的风格款。
+
+**风格款(`--palette <名>`,偏离网站配色,仅作选项)**定义在 `scripts/jewel_palettes.ts`:
 
 | 名 | 底板 | 身体色卷 | 说明 |
 |---|---|---|---|

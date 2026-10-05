@@ -8,6 +8,11 @@
  *
  * Two build modes:
  *
+  *   Shape and colour follow the site's engine: the plate is exactly the cells
+ *   the site draws (dither holes stay open, like spore3d) plus a --rim wall,
+ *   and the body colours are that spore's own palette, quantised to a few
+ *   filaments. --plate-fill mask fills the whole silhouette envelope instead.
+ *
  *   --mode assembly  (default) parts for a single-colour printer, glued:
  *       plate   the full silhouette, with pockets where the colour tiles sit;
  *               plate-only (un-dithered) cells stay full height as texture
@@ -29,6 +34,11 @@
  *   --colors N   quantise the body cells into N colours (assembly default 2,
  *                relief --split default 3, 0 = every palette band). The plate
  *                is always its own colour.
+ *   --spool-map auto|family   auto (default): each colour = the mean of that
+ *                spore's own cells, plate = its darkest band — most faithful.
+ *                family: fixed spools per family (tender peach, calm blue,
+ *                curious orange, dreamy lavender, companion mint, lonely grey)
+ *                derived from the engine's FAMILY table — batchable, 6 sets.
  *   --eyes own|merge   own = white + black parts (assembly default);
  *                merge = whites take the lightest colour, pupils the plate
  *   --no-smooth  keep single-cell islands (default: a cell whose colour matches
@@ -56,7 +66,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { buildMosaic, type MosaicCell } from '../src/core/mosaic';
+import { buildMosaic, FAMILY, type MosaicCell } from '../src/core/mosaic';
 import { xmur3 } from '../src/core/seed';
 import { sporeId as makeSporeId } from '../src/core/sporeId';
 import type { CharId } from '../src/data/characters';
@@ -68,6 +78,7 @@ const arg = (k: string, d?: string) => {
   return i >= 0 ? process.argv[i + 1] : d;
 };
 const flag = (k: string) => process.argv.includes(`--${k}`);
+const SPOOLS_GIVEN = () => !!(arg('spools') || arg('palette'));
 const FAMS = ['tender', 'calm', 'curious', 'dreamy', 'companion', 'lonely'] as const;
 const text = arg('text', 'today, my heart feels like…')!;
 const h0 = xmur3(text)();
@@ -120,6 +131,12 @@ const SPOOLS = arg('spools') ? arg('spools')!.split(',').map(parseHex)
   : PALETTE ? PALETTES[PALETTE].spools.map(parseHex) : null;
 const PLATE_HEX = arg('plate') ?? (PALETTE ? PALETTES[PALETTE].plate : undefined);
 const ENGRAVE = !flag('no-id');
+// plate footprint: 'cells' = exactly the cells the site draws (dither holes stay open, like
+// spore3d) + a thin rim so the pockets have a wall · 'mask' = the full silhouette envelope
+const PLATE_FILL = arg('plate-fill', 'cells')!;
+if (!['cells', 'mask'].includes(PLATE_FILL)) throw new Error('--plate-fill cells|mask');
+const RIM = PLATE_FILL === 'cells' && (MODE === 'assembly') ? Number(arg('rim', '0.6')) : 0;
+const SPOOL_MAP = arg('spool-map', SPOOLS_GIVEN() ? 'bands' : 'auto')!;   // auto | family | bands | nearest
 const name = arg('name') ?? `jewel_${piece}_${FAMS[charId]}_${h0.toString(16).slice(0, 6)}`;
 const outDir = arg('out', 'out/jewel')!;
 
@@ -167,7 +184,7 @@ const hex = (c: RGB) => `#${c.map((n) => n.toString(16).padStart(2, '0')).join('
 const WHITE: RGB = [246, 246, 241];
 const BLACK: RGB = [18, 18, 18];
 const g0 = palette.stops[0];
-const BASE_RGB: RGB = PLATE_HEX ? parseHex(PLATE_HEX)
+let BASE_RGB: RGB = PLATE_HEX ? parseHex(PLATE_HEX)
   : hsl2rgb(g0.h, g0.s * 0.55, Math.max(0.2, g0.l - 0.14)); // plate: the creature's "ground"
 
 // colour group of a cell = nearest palette stop (for --split filament bins)
@@ -187,9 +204,10 @@ const groupOf = (c: string): number => {
 interface Plan { kind: number; rgb: RGB; group: string }
 const plan = new Map<string, Plan>();
 const K = (c: number, r: number) => `${c},${r}`;
-for (let r = 0; r < rows; r++)
-  for (let c = 0; c < cols; c++)
-    if (mask[r * cols + c]) plan.set(K(c, r), { kind: 0, rgb: BASE_RGB, group: 'base' });
+if (PLATE_FILL === 'mask')
+  for (let r = 0; r < rows; r++)
+    for (let c = 0; c < cols; c++)
+      if (mask[r * cols + c]) plan.set(K(c, r), { kind: 0, rgb: BASE_RGB, group: 'base' });
 for (const cl of cells as MosaicCell[])
   plan.set(K(cl.col, cl.row), { kind: cl.alpha < 0.9 ? 2 : 1, rgb: rgbOf(cl.color), group: `band${groupOf(cl.color)}` });
 for (const [c, kind] of [[eyes.L0, 3], [eyes.L0 + 1, 4], [eyes.R0, 4], [eyes.R0 + 1, 3]] as Array<[number, number]>)
@@ -234,7 +252,19 @@ const quantise = (N: number, prefix: string, reps?: RGB[]) => {
   for (const p of body) p.group = `${prefix}${bin(p)}`;
   (reps ?? mean).forEach((c, k) => groupRGB.set(`${prefix}${k}`, c));
 };
-if (SPOOLS && arg('spool-map', 'bands') === 'nearest') {
+// family spool set: fixed per family (tender/calm/curious/dreamy/companion/lonely), derived from
+// the engine's own FAMILY hue + saturation, so a batch shares spools yet every family keeps its colour
+const familySpools = (N: number): { plate: RGB; spools: RGB[] } => {
+  const fam = FAMILY[charId];
+  const Ls = N === 1 ? [0.6] : Array.from({ length: N }, (_, k) => 0.48 + (k / (N - 1)) * 0.28);
+  return { plate: hsl2rgb(fam.hue, fam.sat * 0.55, 0.26), spools: Ls.map((L) => hsl2rgb(fam.hue, fam.sat * 0.95, L)) };
+};
+if (!SPOOLS && SPOOL_MAP === 'family') {
+  const fs_ = familySpools(Math.max(1, COLORS));
+  if (!PLATE_HEX) BASE_RGB = fs_.plate;
+  groupRGB.set('base', BASE_RGB);
+  quantise(fs_.spools.length, 's', fs_.spools);
+} else if (SPOOLS && SPOOL_MAP === 'nearest') {
   // every body cell becomes the nearest spool (perceptual-ish RGB distance): keeps the family hue
   const dist = (a: RGB, b: RGB) => 2 * (a[0] - b[0]) ** 2 + 4 * (a[1] - b[1]) ** 2 + 3 * (a[2] - b[2]) ** 2;
   for (const p of plan.values()) {
@@ -254,7 +284,7 @@ if (SPOOLS && arg('spool-map', 'bands') === 'nearest') {
 if (EYES === 'merge') {
   // eye whites → lightest filament, pupils → plate colour: zero extra spools for the face
   let lightest = 'base', bestL = -1;
-  const prefix = SPOOLS ? 's' : COLORS > 0 ? 'c' : 'band';
+  const prefix = SPOOLS || SPOOL_MAP === 'family' ? 's' : COLORS > 0 ? 'c' : 'band';
   for (const [g, c] of groupRGB) if (g.startsWith(prefix) && lum(c) > bestL) { bestL = lum(c); lightest = g; }
   for (const p of plan.values()) {
     if (p.kind === 3) p.group = lightest;
@@ -278,7 +308,7 @@ if (SMOOTH) {
       p.group = [...votes].sort((a, b) => b[1] - a[1])[0][0];
     }
 }
-if (SPOOLS || COLORS > 0 || EYES === 'merge') {
+if (SPOOLS || SPOOL_MAP === 'family' || COLORS > 0 || EYES === 'merge') {
   // previews show what the printer will actually lay down
   for (const p of plan.values()) if (p.kind !== 0) p.rgb = groupRGB.get(p.group) ?? p.rgb;
 }
@@ -340,7 +370,9 @@ interface Tri { a: V; b: V; c: V; col: RGB; group: string }
 const TOP_OF = ['base', 'full', 'half', 'eye', 'half'] as const;
 
 function buildPiece(mirror: boolean) {
-  const FX = cols * SUBN, FY = rows * SUBN;
+  // one empty cell of margin all round so the rim has room; grid cell (gc, gy) = (c + 1, rows - 1 - r + 1)
+  const GC = cols + 2, GR = rows + 2;
+  const FX = GC * SUBN, FY = GR * SUBN;
   const xs: number[] = [0], ys: number[] = [0];
   for (let i = 0; i < FX; i++) xs.push(xs[i] + PAT[i % SUBN]);
   for (let i = 0; i < FY; i++) ys.push(ys[i] + PAT[i % SUBN]);
@@ -367,11 +399,11 @@ function buildPiece(mirror: boolean) {
     for (let c = 0; c < cols; c++) {
       const p = cellAt(c, r);
       if (!p) continue;
-      const yCell = rows - 1 - r;
+      const yCell = rows - 1 - r + 1, gc = c + 1;
       const onPlate = !ASSEMBLY || p.group === 'base';
       for (let sy = 0; sy < SUBN; sy++)
         for (let sx = 0; sx < SUBN; sx++) {
-          const i = fi(c * SUBN + sx, yCell * SUBN + sy);
+          const i = fi(gc * SUBN + sx, yCell * SUBN + sy);
           plate.zb[i] = 0;
           plate.zt[i] = onPlate ? ZI[TOP_OF[p.kind]] : ZI.pocket;
           plate.rgb[i] = onPlate ? p.rgb : BASE_RGB; plate.grp[i] = onPlate ? p.group : 'base';
@@ -387,6 +419,23 @@ function buildPiece(mirror: boolean) {
           t.zb[i] = ZI.pocket; t.zt[i] = ZI[TOP_OF[p.kind]]; t.rgb[i] = p.rgb; t.grp[i] = g;
         }
     }
+  // rim: every fine column within RIM mm (Chebyshev) of a cell becomes full-height plate — the pocket wall
+  if (RIM > 0) {
+    const rects: Array<[number, number, number, number]> = [];
+    for (let r = 0; r < rows; r++)
+      for (let c = 0; c < cols; c++)
+        if (cellAt(c, r)) rects.push([(c + 1) * cell, (rows - 1 - r + 1) * cell, (c + 2) * cell, (rows - r + 1) * cell]);
+    for (let y = 0; y < FY; y++)
+      for (let x = 0; x < FX; x++) {
+        const i = fi(x, y);
+        if (plate.zb[i] >= 0) continue;
+        const px = (xs[x] + xs[x + 1]) / 2, py = (ys[y] + ys[y + 1]) / 2;
+        for (const [x0, y0, x1, y1] of rects) {
+          const d = Math.max(x0 - px, px - x1, y0 - py, py - y1);   // Chebyshev distance to the rect (<0 inside)
+          if (d <= RIM) { plate.zb[i] = 0; plate.zt[i] = ZI.base; plate.rgb[i] = BASE_RGB; plate.grp[i] = 'base'; break; }
+        }
+      }
+  }
   const parts: Part[] = [plate, ...[...tiles.keys()].sort().map((g) => tiles.get(g)!)];
 
   // loop anchor: topmost plate cell nearest the centre
@@ -399,8 +448,11 @@ function buildPiece(mirror: boolean) {
       topCol = cs.reduce((b, c) => Math.abs(c - (cols - 1) / 2) < Math.abs(b - (cols - 1) / 2) ? c : b, cs[0]);
     }
   }
-  const topY = (rows - topRow) * cell;
-  const loopX = (topCol + 0.5) * cell;
+  const loopX = (topCol + 1.5) * cell;
+  // top edge of the plate footprint (rim included) under the loop column
+  let topY = (rows - topRow + 1) * cell;
+  { let xi = 0; while (xi + 1 < FX && xs[xi + 1] < loopX) xi++;
+    for (let y = FY - 1; y >= 0; y--) if (plate.zb[fi(xi, y)] >= 0) { topY = ys[y + 1]; break; } }
   const RO = Math.max(2.4, cell * 1.1), RI = Math.max(1.2, RO * 0.5);
   const SINK = Math.min(0.8, cell * 0.4);        // how deep the ring sits into the body
   const loopY = topY + RO - SINK;
@@ -408,7 +460,8 @@ function buildPiece(mirror: boolean) {
   // --loop hole: drill through the top cells instead (laser-friendly)
   let hole: { x: number; y: number; r: number } | null = null;
   if (loopMode === 'hole') {
-    hole = { x: loopX, y: topY - cell * 0.75, r: Math.max(0.7, cell * 0.3) };
+    // through the centre of the topmost cell under the loop column (rim + 0.2 cell of wall around it)
+    hole = { x: loopX, y: (rows - topRow + 0.5) * cell, r: Math.max(0.7, cell * 0.3) };
     for (let y = 0; y < FY; y++)
       for (let x = 0; x < FX; x++) {
         const px = (xs[x] + xs[x + 1]) / 2, py = (ys[y] + ys[y + 1]) / 2;
@@ -419,14 +472,14 @@ function buildPiece(mirror: boolean) {
   // engraving: the spore number on the back of the plate, where it is wide enough
   let engraved = false;
   if (ENGRAVE && q >= 0.33) {
-    const PX = cols * SUB, PY = rows * SUB;
+    const PX = GC * SUB, PY = GR * SUB;
     // engraving pixel is usable iff every fine column under it is plate from the very bottom
     const usable = new Uint8Array(PX * PY).fill(1);
     for (let y = 0; y < FY; y++)
       for (let x = 0; x < FX; x++)
         if (plate.zb[fi(x, y)] !== 0) usable[(x / SUBN | 0) * SUB + pixOf(x % SUBN) + PX * ((y / SUBN | 0) * SUB + pixOf(y % SUBN))] = 0;
     const Hh = 5, PAD = 1;
-    const eyeY = (rows - 1 - eyes.row) * SUB;
+    const eyeY = (rows - 1 - eyes.row + 1) * SUB;
     let px: boolean[][] = [], W = 0;
     let bestY = -1, bestD = 1e9, bestX = 0;
     for (const label of [sporeId, sporeId.slice(4)]) {   // "MYC-TRY6HP", then just "TRY6HP"
@@ -533,7 +586,31 @@ function buildPiece(mirror: boolean) {
   // ring/body overlap is counted twice; subtract the sunk cap roughly
   const w = Math.max(cell, 2 * Math.sqrt(Math.max(0, RO * RO - (RO - SINK) ** 2)));
   if (ring) vol -= SINK * w * BASE * 0.7;
-  return { tris, parts: partMeshes, ring, hole, engraved, volMM3: Math.abs(vol), loopTop: ring ? loopY + RO : topY };
+  // plate footprint for the drawing: horizontal runs of fine columns, in mm
+  const runs: Array<[number, number, number, number]> = [];
+  let minX = 1e9, maxX = -1e9, minY = 1e9;
+  for (let y = 0; y < FY; y++) {
+    let x = 0;
+    while (x < FX) {
+      if (plate.zb[fi(x, y)] < 0) { x++; continue; }
+      let x1 = x; while (x1 + 1 < FX && plate.zb[fi(x1 + 1, y)] >= 0) x1++;
+      runs.push([xs[x], ys[y], xs[x1 + 1], ys[y + 1]]);
+      minX = Math.min(minX, xs[x]); maxX = Math.max(maxX, xs[x1 + 1]); minY = Math.min(minY, ys[y]);
+      x = x1 + 1;
+    }
+  }
+  const isPlate = (x: number, y: number) => x >= 0 && y >= 0 && x < FX && y < FY && plate.zb[fi(x, y)] >= 0;
+  const edges: string[] = [];
+  for (let y = 0; y < FY; y++)
+    for (let x = 0; x < FX; x++) {
+      if (!isPlate(x, y)) continue;
+      if (!isPlate(x + 1, y)) edges.push(`M${xs[x + 1].toFixed(2)} ${ys[y].toFixed(2)}V${ys[y + 1].toFixed(2)}`);
+      if (!isPlate(x - 1, y)) edges.push(`M${xs[x].toFixed(2)} ${ys[y].toFixed(2)}V${ys[y + 1].toFixed(2)}`);
+      if (!isPlate(x, y + 1)) edges.push(`M${xs[x].toFixed(2)} ${ys[y + 1].toFixed(2)}H${xs[x + 1].toFixed(2)}`);
+      if (!isPlate(x, y - 1)) edges.push(`M${xs[x].toFixed(2)} ${ys[y].toFixed(2)}H${xs[x + 1].toFixed(2)}`);
+    }
+  return { tris, parts: partMeshes, ring, hole, engraved, volMM3: Math.abs(vol), runs, edges,
+           bbox: { minX, maxX, minY, maxY: ring ? loopY + RO : topY }, loopTop: ring ? loopY + RO : topY };
 }
 
 // ---------- 5) writers ----------
@@ -568,43 +645,44 @@ function writePLY(file: string, tris: Tri[]) {
   fs.writeFileSync(file, L.join('\n'));
 }
 
-// front view in mm. Layers: "art" (cells, printable) · "cut" (silhouette + hole, laser)
+// front view in mm (y flipped to SVG). Layers: "plate" (footprint) · "art" (cells) · "cut" (outline + hole, laser)
 function writeSVG(file: string, mirror: boolean, r: ReturnType<typeof buildPiece>) {
-  const W = cols * cell, H = r.loopTop;
-  const M = 2;
+  const { minX, maxX, minY, maxY } = r.bbox;
+  const M = 1.5, W = maxX - minX, H = maxY - minY;
+  const X = (x: number) => (x - minX).toFixed(2), Y = (y: number) => (maxY - y).toFixed(2);
+  const plateRects = r.runs.map(([x0, y0, x1, y1]) =>
+    `<rect x="${X(x0)}" y="${Y(y1)}" width="${(x1 - x0 + 0.03).toFixed(2)}" height="${(y1 - y0 + 0.03).toFixed(2)}" fill="${hex(BASE_RGB)}"/>`);  // +0.03: no renderer seams
   const rects: string[] = [];
-  const outline: string[] = [];
-  const has = (c: number, rr: number) => plan.has(K(mirror ? cols - 1 - c : c, rr));
   for (let rr = 0; rr < rows; rr++)
     for (let c = 0; c < cols; c++) {
-      if (!has(c, rr)) continue;
-      const p = plan.get(K(mirror ? cols - 1 - c : c, rr))!;
-      const x = c * cell, y = (H - (rows - rr) * cell);
-      const op = p.kind === 2 ? 0.55 : 1;
-      rects.push(`<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${cell}" height="${cell}" fill="${hex(p.rgb)}" fill-opacity="${op}"/>`);
-      // boundary edges of the silhouette → cut layer
-      const e = (x0: number, y0: number, x1: number, y1: number) =>
-        outline.push(`M${x0.toFixed(2)} ${y0.toFixed(2)}L${x1.toFixed(2)} ${y1.toFixed(2)}`);
-      if (!has(c + 1, rr)) e(x + cell, y, x + cell, y + cell);
-      if (!has(c - 1, rr)) e(x, y, x, y + cell);
-      if (!has(c, rr - 1)) e(x, y, x + cell, y);
-      if (!has(c, rr + 1)) e(x, y + cell, x + cell, y + cell);
+      const p = plan.get(K(mirror ? cols - 1 - c : c, rr));
+      if (!p || p.kind === 0) continue;
+      const x = (c + 1) * cell + FIT, y = (rows - rr) * cell + FIT - FIT;   // tile outline incl. clearance
+      const op = p.kind === 2 ? 0.6 : 1;
+      rects.push(`<rect x="${X(x)}" y="${Y((rows - rr + 1) * cell - FIT)}" width="${(cell - 2 * FIT).toFixed(2)}" height="${(cell - 2 * FIT).toFixed(2)}" fill="${hex(p.rgb)}" fill-opacity="${op}"/>`);
+      void y;
     }
+  // cut path: translate the mm edges into SVG space
+  const cut = r.edges.map((e) => e.replace(/M([\d.]+) ([\d.]+)([VH])([\d.]+)/, (_m, a, b, dir, d) =>
+    dir === 'V' ? `M${X(+a)} ${Y(+b)}V${Y(+d)}` : `M${X(+a)} ${Y(+b)}H${X(+d)}`)).join('');
   const loop = r.ring
-    ? `<circle cx="${r.ring.x.toFixed(2)}" cy="${(H - r.ring.y).toFixed(2)}" r="${((r.ring.ro + r.ring.ri) / 2).toFixed(2)}" fill="none" stroke="${hex(BASE_RGB)}" stroke-width="${(r.ring.ro - r.ring.ri).toFixed(2)}"/>`
+    ? `<circle cx="${X(r.ring.x)}" cy="${Y(r.ring.y)}" r="${((r.ring.ro + r.ring.ri) / 2).toFixed(2)}" fill="none" stroke="${hex(BASE_RGB)}" stroke-width="${(r.ring.ro - r.ring.ri).toFixed(2)}"/>`
     : r.hole
-      ? `<circle cx="${r.hole.x.toFixed(2)}" cy="${(H - r.hole.y).toFixed(2)}" r="${r.hole.r.toFixed(2)}" fill="#fff" stroke="#f00" stroke-width="0.05"/>`
+      ? `<circle cx="${X(r.hole.x)}" cy="${Y(r.hole.y)}" r="${r.hole.r.toFixed(2)}" fill="#fff" stroke="#f00" stroke-width="0.05"/>`
       : '';
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${(W + 2 * M).toFixed(2)}mm" height="${(H + 2 * M).toFixed(2)}mm" viewBox="${-M} ${-M} ${(W + 2 * M).toFixed(2)} ${(H + 2 * M).toFixed(2)}">
   <title>${sporeId} · ${piece}${mirror ? ' (mirrored)' : ''}</title>
   <desc>${text.replace(/[<&]/g, ' ')}</desc>
-  <g id="art" shape-rendering="crispEdges">
-    ${rects.join('\n    ')}
+  <g id="plate" shape-rendering="crispEdges">
+    ${plateRects.join('\n    ')}
     ${loop}
   </g>
+  <g id="art" shape-rendering="crispEdges">
+    ${rects.join('\n    ')}
+  </g>
   <g id="cut" fill="none" stroke="#f00" stroke-width="0.05">
-    <path d="${outline.join('')}"/>
+    <path d="${cut}"/>
   </g>
 </svg>
 `;
@@ -636,9 +714,9 @@ for (const [suffix, mirror] of variants) {
   const wPLA = r.volMM3 / 1000 * 1.24, wResin = r.volMM3 / 1000 * 1.1;
   const info = {
     file: path.basename(base), mirror, sporeId, family: FAMS[charId], piece, text,
-    mode: MODE, palette: PALETTE ?? (SPOOLS ? 'custom' : 'auto'), cell, base: BASE, relief: RELIEF, pocket: POCKET, fit: FIT, loop: loopMode, engraved: r.engraved,
+    mode: MODE, plateFill: PLATE_FILL, rim: RIM, palette: PALETTE ?? (SPOOLS ? 'custom' : SPOOL_MAP), cell, base: BASE, relief: RELIEF, pocket: POCKET, fit: FIT, loop: loopMode, engraved: r.engraved,
     parts: nParts,
-    widthMM: +(cols * cell).toFixed(1), heightMM: +r.loopTop.toFixed(1),
+    widthMM: +(r.bbox.maxX - r.bbox.minX).toFixed(1), heightMM: +(r.bbox.maxY - r.bbox.minY).toFixed(1),
     thickMM: +(BASE + RELIEF + EYE_EXTRA).toFixed(2),
     cells: cells.length, plateCells: plan.size, tris: r.tris.length,
     filaments: Object.fromEntries([...new Set([...plan.values()].map((p) => p.group))].sort().map((g) => [g, hex(groupRGB.get(g) ?? BASE_RGB)])),
