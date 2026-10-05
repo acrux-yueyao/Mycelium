@@ -14,8 +14,8 @@ Every style writes one solid STL plus one STL per owned-filament colour
 (load them together as one object in Bambu Studio for AMS), a preview PNG
 and a line of stats.
 
-Usage: python3 hardware/figurine.py <base.json> <out_dir> [--style pixel|smooth|voxel]
-         [--height MM] [--loop] [--keyhole] [--mirror] [--base] [--colors N]
+Usage: python3 hardware/figurine.py <base.json> <out_dir> [--product earring|pendant|keychain]
+         [--style pixel|smooth|voxel] [--height MM] [--loop] [--keyhole] [--mirror] [--base] [--colors N]
 """
 import json
 import os
@@ -106,7 +106,14 @@ def oval_base(m, scale=0.42, pad=1.5):
     return plate
 
 
-def style_pixel(vox, height, mirror, loop, keyhole, n_colors):
+PRODUCTS = {  # height, base, tile, loop (r_in, r_out), keyhole (r_in, r_out)
+    'earring':  dict(height=25.0, base=1.4, tile=0.6, loop=(0.9, 1.8), keyhole=None),
+    'pendant':  dict(height=35.0, base=1.8, tile=0.7, loop=(1.6, 2.8), keyhole=None),
+    'keychain': dict(height=45.0, base=2.4, tile=0.8, loop=None, keyhole=(2.3, 4.0)),
+}
+
+
+def style_pixel(vox, height, mirror, loop, keyhole, n_colors, base_t=1.4, tile_t=0.6):
     """Front-view mosaic → 2.0 mm plate: 1.4 base + 0.6 colour tiles."""
     front = {}
     for (x, y, z), h in vox.items():
@@ -128,7 +135,7 @@ def style_pixel(vox, height, mirror, loop, keyhole, n_colors):
     xs = [k[0] for k in cells]; ys = [k[1] for k in cells]
     s = height / (max(ys) - min(ys) + 1)
     pal = snap(counts_of(cells.values()), n_colors)
-    BASE, TILE, GAP = 1.4, 0.6, 0.12 * s
+    BASE, TILE, GAP = base_t, tile_t, 0.12 * s
     base_parts, tiles = [], {}
     for (x, y), h in cells.items():
         cx = (x - min(xs) + 0.5) * s * (-1 if mirror else 1)
@@ -140,14 +147,12 @@ def style_pixel(vox, height, mirror, loop, keyhole, n_colors):
     main_fid = max(meshes, key=lambda f: meshes[f].volume)
     lo, hi = base.bounds
     extras = []
-    if loop:
-        r = annulus(r_min=0.9, r_max=1.8, height=BASE + TILE)
-        r.apply_transform(TM([(lo[0] + hi[0]) / 2, hi[1] + 1.3, (BASE + TILE) / 2]))
-        extras.append(r)
-    if keyhole:
-        r = annulus(r_min=1.6, r_max=3.0, height=BASE + TILE)
-        r.apply_transform(TM([(lo[0] + hi[0]) / 2, hi[1] + 2.2, (BASE + TILE) / 2]))
-        extras.append(r)
+    for ring in (loop, keyhole):                       # (r_in, r_out) or None
+        if ring:
+            r_in, r_out = ring
+            r = annulus(r_min=r_in, r_max=r_out, height=BASE + TILE)
+            r.apply_transform(TM([(lo[0] + hi[0]) / 2, hi[1] + r_out - 0.6, (BASE + TILE) / 2]))
+            extras.append(r)
     if extras:
         base = union([base] + extras)
     meshes[main_fid] = union([meshes[main_fid], base])      # plate prints in the dominant colour
@@ -238,14 +243,21 @@ def preview(whole, meshes, colours, path, title, view=(22, -62)):
     fig.savefig(path, dpi=130, facecolor='#f6f5f0', bbox_inches='tight'); plt.close(fig)
 
 
-def main(base, out, style='pixel', height=None, loop=False, mirror=False, add_base=False, n_colors=None, keyhole=False):
+def main(base, out, style='pixel', height=None, loop=False, mirror=False, add_base=False, n_colors=None, keyhole=False,
+         product=None):
     meta, vox = load(base)
     vox = largest_component(vox)
     stem = os.path.splitext(os.path.basename(base))[0]
-    name = f"{stem}_{style}" + ('_mirror' if mirror else '')
+    name = f"{stem}_{product or style}" + ('_mirror' if mirror else '')
     os.makedirs(out, exist_ok=True)
-    if style == 'pixel':
-        whole, meshes, colours, s = style_pixel(vox, height or 25.0, mirror, loop, keyhole, n_colors)
+    if product:
+        pr = PRODUCTS[product]
+        whole, meshes, colours, s = style_pixel(vox, height or pr['height'], mirror, pr['loop'], pr['keyhole'], n_colors,
+                                                pr['base'], pr['tile'])
+        view = (90, -90)
+    elif style == 'pixel':
+        whole, meshes, colours, s = style_pixel(vox, height or 25.0, mirror, (0.9, 1.8) if loop else None,
+                                                (2.3, 4.0) if keyhole else None, n_colors)
         view = (90, -90)
     elif style == 'smooth':
         whole, meshes, colours, s = style_smooth(vox, height or 40.0, mirror, add_base, n_colors)
@@ -265,9 +277,9 @@ def main(base, out, style='pixel', height=None, loop=False, mirror=False, add_ba
 
 if __name__ == '__main__':
     opt = sys.argv
-    val = {k: opt[opt.index(k) + 1] for k in ('--height', '--colors', '--style') if k in opt}
+    val = {k: opt[opt.index(k) + 1] for k in ('--height', '--colors', '--style', '--product') if k in opt}
     skip = {opt.index(k) + 1 for k in val}
     args = [a for i, a in enumerate(opt) if i > 0 and not a.startswith('--') and i not in skip]
     main(args[0], args[1], val.get('--style', 'pixel'), float(val['--height']) if '--height' in val else None,
          '--loop' in opt, '--mirror' in opt, '--base' in opt, int(val['--colors']) if '--colors' in val else None,
-         '--keyhole' in opt)
+         '--keyhole' in opt, val.get('--product'))
