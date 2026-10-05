@@ -175,10 +175,14 @@ def style_pixel(vox, height, mirror, loop, keyhole, n_colors, base_t=1.4, tile_t
     extras = []
     for ring in (loop, keyhole):                       # (r_in, r_out) or None
         if ring:
+            # ring fully outside the plate, joined by a short neck at plate
+            # height only - the top row of cells (maybe a pocket) stays free
             r_in, r_out = ring
-            r = annulus(r_min=r_in, r_max=r_out, height=BASE + TILE)
-            r.apply_transform(TM([(lo[0] + hi[0]) / 2, hi[1] + r_out - 0.6, (BASE + TILE) / 2]))
-            extras.append(r)
+            cx = (lo[0] + hi[0]) / 2
+            r = annulus(r_min=r_in, r_max=r_out, height=BASE)
+            r.apply_transform(TM([cx, hi[1] + r_out + 0.3, BASE / 2]))
+            neck = box(extents=[max(1.6, 0.6 * s), r_out + 0.6, BASE], transform=TM([cx, hi[1] + (r_out + 0.6) / 2 - 0.3, BASE / 2]))
+            extras += [r, neck]
     if extras:
         base = union([base] + extras)
     if INLAY and pocket_cut is not None:
