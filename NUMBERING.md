@@ -85,5 +85,6 @@ C-00 = 000000 六面全平(孤块,理论上不该出现)
 - `scripts/spore3d.mts`:生成 `sporeId`,写进 meta JSON,构建日志打印
 - `hardware/kit_sheet.py`:图纸封面标题和信息栏印孢子号
 - `hardware/kit_cubes.py`:变体 STL 与清单改用 `C-XX` 编号
+- `scripts/spore_jewel.mts`:首饰件(吊坠/耳饰/挂件)背面阴刻孢子号,见 `design/JEWELRY.md`
 
 尚未做(需要时说一声):方块底面压印变体号浮雕;句子卡生成器;`U` 号台账表格。
