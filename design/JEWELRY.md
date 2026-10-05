@@ -21,6 +21,7 @@ npx tsx scripts/spore_jewel.mts --text "…" --loop hole                        
 | `_s0.stl` `_s1.stl` … / `_c0.stl` … | 每种身体色一个文件,里面是该色所有镶片(原位摆放,切片软件里"拆分为零件"再排版) |
 | `_white.stl` `_black.stl` | 眼白 / 瞳孔嵌件,各 2 片 |
 | `_parts.txt` | 零件清单:文件 → 十六进制色 → 片数 |
+| `catalog/catalog-*.png` `.html` | `jewel_catalog.mts` 生成的配色目录 |
 | `_assembled.stl` / `.ply` | 组装效果(看的,不是打的);`.ply` 带颜色 |
 | `.svg` | 正面图纸(mm),`#cut` 层是轮廓+孔,给激光/亚克力 |
 | `.json` | 尺寸、重量、零件数 |
@@ -75,6 +76,33 @@ npx tsx scripts/spore_jewel.mts --text "…" --loop hole                        
 
 每只 6–8 个零件;终端打印 `N colours / M regions / P parts to glue`,调到自己接受为止。
 `--colors 1` = 底板 + 单一身体色,靠高低差表现抖动,零件最少。
+
+### 2.1 · 配色预设(`--palette <名>`)
+
+定义在 `scripts/jewel_palettes.ts`,底板色 + 身体色卷;`npx tsx scripts/jewel_catalog.mts` 把全部预设 × 几句话渲染成目录图
+(`out/jewel/catalog/catalog-*.png`,每页 4 个配色 + 一页三种件;本次渲染存档在 `design/jewelry/`)。
+
+| 名 | 底板 | 身体色卷 | 说明 |
+|---|---|---|---|
+| `cream` 奶油糖 | `#3b3a4a` | `#f2a7b8` `#8ec5e8` `#f6e7a1` | 粉蓝黄三色,深灰底,最像糖果 |
+| `morandi` 莫兰迪 | `#6b6a75` | `#c9b8a8` `#a7b5b0` `#d9cbc1` | 低饱和灰调,成人向 |
+| `forest` 森林 | `#1f3b2a` | `#4f8a5b` `#8fbf7f` `#d8e6b6` | 绿色渐变,companion 家族 |
+| `ocean` 海洋 | `#16324f` | `#2f6f9f` `#6fb3d9` `#cfe9f3` | 蓝色渐变,calm 家族 |
+| `sunset` 日落 | `#3a1f2e` | `#e4572e` `#f4a259` `#f9e0a2` | 橙红到奶黄,curious / tender |
+| `lavender` 薰衣草 | `#2e2a4a` | `#7c6fcf` `#b7a9f0` `#ece6ff` | dreamy 家族本色 |
+| `sakura` 樱花 | `#f7f3ef` | `#e98aa3` `#f5b7c5` | 浅底板两卷粉;眼白与底板同色,建议 `--eyes merge` |
+| `ink` 墨 | `#141414` | `#6e6e6e` `#f2f2f2` | 黑白灰,靠高低差说话 |
+| `neon` 霓虹 | `#0d0d1a` | `#ff3cac` `#2bff88` `#ffe600` | 荧光耗材 |
+| `earth` 大地 | `#4a2c22` | `#b5563a` `#d99a6c` `#efd9b4` | 赤陶色,配木珠/麻绳 |
+| `mintchoc` 薄荷巧克力 | `#3e2723` | `#7fd1b9` `#c7f0e2` | 两卷薄荷,巧克力底 |
+| `gameboy` 掌机 | `#0f380f` | `#306230` `#8bac0f` `#9bbc0f` | 四阶绿,像素本命 |
+| `candypop` 波普 | `#ffffff` | `#ff6b6b` `#4ecdc4` `#ffe66d` | 白底板,高饱和三原 |
+| `brass` 黄铜 | `#5a3e1b` | `#c08a3e` `#e0b770` | 金属质感耗材(silk / 金属粉) |
+| `cinnabar` 朱砂石青 | `#2b2b2b` | `#c23b22` `#2e5b88` `#e2c044` | 传统色:朱砂、石青、藤黄 |
+| `mono` 单色 | `#2a2a2a` | `#e8e4dc` | 底板 + 一卷,零件最少 |
+
+卷数决定零件数:3 卷身体色 ≈ 12–15 件/只,2 卷 ≈ 9–11 件,1 卷 ≈ 6–7 件(都含 4 片眼睛)。
+想要新配色,直接 `--spools "#…,#…" --plate "#…"`,或在 `jewel_palettes.ts` 加一行。
 
 ## 3 · 三种件
 

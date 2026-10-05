@@ -37,7 +37,8 @@
  *                filament colours instead of --colors (one fixed spool set
  *                for a whole batch of creatures); spools sorted dark→light take
  *                the lightness bands, or --spool-map nearest to keep family hues
- *                · --plate "#hex" plate colour
+ *                · --plate "#hex" plate colour · --palette <name> a named
+ *                preset of both (see PALETTES / design/JEWELRY.md)
  *
  * Outputs (out/jewel/<name>*):
  *   .stl / .ply   the piece (relief) or _assembled.stl (assembly) · colour preview
@@ -49,7 +50,7 @@
  *       [--mode assembly|relief] [--family dreamy] [--size 32] [--cell 2.4]
  *       [--base 1.6] [--relief 0.8] [--pocket 0.6] [--fit 0.1]
  *       [--loop ring|hole|none] [--pair] [--colors 2] [--eyes own|merge]
- *       [--spools "#hex,…"] [--plate "#hex"] [--split] [--no-smooth] [--no-id] [--out out/jewel]
+ *       [--palette cream] [--spools "#hex,…"] [--plate "#hex"] [--split] [--no-smooth] [--no-id] [--out out/jewel]
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -57,6 +58,7 @@ import { buildMosaic, type MosaicCell } from '../src/core/mosaic';
 import { xmur3 } from '../src/core/seed';
 import { sporeId as makeSporeId } from '../src/core/sporeId';
 import type { CharId } from '../src/data/characters';
+import { PALETTES } from './jewel_palettes';
 
 // ---------- args ----------
 const arg = (k: string, d?: string) => {
@@ -98,8 +100,11 @@ const parseHex = (h: string): [number, number, number] => {
   if (!m) throw new Error(`bad colour ${h} — use #rrggbb`);
   return [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16)) as [number, number, number];
 };
-const SPOOLS = arg('spools') ? arg('spools')!.split(',').map(parseHex) : null;
-const PLATE_HEX = arg('plate');
+const PALETTE = arg('palette');
+if (PALETTE && !PALETTES[PALETTE]) throw new Error(`--palette must be one of ${Object.keys(PALETTES).join('|')}`);
+const SPOOLS = arg('spools') ? arg('spools')!.split(',').map(parseHex)
+  : PALETTE ? PALETTES[PALETTE].spools.map(parseHex) : null;
+const PLATE_HEX = arg('plate') ?? (PALETTE ? PALETTES[PALETTE].plate : undefined);
 const ENGRAVE = !flag('no-id');
 const name = arg('name') ?? `jewel_${piece}_${FAMS[charId]}_${h0.toString(16).slice(0, 6)}`;
 const outDir = arg('out', 'out/jewel')!;
@@ -617,7 +622,7 @@ for (const [suffix, mirror] of variants) {
   const wPLA = r.volMM3 / 1000 * 1.24, wResin = r.volMM3 / 1000 * 1.1;
   const info = {
     file: path.basename(base), mirror, sporeId, family: FAMS[charId], piece, text,
-    mode: MODE, cell, base: BASE, relief: RELIEF, pocket: POCKET, fit: FIT, loop: loopMode, engraved: r.engraved,
+    mode: MODE, palette: PALETTE ?? (SPOOLS ? 'custom' : 'auto'), cell, base: BASE, relief: RELIEF, pocket: POCKET, fit: FIT, loop: loopMode, engraved: r.engraved,
     parts: nParts,
     widthMM: +(cols * cell).toFixed(1), heightMM: +r.loopTop.toFixed(1),
     thickMM: +(BASE + RELIEF + EYE_EXTRA).toFixed(2),
