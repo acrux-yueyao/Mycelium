@@ -45,7 +45,7 @@ XIAO_NETS = {1: 'SDA1', 2: 'I2S_LRC', 3: 'I2S_BCLK', 4: 'I2S_DIN', 5: 'SDA0', 6:
              7: 'LED_DIN', 8: 'SCL1', 9: 'MIC_SCK', 10: 'MIC_WS', 11: 'MIC_SD',
              12: '3V3', 13: 'GND', 14: 'VBUS'}
 PARTS = {
-    'U1': ('XIAO', None, 'XIAO-ESP32S3', 'C48405120', (0, -24.5), 0, XIAO_NETS),
+    'U1': ('XIAO', None, 'XIAO-ESP32S3', '', (0, -24.5), 0, XIAO_NETS),   # not stocked at JLCPCB: hand-solder (C48405120 is the nRF52840 Plus!)
     'U2': ('Package_DFN_QFN', 'SiliconLabs_QFN-20-1EP_3x3mm_P0.5mm_EP1.8x1.8mm', 'MPR121QR2',
            'C91322', (-16, -8), 180,
            {2: 'SCL0', 3: 'SDA0', 4: 'GND', 5: 'VREG', 6: 'GND', 7: '3V3', 8: 'REXT',
@@ -460,7 +460,7 @@ def exports(board, pcb_path, out, nets):
         w = csv.writer(f); w.writerow(['Comment', 'Designator', 'Footprint', 'LCSC Part #'])
         groups = {}
         for ref, (lib, name, value, lcsc, *_r) in PARTS.items():
-            if ref in HAND and ref != 'U1':
+            if ref in HAND:
                 continue
             groups.setdefault((value, name or 'XIAO-ESP32S3_SMD', lcsc), []).append(ref)
         for (value, name, lcsc), refs in groups.items():
@@ -469,7 +469,7 @@ def exports(board, pcb_path, out, nets):
         w = csv.writer(f); w.writerow(['Designator', 'Mid X', 'Mid Y', 'Layer', 'Rotation'])
         for fp in board.GetFootprints():
             ref = fp.GetReference()
-            if ref in HAND and ref != 'U1':
+            if ref in HAND:
                 continue
             p = fp.GetPosition()
             w.writerow([ref, f'{pcbnew.ToMM(p.x):.3f}mm', f'{-pcbnew.ToMM(p.y):.3f}mm',
