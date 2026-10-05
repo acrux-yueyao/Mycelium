@@ -107,10 +107,13 @@ def oval_base(m, scale=0.42, pad=1.5):
 
 
 PRODUCTS = {  # height, base, tile, loop (r_in, r_out), keyhole (r_in, r_out)
-    'earring':  dict(height=25.0, base=1.4, tile=0.6, loop=(0.9, 1.8), keyhole=None),
-    'pendant':  dict(height=35.0, base=1.8, tile=0.7, loop=(1.6, 2.8), keyhole=None),
-    'keychain': dict(height=45.0, base=2.4, tile=0.8, loop=None, keyhole=(2.3, 4.0)),
+    'earring':  dict(height=25.0, base=1.6, tile=0.24, loop=(0.9, 1.8), keyhole=None),
+    'pendant':  dict(height=35.0, base=2.0, tile=0.24, loop=(1.6, 2.8), keyhole=None),
+    'keychain': dict(height=45.0, base=2.8, tile=0.24, loop=None, keyhole=(2.3, 4.0)),
 }
+
+
+INLAY = True          # colours as separate press-fit pieces (no AMS needed)
 
 
 def style_pixel(vox, height, mirror, loop, keyhole, n_colors, base_t=1.4, tile_t=0.6):
@@ -145,6 +148,29 @@ def style_pixel(vox, height, mirror, loop, keyhole, n_colors, base_t=1.4, tile_t
     base = union(base_parts)
     meshes = {fid: union(ts) for fid, ts in tiles.items()}
     main_fid = max(meshes, key=lambda f: meshes[f].volume)
+    pocket_cut = None
+    if INLAY:
+        # mortise-and-tenon: the plate (dominant colour) gets a POCKET under
+        # every other colour's cells; those colours become separate TENON
+        # pieces (pocket depth + relief thick) that press into the pockets.
+        POCKET, CLR = 0.5, 0.08
+        pockets, tenons = [], {}
+        for (x, y), h in cells.items():
+            fid = pal[h][0]
+            if fid == main_fid:
+                continue
+            cx = (x - min(xs) + 0.5) * s * (-1 if mirror else 1)
+            cy = (y - min(ys) + 0.5) * s
+            # pocket = cell + clearance; tenon = full cells (touching cells of one
+            # colour merge into ONE piece) with the mosaic groove kept on top
+            pockets.append(box(extents=[s + 2 * CLR, s + 2 * CLR, POCKET + 0.01],
+                               transform=TM([cx, cy, BASE - POCKET / 2 + 0.005])))
+            tenons.setdefault(fid, []).append(box(extents=[s, s, POCKET], transform=TM([cx, cy, POCKET / 2])))
+            tenons[fid].append(box(extents=[s - GAP, s - GAP, TILE + 0.01], transform=TM([cx, cy, POCKET + TILE / 2])))
+        pocket_cut = union(pockets) if pockets else None       # cut AFTER the loop/keyhole is on
+        for fid in list(meshes):
+            if fid != main_fid:
+                meshes[fid] = union(tenons[fid])          # flat pieces, print face up
     lo, hi = base.bounds
     extras = []
     for ring in (loop, keyhole):                       # (r_in, r_out) or None
@@ -155,10 +181,20 @@ def style_pixel(vox, height, mirror, loop, keyhole, n_colors, base_t=1.4, tile_t
             extras.append(r)
     if extras:
         base = union([base] + extras)
+    if INLAY and pocket_cut is not None:
+        base = trimesh.boolean.difference([base, pocket_cut])
     meshes[main_fid] = union([meshes[main_fid], base])      # plate prints in the dominant colour
+    if INLAY:                                             # assembled view: tenons dropped into their pockets
+        seated = []
+        for f, m in meshes.items():
+            if f != main_fid:
+                mm = m.copy(); mm.apply_transform(TM([0, 0, BASE - 0.5])); seated.append(mm)
+        whole = union([meshes[main_fid]] + seated)
+        shown = {f: (m if f == main_fid else seated[[g for g in meshes if g != main_fid].index(f)]) for f, m in meshes.items()}
+        return whole, meshes, {f: next(v[1] for v in pal.values() if v[0] == f) for f in meshes}, s, shown
     whole = union([base] + list(meshes.values()))
     colours = {fid: next(v[1] for v in pal.values() if v[0] == fid) for fid in meshes}
-    return whole, meshes, colours, s
+    return whole, meshes, colours, s, meshes
 
 
 def style_smooth(vox, height, mirror, add_base, n_colors, sigma=0.9):
@@ -227,9 +263,11 @@ def style_voxel(vox, height, mirror, add_base, n_colors):
 def preview(whole, meshes, colours, path, title, view=(22, -62)):
     import matplotlib
     matplotlib.use('Agg')
+    matplotlib.rcParams['font.family'] = 'monospace'
+    matplotlib.rcParams['font.monospace'] = ['Noto Sans Mono CJK SC', 'DejaVu Sans Mono']
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-    fig = plt.figure(figsize=(5, 5), facecolor='#f6f5f0')
+    fig = plt.figure(figsize=(7, 5) if 'pieces' in path else (5, 5), facecolor='#f6f5f0')
     ax = fig.add_subplot(111, projection='3d'); ax.set_facecolor('#f6f5f0')
     light = np.array([0.3, -0.6, 0.75]); light /= np.linalg.norm(light)
     for fid, m in meshes.items():
@@ -250,14 +288,15 @@ def main(base, out, style='pixel', height=None, loop=False, mirror=False, add_ba
     stem = os.path.splitext(os.path.basename(base))[0]
     name = f"{stem}_{product or style}" + ('_mirror' if mirror else '')
     os.makedirs(out, exist_ok=True)
+    shown = None
     if product:
         pr = PRODUCTS[product]
-        whole, meshes, colours, s = style_pixel(vox, height or pr['height'], mirror, pr['loop'], pr['keyhole'], n_colors,
-                                                pr['base'], pr['tile'])
+        whole, meshes, colours, s, shown = style_pixel(vox, height or pr['height'], mirror, pr['loop'], pr['keyhole'],
+                                                       n_colors, pr['base'], pr['tile'])
         view = (90, -90)
     elif style == 'pixel':
-        whole, meshes, colours, s = style_pixel(vox, height or 25.0, mirror, (0.9, 1.8) if loop else None,
-                                                (2.3, 4.0) if keyhole else None, n_colors)
+        whole, meshes, colours, s, shown = style_pixel(vox, height or 25.0, mirror, (0.9, 1.8) if loop else None,
+                                                       (2.3, 4.0) if keyhole else None, n_colors)
         view = (90, -90)
     elif style == 'smooth':
         whole, meshes, colours, s = style_smooth(vox, height or 40.0, mirror, add_base, n_colors)
@@ -269,10 +308,19 @@ def main(base, out, style='pixel', height=None, loop=False, mirror=False, add_ba
     for fid, m in meshes.items():
         m.export(f'{out}/{name}_{fid}.stl')
     ext = whole.extents
-    preview(whole, meshes, colours, f'{out}/{name}_preview.png',
+    preview(whole, shown or meshes, colours, f'{out}/{name}_preview.png',
             f'{name} · {ext[0]:.0f}×{ext[1]:.0f}×{ext[2]:.0f} mm · {len(meshes)} 色', view)
+    if (product or style == 'pixel') and INLAY:
+        pieces = {}
+        off = 0.0
+        for f, m in meshes.items():
+            mm = m.copy(); mm.apply_transform(TM([off, 0, 0])); pieces[f] = mm
+            off += m.extents[0] + 4
+        allp = trimesh.util.concatenate(list(pieces.values()))
+        preview(allp, pieces, colours, f'{out}/{name}_pieces.png', f'{name} · 零件:底板(主色)+ 各色榫片', (55, -90))
+    parts = {f: len(m.split(only_watertight=False)) for f, m in meshes.items()}
     print(f'{name}: {ext[0]:.1f}×{ext[1]:.1f}×{ext[2]:.1f} mm · {s:.2f} mm/cell · '
-          f'{whole.volume / 1000 * 1.24:.1f} g · ' + ', '.join(meshes))
+          f'{whole.volume / 1000 * 1.24:.1f} g · 件数 ' + ', '.join(f'{f}×{n}' for f, n in parts.items()))
 
 
 if __name__ == '__main__':
