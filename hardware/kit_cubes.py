@@ -445,12 +445,19 @@ def main(base, out_dir):
                          if (x, y) not in patch_xy and front_of.get((x, y)) == SKIN_Z)
         pcx = sum(x for x, _ in patch_xy) / max(1, len(patch_xy))
         pby = min(y for _, y in patch_xy)
+        # fixed cells shared by every creature, so one face board (MC03-F)
+        # serves them all: W = core (3,2), M = core (2,3). Fall back to the
+        # eye-relative pick only if a shape covers those cells.
         if exposed:
-            w = min(exposed, key=lambda c: (abs(c[0] - pcx) + abs(c[1] - (pby - 1)), c))
+            w = (tx + 3, ty + 2)
+            if w not in exposed:
+                w = min(exposed, key=lambda c: (abs(c[0] - pcx) + abs(c[1] - (pby - 1)), c))
             special[(w[0], w[1], SKIN_Z)] = 'W'
             rest = [c for c in exposed if c != w]
             if rest:
-                m = min(rest, key=lambda c: (abs(c[0] - pcx) + abs(c[1] - (pby - 3)), c))
+                m = (tx + 2, ty + 3)
+                if m not in rest:
+                    m = min(rest, key=lambda c: (abs(c[0] - pcx) + abs(c[1] - (pby - 3)), c))
                 special[(m[0], m[1], SKIN_Z)] = 'M'
         # bottom wall: speaker grille (left) and USB-C slot (right), one
         # cube behind the skin; the cloud cube under each is bored too so

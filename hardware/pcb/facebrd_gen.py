@@ -37,7 +37,7 @@ FR_JAR = os.path.expanduser('~/.local/share/freerouting/freerouting.jar')
 BX0, BX1, BY0, BY1, R = -28.0, 28.0, -35.0, 33.0, 5.0     # outline, corner r
 NOTCH = (-4.5, 4.5, -16.0)                                # x0, x1, y-bottom (opens to top edge)
 HOLES = [(-20, -32), (20, -32), (-20, 23), (20, 23)]      # = MC02-P bosses
-TOF_AT, MIC_AT = (0.0, -6.0), (-12.0, 18.0)               # W window / M hole centres (skin)
+TOF_AT, MIC_AT = (0.0, 18.0), (-12.0, 6.0)                # W window / M hole centres (core cells (3,2) / (2,3))
 
 # ---- parts: ref -> (lib, footprint, value, lcsc, (x, y), rot, {pad: net}) --
 # LCSC numbers marked '?' must be checked in the JLCPCB parts library before ordering.
@@ -47,44 +47,44 @@ XIAO_NETS = {1: 'SDA1', 2: 'I2S_LRC', 3: 'I2S_BCLK', 4: 'I2S_DIN', 5: 'SDA0', 6:
 PARTS = {
     'U1': ('XIAO', None, 'XIAO-ESP32S3', 'C48405120', (0, -24.5), 0, XIAO_NETS),
     'U2': ('Package_DFN_QFN', 'SiliconLabs_QFN-20-1EP_3x3mm_P0.5mm_EP1.8x1.8mm', 'MPR121QR2',
-           'C91322', (-16, -2), 180,
+           'C91322', (-16, -8), 180,
            {2: 'SCL0', 3: 'SDA0', 4: 'GND', 5: 'VREG', 6: 'GND', 7: '3V3', 8: 'REXT',
             **{9 + i: f'ELE{i}' for i in range(12)}, 21: 'GND', '': 'GND'}),
-    'U3': ('Sensor_Motion', 'InvenSense_QFN-24_4x4mm_P0.5mm', 'MPU-6050', 'C24112', (16, 3), 0,
+    'U3': ('Sensor_Motion', 'InvenSense_QFN-24_4x4mm_P0.5mm', 'MPU-6050', 'C24112', (16, -4), 0,
            {1: 'GND', 8: '3V3', 9: 'GND', 10: 'REGOUT', 11: 'GND', 13: '3V3', 18: 'GND',
             20: 'CPOUT', 22: 'GND', 23: 'SCL0', 24: 'SDA0'}),
     'C1': ('Capacitor_SMD', 'C_0603_1608Metric', '10uF', 'C19702', (12.5, -28), 0, {1: '3V3', 2: 'GND'}),
     'C2': ('Capacitor_SMD', 'C_0603_1608Metric', '100nF', 'C14663', (12.5, -25.5), 0, {1: '3V3', 2: 'GND'}),
-    'C3': ('Capacitor_SMD', 'C_0805_2012Metric', '22uF', 'C45783', (16, 27.3), 0, {1: 'AMP_VIN', 2: 'GND'}),
-    'C4': ('Capacitor_SMD', 'C_0603_1608Metric', '100nF', 'C14663', (-16.4, -5.4), 0, {1: '3V3', 2: 'GND'}),
-    'C5': ('Capacitor_SMD', 'C_0603_1608Metric', '100nF', 'C14663', (-12.4, -1.2), 90, {1: 'VREG', 2: 'GND'}),
-    'R5': ('Resistor_SMD', 'R_0603_1608Metric', '75k', 'C23196?', (-13.2, -5.4), 0, {1: 'REXT', 2: 'GND'}),
-    'C6': ('Capacitor_SMD', 'C_0603_1608Metric', '100nF', 'C14663', (19.5, 7.5), 0, {1: '3V3', 2: 'GND'}),
-    'C7': ('Capacitor_SMD', 'C_0603_1608Metric', '10nF', 'C57112', (13.5, 7.5), 0, {1: '3V3', 2: 'GND'}),
-    'C8': ('Capacitor_SMD', 'C_0603_1608Metric', '100nF', 'C14663', (16.5, 7.5), 0, {1: 'REGOUT', 2: 'GND'}),
-    'C9': ('Capacitor_SMD', 'C_0603_1608Metric', '2.2nF', 'C1588', (15.5, -3.5), 0, {1: 'CPOUT', 2: 'GND'}),
+    'C3': ('Capacitor_SMD', 'C_0805_2012Metric', '22uF', 'C45783', (-24.5, 26.0), 90, {1: 'AMP_VIN', 2: 'GND'}),
+    'C4': ('Capacitor_SMD', 'C_0603_1608Metric', '100nF', 'C14663', (-13.6, -12.2), 90, {1: '3V3', 2: 'GND'}),
+    'C5': ('Capacitor_SMD', 'C_0603_1608Metric', '100nF', 'C14663', (-11.4, -12.2), 90, {1: 'VREG', 2: 'GND'}),
+    'R5': ('Resistor_SMD', 'R_0603_1608Metric', '75k', 'C23196?', (-15.75, -12.2), 90, {1: 'REXT', 2: 'GND'}),
+    'C6': ('Capacitor_SMD', 'C_0603_1608Metric', '100nF', 'C14663', (19.5, 0.5), 0, {1: '3V3', 2: 'GND'}),
+    'C7': ('Capacitor_SMD', 'C_0603_1608Metric', '10nF', 'C57112', (13.5, 0.5), 0, {1: '3V3', 2: 'GND'}),
+    'C8': ('Capacitor_SMD', 'C_0603_1608Metric', '100nF', 'C14663', (16.5, 0.5), 0, {1: 'REGOUT', 2: 'GND'}),
+    'C9': ('Capacitor_SMD', 'C_0603_1608Metric', '2.2nF', 'C1588', (15.5, -8.5), 0, {1: 'CPOUT', 2: 'GND'}),
     'R1': ('Resistor_SMD', 'R_0603_1608Metric', '4.7k', 'C23162', (-14, -31), 0, {1: 'SDA0', 2: '3V3'}),
     'R2': ('Resistor_SMD', 'R_0603_1608Metric', '4.7k', 'C23162', (-14, -27.5), 0, {1: 'SCL0', 2: '3V3'}),
     'R3': ('Resistor_SMD', 'R_0603_1608Metric', '4.7k', 'C23162', (-14, -24), 0, {1: 'SDA1', 2: '3V3'}),
     'R4': ('Resistor_SMD', 'R_0603_1608Metric', '4.7k', 'C23162', (13, -18), 90, {1: 'SCL1', 2: '3V3'}),
     'J1': ('Connector_JST', 'JST_SH_SM04B-SRSS-TB_1x04-1MP_P1.00mm_Horizontal', 'ToF 4P', 'C160404?',
-           (21.5, -6), 'right', {1: '3V3', 2: 'GND', 3: 'SDA0', 4: 'SCL0'}),
+           (21.5, 14), 'right', {1: '3V3', 2: 'GND', 3: 'SDA0', 4: 'SCL0'}),
     'J3': ('Connector_JST', 'JST_SH_SM06B-SRSS-TB_1x06-1MP_P1.00mm_Horizontal', 'EYES 6P', 'C160405?',
            (-23, -22), 'left', {1: '3V3', 2: 'GND', 3: 'SDA0', 4: 'SCL0', 5: 'SDA1', 6: 'SCL1'}),
     'J6': ('Connector_JST', 'JST_SH_SM05B-SRSS-TB_1x05-1MP_P1.00mm_Horizontal', 'AMP 5P', 'C160403?',
-           (9, 29), 'down', {1: 'AMP_VIN', 2: 'GND', 3: 'I2S_BCLK', 4: 'I2S_LRC', 5: 'I2S_DIN'}),
+           (-16.5, 29), 'down', {1: 'AMP_VIN', 2: 'GND', 3: 'I2S_BCLK', 4: 'I2S_LRC', 5: 'I2S_DIN'}),
     'J5': ('Connector_JST', 'JST_SH_SM03B-SRSS-TB_1x03-1MP_P1.00mm_Horizontal', 'LED 3P', 'C160402?',
-           (22, 29), 'down', {1: 'VBAT', 2: 'GND', 3: 'LED_DIN'}),
+           (-7.5, 29), 'down', {1: 'VBAT', 2: 'GND', 3: 'LED_DIN'}),
     'J4': ('Connector_JST', 'JST_PH_S2B-PH-SM4-TB_1x02-1MP_P2.00mm_Horizontal', 'BAT', 'C295747?',
-           (-12, 27.8), 'down', {1: 'VBAT', 2: 'GND'}),
+           (2, 27.8), 'down', {1: 'VBAT', 2: 'GND'}),
     'J8': ('Connector_JST', 'JST_PH_S2B-PH-SM4-TB_1x02-1MP_P2.00mm_Horizontal', 'CHG', 'C295747?',
-           (-1, 27.8), 'down', {1: 'VBAT', 2: 'GND'}),
+           (12, 27.8), 'down', {1: 'VBAT', 2: 'GND'}),
     'J2': ('Connector_PinHeader_2.54mm', 'PinHeader_1x06_P2.54mm_Vertical', 'MIC pads', '',
-           (1, 8), 0, {1: 'GND', 2: 'MIC_WS', 3: 'MIC_SCK', 4: 'MIC_SD', 5: '3V3', 6: 'GND'}),
+           (7, -2), 0, {1: 'GND', 2: 'MIC_WS', 3: 'MIC_SCK', 4: 'MIC_SD', 5: '3V3', 6: 'GND'}),
     'J7': ('Connector_PinHeader_2.00mm', 'PinHeader_1x12_P2.00mm_Vertical', 'TOUCH pads', '',
-           (-25.5, -9), 0, {i + 1: f'ELE{i}' for i in range(12)}),
+           (-25.5, -8), 0, {i + 1: f'ELE{i}' for i in range(12)}),
     'JP1': ('Jumper', 'SolderJumper-3_P1.3mm_Bridged12_Pad1.0x1.5mm', 'AMP_VIN sel', '',
-            (14, 24), 0, {1: '3V3', 2: 'AMP_VIN', 3: 'VBAT'}),
+            (-23.2, 29.8), 0, {1: '3V3', 2: 'AMP_VIN', 3: 'VBAT'}),
     'TP1': ('TestPoint', 'TestPoint_Pad_1.5x1.5mm', 'VBUS', '', (12.5, -32), 0, {1: 'VBUS'}),
     'TP2': ('TestPoint', 'TestPoint_THTPad_1.5x1.5mm_Drill0.7mm', 'BAT+', '', (-2.2, -12.5), 0, {1: 'VBAT'}),
     'TP3': ('TestPoint', 'TestPoint_THTPad_1.5x1.5mm_Drill0.7mm', 'BAT-', '', (2.2, -12.5), 0, {1: 'GND'}),
@@ -262,23 +262,26 @@ def build(pcb_path):
     keepout(board, nx0 - 0.45, ny, nx1 + 0.45, ny + 0.45)
     # keep-out guides for the glued modules (front side)
     silk_rect(board, TOF_AT[0] - 12.5, TOF_AT[1] - 5.5, TOF_AT[0] + 12.5, TOF_AT[1] + 5.5)
-    silk(board, 'VL53L0X 模块贴此 · 镜头对准W窗', TOF_AT[0], TOF_AT[1] + 7.3, 0.8)
+    silk(board, 'VL53L0X 模块贴此 · 镜头对准W窗', TOF_AT[0], TOF_AT[1], 0.8)
     silk_rect(board, MIC_AT[0] - 5.5, MIC_AT[1] - 6, MIC_AT[0] + 5.5, MIC_AT[1] + 6)
-    silk(board, 'INMP441 麦', MIC_AT[0], MIC_AT[1] - 7.3, 0.8)
-    silk(board, 'MC03-F v1 · 正面朝脸 · XIAO BAT±→TP2/TP3', -10, 6.5, 0.8)
-    silk(board, 'TOUCH E0..E11', -22.5, -14.2, 0.8)
-    silk(board, 'EYES', -23, -27.8, 0.8); silk(board, 'ToF', 21.5, -11.2, 0.8)
-    silk(board, 'BAT', -12, 23.3, 0.8); silk(board, 'CHG', -1, 23.3, 0.8)
-    silk(board, 'AMP', 9, 24.7, 0.8); silk(board, 'LED', 24.5, 24.8, 0.8)
-    silk(board, '3V3 ◄JP1► VBAT', 14, 22.2, 0.8)
+    silk(board, 'INMP441 麦', MIC_AT[0], MIC_AT[1], 0.8)
+    silk(board, 'MC03-F v1 · 正面朝脸 · XIAO BAT±→TP2/TP3', 8, 6.5, 0.8)
+    silk(board, 'TOUCH E0..E11', -22.5, 15.8, 0.8)
+    silk(board, 'EYES', -23, -27.8, 0.8); silk(board, 'ToF', 21.5, 8.8, 0.8)
+    silk(board, 'BAT', 2, 23.3, 0.8); silk(board, 'CHG', 12, 23.3, 0.8)
+    silk(board, 'AMP', -16.5, 25.2, 0.8); silk(board, 'LED', -7.5, 25.2, 0.8)
+    silk(board, '3V3', -26.7, 29.8, 0.8); silk(board, 'VBAT', -21.6, 27.9, 0.8); silk(board, 'JP1', -23.2, 23.6, 0.8)
     silk(board, 'MC03-F v1  mycelium.yueyao.design', 0, 0, 1.2, pcbnew.B_SilkS)
-    silk(board, 'X ▶', 20.5, 1, 0.8)     # MPU6050 +X points creature-right
+    silk(board, 'X ▶', 20.5, -6, 0.8)    # MPU6050 +X points creature-right
     pcbnew.SaveBoard(pcb_path, board)
     return board, nets
 
 
-def pour_gnd(board, gnd):
-    for layer in (pcbnew.F_Cu, pcbnew.B_Cu):
+def pour_gnd(board, gnd, layers=(pcbnew.B_Cu,)):
+    """GND plane on the back only: the front stays a plain routed layer
+    (readable, no fragmented pour); GND pads reach the plane by short stubs
+    and vias that the router adds itself because the plane is in the DSN."""
+    for layer in layers:
         z = pcbnew.ZONE(board)
         z.SetLayer(layer); z.SetNet(gnd)
         z.SetLocalClearance(MM(0.25)); z.SetMinThickness(MM(0.25))
@@ -289,7 +292,6 @@ def pour_gnd(board, gnd):
             ol.Append(MM(x), MM(y))
         board.Add(z)
     pcbnew.ZONE_FILLER(board).Fill(board.Zones())
-    stitch(board, gnd)
 
 
 def stitch(board, gnd):
@@ -298,8 +300,10 @@ def stitch(board, gnd):
     too thin for a via next to the pad get a via IN the pad (fine for the
     QFN thermal pad and reflowed 0603 pads)."""
     zones = [z for z in board.Zones() if not z.GetIsRuleArea()]
-    zf = next(z for z in zones if z.IsOnLayer(pcbnew.F_Cu))
+    zf = next((z for z in zones if z.IsOnLayer(pcbnew.F_Cu)), None)
     zb = next(z for z in zones if z.IsOnLayer(pcbnew.B_Cu))
+    if zf is None:
+        return
     pf, pb = zf.GetFilledPolysList(pcbnew.F_Cu), zb.GetFilledPolysList(pcbnew.B_Cu)
     vias = [t for t in board.GetTracks() if t.GetClass() == 'PCB_VIA' and t.GetNetname() == 'GND']
     gpads = [p for fp in board.GetFootprints() for p in fp.Pads() if p.GetNetname() == 'GND']
@@ -356,7 +360,7 @@ def route(board, pcb_path, out):
         nc.SetClearance(MM(0.2))
         assert pcbnew.ExportSpecctraDSN(board, dsn), 'DSN export failed'
         nc.SetClearance(MM(0.15))
-        cmd = ['xvfb-run', '-a', 'java', '-jar', FR_JAR, '-de', dsn, '-do', ses, '-mp', '120', '-oit', '0.2', '-mt', '4']
+        cmd = ['xvfb-run', '-a', 'java', '-jar', FR_JAR, '-de', dsn, '-do', ses, '-mp', '200', '-oit', '0.1', '-mt', '4']
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=1500)
         log = (r.stdout + r.stderr)
         open(f'{out}/freerouting.log', 'w').write(log)
@@ -470,10 +474,19 @@ def exports(board, pcb_path, out, nets):
             w.writerow([ref, f'{pcbnew.ToMM(p.x):.3f}mm', f'{-pcbnew.ToMM(p.y):.3f}mm',
                         'Top' if fp.GetLayer() == pcbnew.F_Cu else 'Bottom', f'{fp.GetOrientationDegrees():.0f}'])
     # previews
-    for side, layers in (('top', 'F.Cu,F.SilkS,F.Mask,Edge_Cuts'), ('bottom', 'B.Cu,B.SilkS,B.Mask,Edge_Cuts')):
+    views = (('top', 'F.Cu,F.SilkS,F.Mask,Edge_Cuts', pcb_path), ('bottom', 'B.Cu,B.SilkS,B.Mask,Edge_Cuts', pcb_path))
+    # tracks-only view (pours removed) so the routing itself can be read
+    nz = f'{out}/_nozone.kicad_pcb'
+    bz = pcbnew.LoadBoard(pcb_path)
+    for z in list(bz.Zones()):
+        if not z.GetIsRuleArea():
+            bz.Remove(z)
+    pcbnew.SaveBoard(nz, bz)
+    views += (('tracks', 'F.Cu,B.Cu,F.SilkS,Edge_Cuts', nz),)
+    for side, layers, src in views:
         svg = f'{out}/facebrd_{side}.svg'
         subprocess.run(['kicad-cli', 'pcb', 'export', 'svg', '-o', svg, '--layers', layers,
-                        '--page-size-mode', '2', '--exclude-drawing-sheet', pcb_path], check=True, capture_output=True)
+                        '--page-size-mode', '2', '--exclude-drawing-sheet', src], check=True, capture_output=True)
         try:
             import cairosvg
             cairosvg.svg2png(url=svg, write_to=f'{out}/facebrd_{side}.png', output_width=1400, background_color='white')
@@ -486,10 +499,12 @@ def main(out, do_route=True):
     os.makedirs(out, exist_ok=True)
     pcb_path = f'{out}/facebrd.kicad_pcb'
     board, nets = build(pcb_path)
+    pour_gnd(board, nets['GND'])                 # plane first: the router must see it
     if do_route:
         board = route(board, pcb_path, out)
         nets = {n.GetNetname(): n for n in board.GetNetInfo().NetsByName().values()}
-    pour_gnd(board, nets['GND'])
+    pcbnew.ZONE_FILLER(board).Fill(board.Zones())
+    stitch(board, nets['GND'])
     pcbnew.SaveBoard(pcb_path, board)
     rep, unrouted = exports(board, pcb_path, out, nets)
     txt = open(rep).read()
