@@ -144,8 +144,9 @@ def main(base, out, height=None, earring=False, depth=2, add_base=False, mirror=
 
 
 if __name__ == '__main__':
-    args = [a for a in sys.argv[1:] if not a.startswith('--')]
     opt = sys.argv
     h = float(opt[opt.index('--height') + 1]) if '--height' in opt else None
     d = int(opt[opt.index('--depth') + 1]) if '--depth' in opt else 2
+    skip = {opt.index(k) + 1 for k in ('--height', '--depth') if k in opt}   # option values are not positionals
+    args = [a for i, a in enumerate(opt) if i > 0 and not a.startswith('--') and i not in skip]
     main(args[0], args[1], h, '--earring' in opt, d, '--base' in opt, '--mirror' in opt)
