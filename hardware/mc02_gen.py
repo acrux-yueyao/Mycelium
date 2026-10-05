@@ -33,7 +33,8 @@ from brick_lib import (mosaic_cube, B, D, U as UN, face_cyl,
                        MAG_R, MAG_D, NUB_R, NUB_H, OFF, P)
 
 PW, PH, PT = 84.0, 84.0, 3.0          # plate w/h/thickness
-BOSS_H = 6.5                          # board standoff: battery 6 fits below, standard 8.5 socket + XIAO clears the 21 cavity above
+BOSS_H = 14.5                         # MC03-F face board: standoff so board(0.8)+XIAO USB-C(4.5) ends 1.2 below the skin;
+                                      # battery 6 lies between plate and board. (perfboard era: 6.5)
 
 # wall coupling cells (i, j) of the 7×7 zone the plate overlaps
 WALL_CELLS = ([(0, j) for j in range(7)] + [(6, j) for j in range(7)]
@@ -66,6 +67,7 @@ def build_plate():
     # centred x; M2 holes 3mm in from the board corners
     for px, py in [(22, 25), (62, 25), (22, 80), (62, 80)]:
         m = UN([m, CYL_Z(px, py, PT - 0.02, PT + BOSS_H, 3.0)])
+        m = UN([m, CYL_Z(px, py, PT - 0.02, PT + 3.0, 4.0)])          # wider foot on the tall boss
         m = D(m, CYL_Z(px, py, PT + BOSS_H - 6, PT + BOSS_H + 1, 0.85))
 
     # battery recess 32×42×0.4 — 603040 stands vertical between the bosses
