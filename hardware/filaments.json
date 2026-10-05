@@ -1,0 +1,186 @@
+{
+  "_note": "Owned filament palette. hex values are first estimates read from the shop photos — print hardware/filament_swatch output, photograph under daylight, and correct them here. Only entries with owned:true are used for snapping. \"no\" = the user's own spool number written on the reel. backup:true spools are kept but never used for auto snapping.",
+  "brand": "PLA+ 1.75mm 1kg (Taobao 高韧 平光系列)",
+  "filaments": [
+    {
+      "id": "white",
+      "zh": "白色",
+      "en": "white",
+      "hex": "#f2f1ec",
+      "owned": true
+    },
+    {
+      "id": "black",
+      "zh": "黑色",
+      "en": "black",
+      "hex": "#1c1c1e",
+      "owned": true
+    },
+    {
+      "id": "deep-red",
+      "no": "00",
+      "zh": "深红",
+      "en": "deep red",
+      "hex": "#8e2a3c",
+      "owned": true,
+      "_src": "estimate from floor photo 2026-09-30"
+    },
+    {
+      "id": "red",
+      "zh": "红色",
+      "en": "red",
+      "hex": "#d22b2b",
+      "owned": true,
+      "no": "01"
+    },
+    {
+      "id": "orange",
+      "zh": "橙色",
+      "en": "orange",
+      "hex": "#f07a2a",
+      "owned": true,
+      "no": "02"
+    },
+    {
+      "id": "yellow",
+      "zh": "黄色",
+      "en": "yellow",
+      "hex": "#f5c400",
+      "owned": true,
+      "no": "03"
+    },
+    {
+      "id": "cream",
+      "zh": "奶油黄(大理石)",
+      "en": "yellow marble",
+      "hex": "#e6dca0",
+      "owned": true,
+      "_src": "yellow marble spool, speckled finish (confirmed 2026-09-30); hex is the base tone",
+      "no": "03.5"
+    },
+    {
+      "id": "avocado",
+      "zh": "牛油果绿",
+      "en": "avocado green",
+      "hex": "#8ccb3e",
+      "owned": true,
+      "no": "04"
+    },
+    {
+      "id": "green",
+      "zh": "青绿色",
+      "en": "green",
+      "hex": "#3fae3a",
+      "owned": true,
+      "no": "05"
+    },
+    {
+      "id": "deep-green",
+      "zh": "深绿色",
+      "en": "deep green",
+      "hex": "#3d8a6a",
+      "owned": true,
+      "no": "06"
+    },
+    {
+      "id": "aqua",
+      "zh": "青水蓝",
+      "en": "aqua blue",
+      "hex": "#8ed1cc",
+      "owned": true,
+      "no": "07"
+    },
+    {
+      "id": "sea-mist",
+      "zh": "海雾蓝",
+      "en": "sea mist blue",
+      "hex": "#a9c9cf",
+      "owned": true,
+      "no": "08"
+    },
+    {
+      "id": "serene",
+      "zh": "宁静蓝",
+      "en": "serene blue",
+      "hex": "#5b8fd6",
+      "owned": true,
+      "no": "09"
+    },
+    {
+      "id": "klein",
+      "zh": "克莱因蓝",
+      "en": "klein blue",
+      "hex": "#2462c8",
+      "owned": true,
+      "no": "10"
+    },
+    {
+      "id": "blue",
+      "no": "10.5",
+      "zh": "蓝",
+      "en": "blue",
+      "hex": "#2d3672",
+      "owned": true,
+      "backup": true,
+      "_src": "numbered inventory 2026-09-30: backup, excluded from auto palette"
+    },
+    {
+      "id": "rouge-snow",
+      "zh": "胭脂雪",
+      "en": "rouge snow",
+      "hex": "#d8b8d6",
+      "owned": true,
+      "_src": "from shelf photo (was #c9b6e4 shop estimate)",
+      "no": "11"
+    },
+    {
+      "id": "lavender",
+      "zh": "薰衣草紫",
+      "en": "lavender",
+      "hex": "#7b6fd6",
+      "owned": true,
+      "no": "12"
+    },
+    {
+      "id": "purple",
+      "zh": "紫色",
+      "en": "purple",
+      "hex": "#6a45c9",
+      "owned": true,
+      "no": "13"
+    },
+    {
+      "id": "dragonfruit",
+      "zh": "火龙果",
+      "en": "dragon fruit",
+      "hex": "#c8409b",
+      "owned": true,
+      "no": "14"
+    },
+    {
+      "id": "rose",
+      "zh": "蔷薇粉",
+      "en": "rose pink",
+      "hex": "#e77fa8",
+      "owned": true,
+      "no": "15"
+    },
+    {
+      "id": "first-love",
+      "zh": "初恋粉",
+      "en": "first-love pink",
+      "hex": "#f6c6d3",
+      "owned": true,
+      "no": "16"
+    },
+    {
+      "id": "pink-marble",
+      "zh": "淡粉(大理石)",
+      "en": "pink marble",
+      "hex": "#efd6de",
+      "owned": true,
+      "no": "16.5",
+      "_src": "Inland PLA pink marble (Ingeo), 190-230C, bed 25-60C; speckled; hex from spool-window photo 2026-09-30, lighter than 16 first-love"
+    }
+  ]
+}

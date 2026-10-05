@@ -57,6 +57,25 @@ DIRS = {(0, True): (1, 0, 0), (0, False): (-1, 0, 0),
 # 极性总规则:全机磁铁 N 极统一指向 左/下/后 → −面 N 朝外,+面 S 朝外
 POLE = lambda positive: 'S' if positive else 'N'
 
+
+def load_filaments():
+    """Owned spools from hardware/filaments.json (None if missing)."""
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'filaments.json')
+    if not os.path.exists(p):
+        return None
+    return [f for f in json.load(open(p))['filaments'] if f.get('owned') and not f.get('backup')]
+
+
+def _lab(hexcol):
+    """sRGB hex → CIELAB (D65), for perceptual nearest-colour snapping."""
+    c = [int(hexcol[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+    c = [((v + 0.055) / 1.055) ** 2.4 if v > 0.04045 else v / 12.92 for v in c]
+    x = (c[0] * 0.4124 + c[1] * 0.3576 + c[2] * 0.1805) / 0.95047
+    y = (c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722)
+    z = (c[0] * 0.0193 + c[1] * 0.1192 + c[2] * 0.9505) / 1.08883
+    f = lambda t: t ** (1 / 3) if t > 0.008856 else 7.787 * t + 16 / 116
+    return (116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z)))
+
 # ---- 耦合面刻字:极性字母 + 变体号,0.4 深,占销钉对角线之外的两个空角 ----
 ENG_DEPTH = 0.55
 _glyphs = {}
@@ -97,11 +116,42 @@ _INPLANE = {0: (1, 2), 1: (0, 2), 2: (0, 1)}
 _OFF = 3.5                      # brick_lib pin/dimple diagonal offset
 
 
+# function cubes: W = ToF window, M = mic hole (bores along the depth
+# axis, local 1); U = USB-C plug slot, G = speaker grille (vertical,
+# local 2 - these lose their top/bottom magnet pockets).
+FUNC_VERTICAL = ('U', 'G')
+
+
+def _function_cut(kind, pitch=12.0):
+    from trimesh.creation import box, cylinder
+    h = pitch / 2
+    if kind in ('W', 'M'):
+        r = 3.0 if kind == 'W' else 1.25
+        c = cylinder(radius=r, height=pitch + 4, sections=32)
+        c.apply_transform(RM(np.pi / 2, [1, 0, 0]))
+        c.apply_transform(TM([h, h, h]))
+        return [c]
+    if kind == 'U':
+        return [box(extents=[10.0, 6.0, pitch + 4], transform=TM([h, h, h]))]
+    if kind == 'G':
+        out = []
+        for gx in (3.0, 6.0, 9.0):
+            for gy in (3.5, 6.0, 8.5):
+                c = cylinder(radius=0.6, height=pitch + 4, sections=16)
+                c.apply_transform(TM([gx, gy, h]))
+                out.append(c)
+        return out
+    return []
+
+
 def variant_mesh(code, mask, pitch=12.0):
     """mosaic_cube + engraving: on every coupled face, the pole letter
     (N/S out) in one free corner and the 2-hex variant code in the other.
-    Hidden after assembly; identifies loose cubes. ENGRAVE=0 disables."""
+    Hidden after assembly; identifies loose cubes. ENGRAVE=0 disables.
+    Codes prefixed W/M/U/G are function cubes and get their bore cut."""
     m = mosaic_cube(faces=list(mask))
+    if code[0] in 'WMUG':
+        m = trimesh.boolean.difference([m] + _function_cut(code[0], pitch))
     import os as _os
     if _os.environ.get('ENGRAVE', '1') == '0':
         return m
@@ -127,6 +177,22 @@ def variant_mesh(code, mask, pitch=12.0):
     return m
 
 
+def cell_mesh(code, mask, eye=None):
+    """Geometry for one kit cube: eye frame piece, or a variant cube."""
+    if eye:
+        from brick_lib import eye_frame_piece
+        return eye_frame_piece(tuple(eye['pocket']), [tuple(k) for k in eye['std']],
+                               [tuple(k) for k in eye['seam']])
+    return variant_mesh(code, mask)
+
+
+def orient_mask(mask, eye=None):
+    """Faces that must NOT land on the bed (coupled, or the pocket side)."""
+    if eye:
+        return {tuple(k) for k in eye['orient']}
+    return {tuple(k) for k in mask}
+
+
 # 平面朝下的优先级(前后 → 下上 → 左右)与对应的放倒旋转
 FLAT_PREF = [(1, True), (1, False), (2, False), (2, True), (0, False), (0, True)]
 FLAT_ROT = {(1, True):  RM(-np.pi/2, [1, 0, 0]),   # 前面(+y)贴床
@@ -137,9 +203,64 @@ FLAT_ROT = {(1, True):  RM(-np.pi/2, [1, 0, 0]),   # 前面(+y)贴床
             (0, True):  RM(+np.pi/2, [0, 1, 0])}   # 右面贴床
 
 
-def orient_flat_down(m, mask):
+def flat_pref(code=''):
+    """Bed-face preference. Vertical-bore function cubes (U, G) stand on
+    their bored face so the bore prints vertical instead of as a bridge."""
+    if code[:1] in FUNC_VERTICAL:
+        return [(2, False), (2, True)] + [k for k in FLAT_PREF if k[0] != 2]
+    return FLAT_PREF
+
+
+def overhang_area(m):
+    """Downward-facing area steeper than 45deg that is not on the bed."""
+    n, c = m.face_normals, m.triangles_center
+    lo = m.bounds[0][2]
+    sel = (n[:, 2] < -0.707) & (c[:, 2] > lo + 0.3)
+    return float(m.area_faces[sel].sum())
+
+
+def best_bed(m, mask, code=''):
+    """Bed face for this cube.
+
+    Default is the usual preference (show face down, flat faces first).
+    With KIT_REORIENT=1, and only when that leaves a real cantilever - more than CANTILEVER_MM2 of
+    extra unsupported overhang compared with the best alternative - is
+    another face used. Alternatives are flat faces and dimple-only
+    coupled faces (no pins may touch the bed)."""
+    def score(key):
+        r = FLAT_ROT[key]
+        g = m.copy()
+        if r is not None:
+            g.apply_transform(r)
+        return overhang_area(g)
+    default = next((k for k in flat_pref(code) if k not in mask), None)
+    cands = [k for k, _ in FACE_KEYS if not (k in mask and k[1])]
+    # rounded score + FLAT_PREF order: symmetric cubes tie up to boolean
+    # noise, which must not flip the bed face from one run to the next
+    best = min(cands, key=lambda k: (round(score(k) + (30.0 if k in mask else 0.0)),
+                                     k not in (default,), FLAT_PREF.index(k)))
+    if default is None:
+        return best
+    if os.environ.get('KIT_REORIENT') == '1' and score(default) - score(best) > CANTILEVER_MM2:
+        return best
+    return default
+
+
+CANTILEVER_MM2 = 40.0
+
+
+def orient_flat_down(m, mask, code='', bed=None):
     """把一个没有耦合特征的外露面转到床面,返回 (mesh, 说明)."""
-    for key in FLAT_PREF:
+    if bed is not None:
+        key = tuple(bed)
+        r = FLAT_ROT[key]
+        if r is not None:
+            m = m.copy()
+            m.apply_transform(r)
+        lo = m.bounds[0]
+        m.apply_transform(TM([-lo[0], -lo[1], -lo[2]]))
+        return m, f"贴床面 {dict(FACE_KEYS)[key]}" + (' (带凹窝)' if key in mask else '')
+    for key in flat_pref(code):
         if key not in mask:
             r = FLAT_ROT[key]
             if r is not None:
@@ -191,9 +312,46 @@ def main(base, out_dir):
     zf = Z - 1
     er = a['eyeRow']
     ep_c0 = a['L0'] + 1                       # patch centred on the eye pair
-    patch = {(c, rows - 1 - r, fzall.get((c, rows - 1 - r), zf))
-             for c in range(ep_c0, ep_c0 + 3)
-             for r in range(er - 1, er + 2)}
+    patch_xy = {(c, rows - 1 - r) for c in range(ep_c0, ep_c0 + 3)
+                for r in range(er - 1, er + 2)}
+    added = set()
+    eye_frame = {}          # (x,y,z) -> {'side','pocket'} for zone builds
+    eye_socket = set()      # (x,y) of the empty 2x1 socket cells
+    if zone:
+        # two screens, one per eye, at the drawn eyes (GME12864-11 viewing
+        # area 23.7x12.9 = one 2x1-cell eye). Socket cells stay empty (the
+        # glass is the eye); the 4x3 ring around each on the skin plane
+        # carries a shared pocket from behind. Only the socket columns are
+        # cleared in front; bulges on the frame stay.
+        from brick_lib import EYE_MODULE
+        ye = rows - 1 - er
+        patch = set()
+        patch_xy = set()
+        for side, e0 in (('L', a['L0']), ('R', a['R0'])):
+            cx, cy = (e0 + 1) * 12.0, (ye + 0.5) * 12.0      # socket centre (mm)
+            px0, px1 = cx - EYE_MODULE[0] / 2, cx + EYE_MODULE[0] / 2
+            py0, py1 = cy - EYE_MODULE[1] / 2, cy + EYE_MODULE[1] / 2
+            for x in range(e0 - 1, e0 + 3):
+                for y in range(ye - 1, ye + 2):
+                    patch_xy.add((x, y))
+                    if y == ye and x in (e0, e0 + 1):
+                        eye_socket.add((x, y))
+                        continue
+                    eye_frame[(x, y, SKIN_Z)] = {
+                        'side': side, 'i': x - (e0 - 1), 'j': y - (ye - 1),
+                        'pocket': [px0 - x * 12, px1 - x * 12, py0 - y * 12, py1 - y * 12]}
+        kit = {k for k in kit if not ((k[0], k[1]) in eye_socket and k[2] >= SKIN_Z)}
+        for k in eye_frame:
+            if k not in kit:
+                kit.add(k); added.add(k)
+        # close skin holes over the cavity: a missing skin cube leaves the
+        # bulge in front of it hanging and opens the cavity to the face
+        for x in range(tx + 1, tx + 6):
+            for y in range(ty + 1, ty + 7):
+                if (x, y) not in eye_socket and (x, y, SKIN_Z) not in kit:
+                    kit.add((x, y, SKIN_Z)); added.add((x, y, SKIN_Z))
+    else:
+        patch = {(c, y, fzall.get((c, y), zf)) for c, y in patch_xy}
     # mic / vents (manual hole_cube substitution)
     tcx = vc0 + 3
     special = {(tcx, rows - 1 - (er + 2), zf): 'M-mic',
@@ -245,7 +403,7 @@ def main(base, out_dir):
         return target <= seen
 
     removed = set()
-    for c in sorted(c for c in kit if all(n in kit for n in nb6(c))):
+    for c in sorted(c for c in kit if c not in eye_frame and all(n in kit for n in nb6(c))):
         kit.discard(c)
         nbrs = [n for n in nb6(c) if n in kit]
         if still_linked(nbrs):
@@ -258,41 +416,182 @@ def main(base, out_dir):
     kit -= zero
     strays |= zero
 
+    if zone:
+        special.clear()                       # legacy anchors don't apply
+        # no cube may be placed into thin air: give every hanging island
+        # the shortest support chain straight down or straight back
+        from seq_plates import build_order
+        for _ in range(40):
+            cells = [{'x': k[0], 'y': k[1], 'z': k[2]} for k in kit | patch]
+            _, hang = build_order(cells)
+            if not hang:
+                break
+            k, best = hang[0], None
+            for dy, dz in ((-1, 0), (0, -1)):
+                chain, q = [], (k[0], k[1] + dy, k[2] + dz)
+                while q[1] >= 0 and q[2] >= 0 and q not in kit and q not in patch and len(chain) < 6:
+                    chain.append(q); q = (q[0], q[1] + dy, q[2] + dz)
+                if (q in kit or q in patch) and (best is None or len(chain) < len(best)):
+                    best = chain
+            if best is None:
+                kit.discard(k); strays.add(k)
+            else:
+                kit.update(best); added.update(best)
+        # front function cubes on exposed skin cells: ToF window + mic hole
+        front_of = {}
+        for k in kit | patch:
+            front_of[(k[0], k[1])] = max(front_of.get((k[0], k[1]), -1), k[2])
+        exposed = sorted((x, y) for x in range(tx + 1, tx + 6) for y in range(ty + 1, ty + 7)
+                         if (x, y) not in patch_xy and front_of.get((x, y)) == SKIN_Z)
+        pcx = sum(x for x, _ in patch_xy) / max(1, len(patch_xy))
+        pby = min(y for _, y in patch_xy)
+        if exposed:
+            w = min(exposed, key=lambda c: (abs(c[0] - pcx) + abs(c[1] - (pby - 1)), c))
+            special[(w[0], w[1], SKIN_Z)] = 'W'
+            rest = [c for c in exposed if c != w]
+            if rest:
+                m = min(rest, key=lambda c: (abs(c[0] - pcx) + abs(c[1] - (pby - 3)), c))
+                special[(m[0], m[1], SKIN_Z)] = 'M'
+        # bottom wall: speaker grille (left) and USB-C slot (right), one
+        # cube behind the skin; the cloud cube under each is bored too so
+        # sound / the plug reach the dock below
+        zc = SKIN_Z - 1
+        for tag, x in (('G', tx + 1), ('U', tx + 4)):
+            for y in (ty, ty - 1):
+                if (x, y, zc) in kit:
+                    special[(x, y, zc)] = tag
+
     # 颜色量化(与 kit_sheet 同思路,≤8 色 → 每盘一种耗材)
     hexes = {}
     for x, y, z, hx, *_ in meta['voxels']:
         hexes[(x, y, z)] = hx
+    # added support / skin cubes borrow the colour of the nearest original
+    # voxel (same column first, then any neighbour) - they are hidden or
+    # sit flush with the skin, so they should read as the body around them
+    for k in sorted(added):
+        col = [(abs(z - k[2]), h) for (x, y, z), h in hexes.items()
+               if x == k[0] and y == k[1]]
+        if not col:
+            col = [(abs(x - k[0]) + abs(y - k[1]) + abs(z - k[2]), h)
+                   for (x, y, z), h in hexes.items()]
+        hexes[k] = min(col)[1]
     import numpy as _np
     kcols = [hexes.get(c, '#b0aca0') for c in sorted(kit)]
     rgbs = _np.array([[int(h[1:3], 16), int(h[3:5], 16), int(h[5:7], 16)]
                       for h in kcols], float)
     import os as _os
     n_colors = int(_os.environ.get('KIT_COLORS', '8'))
-    uq = _np.unique(rgbs, axis=0)
-    kq = min(n_colors, len(uq))
-    cent = uq[_np.linspace(0, len(uq) - 1, kq).astype(int)].copy()
-    for _ in range(12):
+    palette_mode = _os.environ.get('KIT_PALETTE', 'filaments')
+    color_names = None
+    color_nos = None
+    fil = load_filaments() if palette_mode == 'filaments' else None
+    if fil:
+        # snap every cube to the nearest OWNED filament (CIELAB distance);
+        # KIT_COLORS then keeps only the N most-used filaments and re-snaps,
+        # so the kit never asks for a spool you don't have.
+        flab = _np.array([_lab(f['hex']) for f in fil])
+        clab = _np.array([_lab(h) for h in kcols])
+        d = ((clab[:, None] - flab[None]) ** 2).sum(2)
+        # designer overrides: <base>.filmap.json maps a source colour to a
+        # chosen spool id — for in-between hues no owned spool matches
+        fm_path = base + '.filmap.json'
+        if os.path.exists(fm_path):
+            fmap = {k.lower(): v for k, v in json.load(open(fm_path)).items()}
+            fidx = {f['id']: i for i, f in enumerate(fil)}
+            for row, h in enumerate(kcols):
+                fid = fmap.get(h.lower())
+                if fid in fidx:
+                    d[row, :] = 1e9
+                    d[row, fidx[fid]] = 0
+        lb = d.argmin(1)
+        use = _np.bincount(lb, minlength=len(fil))
+        keep = [i for i in _np.argsort(-use) if use[i] > 0][:n_colors]
+        d2 = d[:, keep]
+        lb = d2.argmin(1)
+        plate_colors = [fil[i]['hex'] for i in keep]
+        color_names = [f"{fil[i]['zh']} {fil[i]['en']}" for i in keep]
+        color_nos = [fil[i].get('no', '') for i in keep]
+    else:
+        uq = _np.unique(rgbs, axis=0)
+        kq = min(n_colors, len(uq))
+        cent = uq[_np.linspace(0, len(uq) - 1, kq).astype(int)].copy()
+        for _ in range(12):
+            dd = ((rgbs[:, None] - cent[None]) ** 2).sum(2)
+            lb = dd.argmin(1)
+            for i_ in range(kq):
+                if (lb == i_).any():
+                    cent[i_] = rgbs[lb == i_].mean(0)
         dd = ((rgbs[:, None] - cent[None]) ** 2).sum(2)
         lb = dd.argmin(1)
-        for i_ in range(kq):
-            if (lb == i_).any():
-                cent[i_] = rgbs[lb == i_].mean(0)
-    dd = ((rgbs[:, None] - cent[None]) ** 2).sum(2)
-    lb = dd.argmin(1)
-    plate_colors = ['#%02x%02x%02x' % tuple(int(v) for v in c) for c in cent]
+        plate_colors = ['#%02x%02x%02x' % tuple(int(v) for v in c) for c in cent]
     ci_of = {c: int(l) for c, l in zip(sorted(kit), lb)}
 
     percube = []
     variants, vmap = {}, {}
+    for k in patch:
+        vmap[f'{k[0]},{k[1]},{k[2]}'] = 'EYEPATCH'
+    solid = kit | patch
+
+    def pocket_hits(pk, key):
+        x0, x1, y0, y1 = pk
+        xo = x0 < 12 - 1e-6 and x1 > 1e-6
+        yo = y0 < 12 - 1e-6 and y1 > 1e-6
+        axis, pos = key
+        if axis == 0:
+            return yo and (x1 >= 12 - 1e-6 if pos else x0 <= 1e-6)
+        if axis == 2:
+            return xo and (y1 >= 12 - 1e-6 if pos else y0 <= 1e-6)
+        return (not pos) and xo and yo               # rear face only
+
+    def eye_faces(k):
+        """(std, seam) coupled faces of an eye frame cube."""
+        ef = eye_frame[k]
+        std, seam = [], []
+        for key, _ in FACE_KEYS:
+            n = (k[0] + DIRS[key][0], k[1] + DIRS[key][1], k[2] + DIRS[key][2])
+            if n not in solid:
+                continue
+            if pocket_hits(ef['pocket'], key):
+                if n in eye_frame and eye_frame[n]['side'] == ef['side']:
+                    seam.append(key)
+            else:
+                std.append(key)
+        return std, seam
+
+    def blocked_from(n, key_toward_k):
+        """True if the eye frame cube n refuses coupling on the face that
+        points back at us (pocket crosses it)."""
+        opp = (key_toward_k[0], not key_toward_k[1])
+        return n in eye_frame and pocket_hits(eye_frame[n]['pocket'], opp)
+
     for (x, y, z) in sorted(kit):
         if (x, y, z) in patch:
             vmap[f'{x},{y},{z}'] = 'EYEPATCH'
             continue
+        if (x, y, z) in eye_frame:
+            ef = eye_frame[(x, y, z)]
+            std, seam = eye_faces((x, y, z))
+            mask = tuple(sorted(std + seam))
+            code = f"E-{ef['side']}{ef['i']}{ef['j']}"
+            orient = set(mask)          # a pocketed rear still prints fine face-down
+            variants.setdefault(code, {'mask': mask, 'count': 0, 'eye': {
+                'pocket': ef['pocket'], 'std': [list(k) for k in std],
+                'seam': [list(k) for k in seam], 'orient': [list(k) for k in sorted(orient)]}})['count'] += 1
+            vmap[f'{x},{y},{z}'] = code
+            percube.append({'x': x, 'y': y, 'z': z, 'code': code, 'mask': [list(k) for k in mask],
+                            'ci': ci_of[(x, y, z)], 'tag': 'eye',
+                            'eye': variants[code]['eye']})
+            continue
         # 眼件外侧面带标准耦合,邻居照常算耦合面
         mask = tuple(sorted(
             key for key, _ in FACE_KEYS
-            if (x + DIRS[key][0], y + DIRS[key][1], z + DIRS[key][2]) in kit))
-        code = 'C-%02X' % sum(1 << FACE_BIT[k] for k in mask)
+            if (x + DIRS[key][0], y + DIRS[key][1], z + DIRS[key][2]) in solid
+            and not blocked_from((x + DIRS[key][0], y + DIRS[key][1], z + DIRS[key][2]), key)))
+        tag0 = special.get((x, y, z))
+        if tag0 in FUNC_VERTICAL:
+            # vertical bore through the cube: no magnet pocket on top/bottom
+            mask = tuple(k for k in mask if k[0] != 2)
+        code = ('C-%02X' if not tag0 else f'{tag0[0]}-%02X') % sum(1 << FACE_BIT[k] for k in mask)
         variants.setdefault(code, {'mask': mask, 'count': 0})['count'] += 1
         tag = special.get((x, y, z))
         vmap[f'{x},{y},{z}'] = f'{code}{"·" + tag if tag else ""}'
@@ -306,9 +605,10 @@ def main(base, out_dir):
              f'eyepatch cells {sum(1 for v in vmap.values() if v == "EYEPATCH")}'
              f' · variants {len(variants)}', '']
     for code, v in sorted(variants.items(), key=lambda kv: -kv[1]['count']):
-        m = variant_mesh(code, v['mask'])
+        m = cell_mesh(code, v['mask'], v.get('eye'))
         assert m.is_watertight, code
-        m, orient = orient_flat_down(m, set(v['mask']))
+        v['bed'] = list(best_bed(m, set(v['mask']), code))
+        m, orient = orient_flat_down(m, orient_mask(v['mask'], v.get('eye')), code, v['bed'])
         m.export(f'{out_dir}/{code}.stl')
         names = [n for k, n in FACE_KEYS if k in v['mask']]
         flat = [n for k, n in FACE_KEYS if k not in v['mask']]
@@ -318,7 +618,9 @@ def main(base, out_dir):
         f'{k[0]},{k[1]},{k[2]} → {t}' for k, t in special.items() if k in kit)]
     open(f'{out_dir}/variant_bill.txt', 'w').write('\n'.join(lines) + '\n')
     json.dump(vmap, open(f'{out_dir}/variant_map.json', 'w'), indent=0)
-    json.dump({'colors': plate_colors, 'cells': percube},
+    for c in percube:
+        c['bed'] = variants[c['code']]['bed']
+    json.dump({'colors': plate_colors, 'color_names': color_names, 'color_nos': color_nos, 'cells': percube},
               open(f'{out_dir}/kit_manifest.json', 'w'), indent=0)
     print('\n'.join(lines[:3 + min(len(variants), 40)]))
     print(f'→ {len(variants)} variant STLs in {out_dir}')

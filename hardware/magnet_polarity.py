@@ -27,7 +27,7 @@ import sys
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from kit_cubes import FACE_KEYS, FLAT_PREF, FLAT_ROT, POLE
+from kit_cubes import FACE_KEYS, FLAT_PREF, FLAT_ROT, POLE, flat_pref
 
 import matplotlib
 matplotlib.use('Agg')
@@ -43,11 +43,12 @@ CROSS = {(0, 0, 1): (1, 2, '上'), (0, 0, -1): (1, 0, '下·贴床'),
          (0, -1, 0): (1, 1, '前·朝你'), (0, 1, 0): (1, 3, '后')}
 
 
-def plate_faces(mask):
-    """mask (set of face keys) → list of (plate_dir, pole|None) per face."""
+def plate_faces(mask, small=(), code='', bed=None):
+    """mask (set of face keys) → list of (plate_dir, pole|None) per face.
+    Faces in `small` (eye seams, O2x1 magnets) report a lowercase pole."""
     rot = np.eye(3)
-    for key in FLAT_PREF:
-        if key not in mask:
+    for key in ([tuple(bed)] if bed is not None else flat_pref(code)):
+        if bed is not None or key not in mask:
             r = FLAT_ROT[key]
             if r is not None:
                 rot = np.asarray(r)[:3, :3]
@@ -57,7 +58,10 @@ def plate_faces(mask):
         n = np.zeros(3)
         n[axis] = 1 if pos else -1
         w = tuple(int(round(v)) for v in rot @ n)
-        out.append((w, POLE(pos) if (axis, pos) in mask else None))
+        pole = POLE(pos) if (axis, pos) in mask else None
+        if pole and (axis, pos) in small:
+            pole = pole.lower()
+        out.append((w, pole))
     return out
 
 
@@ -80,7 +84,7 @@ def main(vdir, out=None):
     for i, code in enumerate(codes):
         ax = fig.add_subplot(gs[i // ncol, i % ncol])
         ax.axis('off'); ax.set_facecolor('#f6f5f0')
-        for w, pole in plate_faces(variants[code]['mask']):
+        for w, pole in plate_faces(variants[code]['mask'], code=code):
             cx, cy, name = CROSS[w]
             fc = {None: FLAT_COL, 'N': N_COL, 'S': S_COL}[pole]
             ax.add_patch(Rectangle((cx, cy), 0.94, 0.94, fc=fc,
