@@ -34,8 +34,12 @@
  *   --colors N   quantise the body cells into N colours (assembly default 2,
  *                relief --split default 3, 0 = every palette band). The plate
  *                is always its own colour.
- *   --spool-map auto|family   auto (default): each colour = the mean of that
- *                spore's own cells, plate = its darkest band — most faithful.
+ *   --spool-map inventory|auto|family   inventory (default when
+ *                design/filaments.json has entries): the spore's own colours,
+ *                each lightness band snapped to the nearest spool you own
+ *                (CIE Lab, chroma-weighted; plate = a darker owned spool).
+ *                auto: each colour = the mean of that spore's own cells,
+ *                plate = its darkest band — exact engine colours, no spools.
  *                family: fixed spools per family (tender peach, calm blue,
  *                curious orange, dreamy lavender, companion mint, lonely grey)
  *                derived from the engine's FAMILY table — batchable, 6 sets.
@@ -109,11 +113,13 @@ const COLORS = Number(arg('colors', ASSEMBLY ? '2' : flag('split') ? '3' : '0'))
 const EYES = arg('eyes', ASSEMBLY ? 'own' : SPLIT || COLORS > 0 ? 'merge' : 'own')!;
 const SMOOTH = !flag('no-smooth') && (SPLIT || COLORS > 0 || !!arg('spools'));
 // your own spool inventory (design/filaments.json): --spools / --plate accept its names as well as #rrggbb
-interface Filament { name: string; hex: string; brand?: string; material?: string; note?: string }
-const INVENTORY: Filament[] = (() => {
-  const f = path.resolve(process.cwd(), 'design/filaments.json');
-  try { return (JSON.parse(fs.readFileSync(f, 'utf8')).filaments ?? []) as Filament[]; } catch { return []; }
+interface Filament { name: string; hex: string; zh?: string; no?: string; brand?: string; material?: string; note?: string }
+interface FamilySet { plate: string; spools: string[] }
+const INV_FILE = (() => {
+  try { return JSON.parse(fs.readFileSync(path.resolve(process.cwd(), 'design/filaments.json'), 'utf8')); } catch { return {}; }
 })();
+const INVENTORY: Filament[] = INV_FILE.filaments ?? [];
+const FAMILY_SETS: Record<string, FamilySet> = INV_FILE.families ?? {};
 const parseHex = (h: string): [number, number, number] => {
   const hit = INVENTORY.find((f) => f.name.toLowerCase() === h.trim().toLowerCase());
   const src = hit ? hit.hex : h;
@@ -136,7 +142,10 @@ const ENGRAVE = !flag('no-id');
 const PLATE_FILL = arg('plate-fill', 'cells')!;
 if (!['cells', 'mask'].includes(PLATE_FILL)) throw new Error('--plate-fill cells|mask');
 const RIM = PLATE_FILL === 'cells' && (MODE === 'assembly') ? Number(arg('rim', '0.6')) : 0;
-const SPOOL_MAP = arg('spool-map', SPOOLS_GIVEN() ? 'bands' : 'auto')!;   // auto | family | bands | nearest
+// auto | inventory | family | bands | nearest — with a spool inventory on disk the default is
+// inventory: the spore's own colours, each snapped to the nearest spool you actually own
+const SPOOL_MAP = arg('spool-map', SPOOLS_GIVEN() ? 'bands' : INVENTORY.length ? 'inventory' : 'auto')!;
+const SNAP = SPOOL_MAP === 'inventory' || (SPOOL_MAP === 'family' && INVENTORY.length > 0);
 const name = arg('name') ?? `jewel_${piece}_${FAMS[charId]}_${h0.toString(16).slice(0, 6)}`;
 const outDir = arg('out', 'out/jewel')!;
 
@@ -238,6 +247,41 @@ for (const [c, kind] of [[eyes.L0, 3], [eyes.L0 + 1, 4], [eyes.R0, 4], [eyes.R0 
 const groupRGB = new Map<string, RGB>([['base', BASE_RGB], ['white', WHITE], ['black', BLACK]]);
 palette.stops.forEach((st, k) => groupRGB.set(`band${k}`, hsl2rgb(st.h, st.s, st.l)));
 const lum = (c: RGB) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+// perceptual distance (CIE Lab) for snapping engine colours to real spools
+const toLab = (c: RGB): [number, number, number] => {
+  const f = (v: number) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+  const [r, g, b] = [f(c[0]), f(c[1]), f(c[2])];
+  const x = (r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.95047, y = r * 0.2126 + g * 0.7152 + b * 0.0722, z = (r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.08883;
+  const h = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+  return [116 * h(y) - 16, 500 * (h(x) - h(y)), 200 * (h(y) - h(z))];
+};
+const dE = (a: RGB, b: RGB) => { const p = toLab(a), q = toLab(b); return Math.hypot(p[0] - q[0], 1.4 * (p[1] - q[1]), 1.4 * (p[2] - q[2])); }; // chroma weighted: hue matters most
+const spoolName = new Map<string, string>();      // group → inventory name
+const INV_RGB = INVENTORY.map((f) => ({ f, rgb: parseHex(f.hex) }));
+// snap a dark→light list of target colours to distinct inventory spools (greedy, darkest first),
+// keeping the lightness order so the body's gradient survives
+const snapSet = (targets: RGB[], taken: Set<string>): Array<{ rgb: RGB; name: string }> => {
+  const out: Array<{ rgb: RGB; name: string }> = [];
+  let minL = -1;
+  for (const t of targets) {
+    const cands = INV_RGB.filter((c) => !taken.has(c.f.name) && !['white', 'black'].includes(c.f.name))
+      .map((c) => ({ c, d: dE(t, c.rgb) + Math.max(0, minL - toLab(c.rgb)[0]) * 0.6 }))   // penalise going darker than the previous band
+      .sort((a, b) => a.d - b.d);
+    const pick = cands[0]?.c ?? INV_RGB[0];
+    taken.add(pick.f.name); minL = toLab(pick.rgb)[0];
+    out.push({ rgb: pick.rgb, name: pick.f.name });
+  }
+  return out;
+};
+// the plate wants a spool darker than the body's darkest band and close to the engine's ground colour
+const snapPlate = (target: RGB, taken: Set<string>, bodyDarkL: number): { rgb: RGB; name: string } => {
+  const cands = INV_RGB.filter((c) => !taken.has(c.f.name))
+    .map((c) => ({ c, d: dE(target, c.rgb) + Math.max(0, toLab(c.rgb)[0] - bodyDarkL) * 1.2 }))   // not lighter than the body's dark band
+    .sort((a, b) => a.d - b.d);
+  const pick = cands[0]?.c ?? INV_RGB[0];
+  taken.add(pick.f.name);
+  return { rgb: pick.rgb, name: pick.f.name };
+};
 // N bins by lightness quantile — the body's vertical gradient becomes N clean bands
 const quantise = (N: number, prefix: string, reps?: RGB[]) => {
   const body = [...plan.values()].filter((p) => p.kind === 1 || p.kind === 2);
@@ -259,11 +303,44 @@ const familySpools = (N: number): { plate: RGB; spools: RGB[] } => {
   const Ls = N === 1 ? [0.6] : Array.from({ length: N }, (_, k) => 0.48 + (k / (N - 1)) * 0.28);
   return { plate: hsl2rgb(fam.hue, fam.sat * 0.55, 0.26), spools: Ls.map((L) => hsl2rgb(fam.hue, fam.sat * 0.95, L)) };
 };
-if (!SPOOLS && SPOOL_MAP === 'family') {
-  const fs_ = familySpools(Math.max(1, COLORS));
-  if (!PLATE_HEX) BASE_RGB = fs_.plate;
+const snapGroups = (prefix: string, targets: RGB[], plateTarget: RGB) => {
+  const taken = new Set<string>();
+  // plate first: the engine's ground colour usually has one obvious owned spool (deep green, deep red,
+  // klein…); picking it before the body keeps the plate in the family hue instead of falling to black
+  if (PLATE_HEX) { const hit = INVENTORY.find((f) => parseHex(f.hex).join() === BASE_RGB.join()); if (hit) { spoolName.set('base', hit.name); taken.add(hit.name); } }
+  else { const pl = snapPlate(plateTarget, taken, toLab(targets[0])[0]); BASE_RGB = pl.rgb; spoolName.set('base', pl.name); }
   groupRGB.set('base', BASE_RGB);
-  quantise(fs_.spools.length, 's', fs_.spools);
+  const body = snapSet(targets, taken);
+  body.forEach((b, k) => { groupRGB.set(`${prefix}${k}`, b.rgb); spoolName.set(`${prefix}${k}`, b.name); });
+  for (const [g, n] of [['white', 'white'], ['black', 'black']]) {
+    const hit = INVENTORY.find((f) => f.name === n);
+    if (hit) { groupRGB.set(g, parseHex(hit.hex)); spoolName.set(g, hit.name); }
+  }
+};
+if (!SPOOLS && SPOOL_MAP === 'inventory') {
+  // own palette → N lightness bands (means) → each band to the nearest spool you own
+  const N = Math.max(1, COLORS);
+  quantise(N, 'c');
+  const means = Array.from({ length: N }, (_, k) => groupRGB.get(`c${k}`)!);
+  snapGroups('c', means, BASE_RGB);
+} else if (!SPOOLS && SPOOL_MAP === 'family' && FAMILY_SETS[FAMS[charId]]) {
+  // hand-picked per-family set from the inventory file: take N spools dark→light (1 = middle, 2 = ends, 3 = all)
+  const set = FAMILY_SETS[FAMS[charId]];
+  const N = Math.max(1, Math.min(COLORS || 2, set.spools.length));
+  const idx = N === 1 ? [set.spools.length >> 1] : Array.from({ length: N }, (_, k) => Math.round((k / (N - 1)) * (set.spools.length - 1)));
+  const picks = idx.map((i) => set.spools[i]);
+  if (!PLATE_HEX) { BASE_RGB = parseHex(set.plate); spoolName.set('base', set.plate); }
+  groupRGB.set('base', BASE_RGB);
+  quantise(N, 's', picks.map(parseHex));
+  picks.forEach((n, k) => spoolName.set(`s${k}`, n));
+  for (const [g, n] of [['white', 'white'], ['black', 'black']]) {
+    const hit = INVENTORY.find((f) => f.name === n);
+    if (hit) { groupRGB.set(g, parseHex(hit.hex)); spoolName.set(g, hit.name); }
+  }
+} else if (!SPOOLS && SPOOL_MAP === 'family') {
+  const fs_ = familySpools(Math.max(1, COLORS));
+  if (SNAP) { quantise(fs_.spools.length, 's'); snapGroups('s', fs_.spools, fs_.plate); }
+  else { if (!PLATE_HEX) BASE_RGB = fs_.plate; groupRGB.set('base', BASE_RGB); quantise(fs_.spools.length, 's', fs_.spools); }
 } else if (SPOOLS && SPOOL_MAP === 'nearest') {
   // every body cell becomes the nearest spool (perceptual-ish RGB distance): keeps the family hue
   const dist = (a: RGB, b: RGB) => 2 * (a[0] - b[0]) ** 2 + 4 * (a[1] - b[1]) ** 2 + 3 * (a[2] - b[2]) ** 2;
@@ -284,7 +361,7 @@ if (!SPOOLS && SPOOL_MAP === 'family') {
 if (EYES === 'merge') {
   // eye whites → lightest filament, pupils → plate colour: zero extra spools for the face
   let lightest = 'base', bestL = -1;
-  const prefix = SPOOLS || SPOOL_MAP === 'family' ? 's' : COLORS > 0 ? 'c' : 'band';
+  const prefix = SPOOLS || SPOOL_MAP === 'family' ? 's' : COLORS > 0 || SPOOL_MAP === 'inventory' ? 'c' : 'band';
   for (const [g, c] of groupRGB) if (g.startsWith(prefix) && lum(c) > bestL) { bestL = lum(c); lightest = g; }
   for (const p of plan.values()) {
     if (p.kind === 3) p.group = lightest;
@@ -308,9 +385,10 @@ if (SMOOTH) {
       p.group = [...votes].sort((a, b) => b[1] - a[1])[0][0];
     }
 }
-if (SPOOLS || SPOOL_MAP === 'family' || COLORS > 0 || EYES === 'merge') {
+if (SPOOLS || SPOOL_MAP === 'family' || SPOOL_MAP === 'inventory' || COLORS > 0 || EYES === 'merge') {
   // previews show what the printer will actually lay down
   for (const p of plan.values()) if (p.kind !== 0) p.rgb = groupRGB.get(p.group) ?? p.rgb;
+  for (const p of plan.values()) if (p.kind === 0) p.rgb = BASE_RGB;
 }
 // colour regions = separate islands per group (each is roughly one colour change per layer)
 const countRegions = (): Map<string, number> => {
@@ -704,10 +782,11 @@ for (const [suffix, mirror] of variants) {
     for (const [g, ts] of r.parts) {
       writeSTL(`${base}_${g}.stl`, ts, `mycelium ${sporeId} ${g}`);
       const col = groupRGB.get(g === 'plate' ? 'base' : g) ?? BASE_RGB;
+      const nm = spoolName.get(g === 'plate' ? 'base' : g);
       const n = g === 'plate' || g === 'base' ? 1 : regions.get(g) ?? 1;
       nParts += n;
       const unit = !ASSEMBLY ? 'regions' : g === 'plate' ? 'plate' : n === 1 ? 'tile' : 'tiles';
-      bill.push(`${path.basename(base)}_${g}.stl\t${hex(col)}\t${n} ${unit}\t${ts.length / 2} faces`);
+      bill.push(`${path.basename(base)}_${g}.stl\t${hex(col)}${nm ? ` ${nm}${INVENTORY.find((f) => f.name === nm)?.zh ? ' ' + INVENTORY.find((f) => f.name === nm)!.zh : ''}` : ''}\t${n} ${unit}\t${ts.length / 2} faces`);
     }
     fs.writeFileSync(`${base}_${ASSEMBLY ? 'parts' : 'colors'}.txt`, bill.join('\n') + '\n');
   }
@@ -720,6 +799,7 @@ for (const [suffix, mirror] of variants) {
     thickMM: +(BASE + RELIEF + EYE_EXTRA).toFixed(2),
     cells: cells.length, plateCells: plan.size, tris: r.tris.length,
     filaments: Object.fromEntries([...new Set([...plan.values()].map((p) => p.group))].sort().map((g) => [g, hex(groupRGB.get(g) ?? BASE_RGB)])),
+    spools: Object.fromEntries([...spoolName].map(([g, n]) => [g, { name: n, zh: INVENTORY.find((f) => f.name === n)?.zh ?? '' }])),
     colourRegions: Object.fromEntries(regions),
     volumeMM3: +r.volMM3.toFixed(0), gramsPLA: +wPLA.toFixed(2), gramsResin: +wResin.toFixed(2),
   };

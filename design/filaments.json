@@ -1,5 +1,195 @@
 {
-  "_readme": "你的耗材库。spore_jewel 的 --spools / --plate 既认 #rrggbb,也认这里的 name。hex 用实际打印出来的颜色(拍一块试片对色),比包装标称准。",
-  "_example": { "name": "example-sakura-pink", "brand": "Bambu", "line": "PLA Basic", "material": "PLA", "hex": "#f5b7c5", "nozzle": "0.2 ok", "note": "示例条目,改成你自己的" },
-  "filaments": []
+  "_readme": "耗材库。spore_jewel 的 --spools / --plate 既认 #rrggbb 也认 name;有库时默认 --spool-map inventory:每只孢子的颜色就近落到这些卷上。hex 为照片估算值,打印色签日光下拍照后校准。",
+  "material": "PLA+ 1.75mm 1kg(Taobao 高韧 平光系列)",
+  "filaments": [
+    {
+      "name": "white",
+      "zh": "白色",
+      "hex": "#f2f1ec"
+    },
+    {
+      "name": "black",
+      "zh": "黑色",
+      "hex": "#1c1c1e"
+    },
+    {
+      "name": "deep-red",
+      "zh": "深红",
+      "hex": "#8e2a3c",
+      "no": "00"
+    },
+    {
+      "name": "red",
+      "zh": "红色",
+      "hex": "#d22b2b",
+      "no": "01"
+    },
+    {
+      "name": "orange",
+      "zh": "橙色",
+      "hex": "#f07a2a",
+      "no": "02"
+    },
+    {
+      "name": "yellow",
+      "zh": "黄色",
+      "hex": "#f5c400",
+      "no": "03"
+    },
+    {
+      "name": "cream",
+      "zh": "奶油黄(大理石)",
+      "hex": "#e6dca0",
+      "no": "03.5",
+      "note": "大理石纹"
+    },
+    {
+      "name": "avocado",
+      "zh": "牛油果绿",
+      "hex": "#8ccb3e",
+      "no": "04"
+    },
+    {
+      "name": "green",
+      "zh": "青绿色",
+      "hex": "#3fae3a",
+      "no": "05"
+    },
+    {
+      "name": "deep-green",
+      "zh": "深绿色",
+      "hex": "#3d8a6a",
+      "no": "06"
+    },
+    {
+      "name": "aqua",
+      "zh": "青水蓝",
+      "hex": "#8ed1cc",
+      "no": "07"
+    },
+    {
+      "name": "sea-mist",
+      "zh": "海雾蓝",
+      "hex": "#a9c9cf",
+      "no": "08"
+    },
+    {
+      "name": "serene",
+      "zh": "宁静蓝",
+      "hex": "#5b8fd6",
+      "no": "09"
+    },
+    {
+      "name": "klein",
+      "zh": "克莱因蓝",
+      "hex": "#2462c8",
+      "no": "10"
+    },
+    {
+      "name": "blue",
+      "zh": "蓝(备选)",
+      "hex": "#2d3672",
+      "no": "10.5"
+    },
+    {
+      "name": "rouge-snow",
+      "zh": "胭脂雪",
+      "hex": "#d8b8d6",
+      "no": "11"
+    },
+    {
+      "name": "lavender",
+      "zh": "薰衣草紫",
+      "hex": "#7b6fd6",
+      "no": "12"
+    },
+    {
+      "name": "purple",
+      "zh": "紫色",
+      "hex": "#6a45c9",
+      "no": "13"
+    },
+    {
+      "name": "dragonfruit",
+      "zh": "火龙果",
+      "hex": "#c8409b",
+      "no": "14"
+    },
+    {
+      "name": "rose",
+      "zh": "蔷薇粉",
+      "hex": "#e77fa8",
+      "no": "15"
+    },
+    {
+      "name": "first-love",
+      "zh": "初恋粉",
+      "hex": "#f6c6d3",
+      "no": "16"
+    },
+    {
+      "name": "pink-marble",
+      "zh": "淡粉(大理石)",
+      "hex": "#efd6de",
+      "no": "16.5",
+      "note": "大理石纹"
+    }
+  ],
+  "_families": "家族固定色卷(--spool-map family):按引擎 FAMILY 表的色相在这 22 卷里手选,spools 从深到浅,--colors N 取 N 卷(1=中间,2=首尾,3=全部)。可改。",
+  "families": {
+    "tender": {
+      "zh": "温柔 · 暖桃",
+      "plate": "deep-red",
+      "spools": [
+        "rose",
+        "first-love",
+        "pink-marble"
+      ]
+    },
+    "calm": {
+      "zh": "平静 · 冷蓝",
+      "plate": "blue",
+      "spools": [
+        "klein",
+        "serene",
+        "sea-mist"
+      ]
+    },
+    "curious": {
+      "zh": "好奇 · 橙",
+      "plate": "deep-red",
+      "spools": [
+        "orange",
+        "yellow",
+        "cream"
+      ]
+    },
+    "dreamy": {
+      "zh": "梦幻 · 薰衣草",
+      "plate": "purple",
+      "spools": [
+        "lavender",
+        "rouge-snow",
+        "pink-marble"
+      ]
+    },
+    "companion": {
+      "zh": "陪伴 · 薄荷",
+      "plate": "deep-green",
+      "spools": [
+        "green",
+        "avocado",
+        "aqua"
+      ]
+    },
+    "lonely": {
+      "zh": "孤独 · 冷灰",
+      "plate": "black",
+      "spools": [
+        "blue",
+        "sea-mist",
+        "pink-marble"
+      ]
+    }
+  }
 }

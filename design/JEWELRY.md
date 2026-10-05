@@ -67,8 +67,9 @@ npx tsx scripts/spore_jewel.mts --text "…" --loop hole                        
 | 开关 | 做什么 | 默认 |
 |---|---|---|
 | `--colors N` | 按明度分位把身体格压成 N 档,每档取均色 | assembly 2 档(+底板色) |
-| `--spool-map auto` | **本色**:每卷 = 这只孢子该明度档的均色,底板 = 它最深档压暗(最忠实) | auto |
-| `--spool-map family` | **家族色卷**:tender 桃 / calm 蓝 / curious 橙 / dreamy 薰衣草 / companion 薄荷 / lonely 灰,每家族 1 底板 + N 身体色,整批共用 6 组卷 | — |
+| `--spool-map inventory` | **本色 → 手上的卷**:每只孢子自己的调色板压成 N 档,每档就近落到 `design/filaments.json` 里的卷(Lab 色差、色相加权、保持明暗顺序);底板先选一卷贴近引擎"地面色"且不浅于身体的 | 有耗材库时默认 |
+| `--spool-map auto` | **本色**:每卷 = 该明度档的均色,底板 = 最深档压暗。引擎原色,不对应实际耗材 | 无耗材库时默认 |
+| `--spool-map family` | **家族色卷**:六组固定卷,定义在 `filaments.json` 的 `families`(按引擎 FAMILY 色相在手上的卷里选定,可改),每家族 1 底板 + N 身体色,整批共用 6 组卷 | — |
 | `--spools "#…,#…"` | 自定义固定色卷(按明暗接管明度档);`--spool-map nearest` 改为就近取色 | — |
 | `--plate "#hex"` | 底板耗材色(不填则取调色板最深一档再压暗) | — |
 | `--eyes own / merge` | 眼白瞳孔独立嵌件 / 眼白并入最浅色、瞳孔并入底板(少 4 片) | own |
@@ -115,9 +116,20 @@ npx tsx scripts/spore_jewel.mts --text "…" --loop hole                        
 卷数决定零件数:3 卷身体色 ≈ 12–15 件/只,2 卷 ≈ 9–11 件,1 卷 ≈ 6–7 件(都含 4 片眼睛)。
 想要新配色,直接 `--spools "#…,#…" --plate "#…"`,或在 `jewel_palettes.ts` 加一行。
 
-**自己的耗材库**:把手头的卷录进 `design/filaments.json`(名字 + 实际打印出来的 hex),
-之后 `--spools "樱花粉,雾蓝" --plate 深灰` 直接按名字调;`--list-filaments` 列出已录入的。
-hex 建议对着打出来的试片取色,比包装标称色准。
+**耗材库 `design/filaments.json`**:现录 22 卷(Taobao 高韧平光 PLA+,hex 为照片估算值,打印色签日光下拍照后校准)。
+有库时生成器默认 `--spool-map inventory`,`_parts.txt` 和目录卡片都直接写耗材名(深绿色 / 青水蓝 …);
+`--spools "rose,aqua" --plate deep-green` 可按名字手动指定;`--list-filaments` 列出全部。
+
+家族固定色卷(`families`,深→浅,`--colors 2` 取首尾):
+
+| 家族 | 底板 | 身体色卷 |
+|---|---|---|
+| 温柔 tender | 深红 | 蔷薇粉 · 初恋粉 · 淡粉(大理石) |
+| 平静 calm | 蓝(备选) | 克莱因蓝 · 宁静蓝 · 海雾蓝 |
+| 好奇 curious | 深红 | 橙色 · 黄色 · 奶油黄(大理石) |
+| 梦幻 dreamy | 紫色 | 薰衣草紫 · 胭脂雪 · 淡粉(大理石) |
+| 陪伴 companion | 深绿色 | 青绿色 · 牛油果绿 · 青水蓝 |
+| 孤独 lonely | 黑色 | 蓝(备选) · 海雾蓝 · 淡粉(大理石) |
 
 ## 3 · 三种件
 

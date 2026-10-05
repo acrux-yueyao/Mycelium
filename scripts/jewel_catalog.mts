@@ -51,12 +51,14 @@ const inline = (svg: string, pxPerMM: number) => {
   return svg.replace(/^<\?xml[^>]*>\s*/, '').replace(/width="[\d.]+mm" height="[\d.]+mm"/, `width="${(w * pxPerMM).toFixed(0)}" height="${(h * pxPerMM).toFixed(0)}"`);
 };
 const chip = (hexc: string) => `<i style="background:${hexc}"></i>`;
-const chips = (fil: Record<string, string>) => {
+type Spools = Record<string, { name: string; zh: string }>;
+const chips = (fil: Record<string, string>, sp: Spools = {}) => {
   const g = Object.entries(fil).filter(([k]) => !['white', 'black'].includes(k)).sort(([a], [b]) => (a === 'base' ? -1 : b === 'base' ? 1 : a.localeCompare(b)));
-  return `<div class="chips">${g.map(([k, v], i) => (i === 1 ? '<span>+</span>' : '') + chip(v)).join('')}</div>`;
+  const names = g.map(([k]) => sp[k]?.zh || sp[k]?.name).filter(Boolean);
+  return `<div class="chips">${g.map(([, v], i) => (i === 1 ? '<span>+</span>' : '') + chip(v)).join('')}${names.length ? `<em>${names.join(' · ')}</em>` : ''}</div>`;
 };
 const card = (c: Card, title: string, sub: string) =>
-  `<figure><div class="art">${inline(c.svg, 6)}${c.pair ? inline(c.pair, 6) : ''}</div><figcaption><b>${title}</b><small>${sub}</small>${chips(c.info.filaments as Record<string, string>)}</figcaption></figure>`;
+  `<figure><div class="art">${inline(c.svg, 6)}${c.pair ? inline(c.pair, 6) : ''}</div><figcaption><b>${title}</b><small>${sub}</small>${chips(c.info.filaments as Record<string, string>, c.info.spools as Spools)}</figcaption></figure>`;
 
 const head = `<!doctype html><meta charset="utf-8"><title>Mycelium 首饰目录</title>
 <style>
@@ -67,7 +69,7 @@ p.lead{margin:0 0 22px;color:#666;max-width:1100px}
 figure{margin:0;background:#fbf9f5;border:1px solid #e6e1d8;border-radius:10px;padding:16px 14px 12px}
 .art{display:flex;gap:12px;align-items:flex-end;justify-content:center;min-height:190px}
 figcaption{margin-top:10px}figcaption b{display:block;font-size:14px}figcaption small{display:block;color:#888;font-size:11px;font-family:ui-monospace,monospace;margin:2px 0 6px}
-.chips{display:flex;gap:4px;align-items:center}.chips i{display:inline-block;width:16px;height:16px;border-radius:4px;border:1px solid rgba(0,0,0,.12)}.chips span{color:#aaa;margin:0 2px}
+.chips{display:flex;gap:4px;align-items:center}.chips i{display:inline-block;width:16px;height:16px;border-radius:4px;border:1px solid rgba(0,0,0,.12)}.chips span{color:#aaa;margin:0 2px}.chips em{font-style:normal;color:#777;font-size:11px;margin-left:8px}
 .famrow{display:flex;gap:22px;flex-wrap:wrap;margin:0 0 18px}.famrow div{font-size:12px;color:#666}.famrow b{display:block;color:#333;font-size:13px}
 table{border-collapse:collapse}td,th{vertical-align:top;padding:12px 14px;border-top:1px solid #e2ddd3;text-align:left}th{width:190px;font-weight:normal}
 th b{font-size:15px}th code{display:block;color:#888;font-size:11px;margin:2px 0 6px}th p{margin:6px 0 0;color:#777;font-size:12px}
@@ -83,8 +85,8 @@ for (const [i, t] of texts.entries()) {
   own.push(c);
   console.log(`own  ${c.info.sporeId} ${fam} "${t}" → ${c.info.parts} parts`);
 }
-pages.push(['catalog-own.png', `${head}<h1>Mycelium 首饰目录 <span>本色 · ${colors} 卷身体色 + 底板</span></h1>
-<p class="lead">每张卡一句话一只孢子:形状是网站引擎长出来的那只,颜色是它自己的调色板压成 ${colors} 卷耗材(每卷 = 该明度档的均色),底板 = 它最深一档再压暗。挂件尺寸,格 ${CELL.charm} mm;眼白 / 瞳孔独立嵌件。</p>
+pages.push(['catalog-own.png', `${head}<h1>Mycelium 首饰目录 <span>本色 → 手上的卷 · ${colors} 卷身体色 + 底板</span></h1>
+<p class="lead">每张卡一句话一只孢子:形状是网站引擎长出来的那只,颜色是它自己的调色板压成 ${colors} 档,每档就近落到 design/filaments.json 里你手上的卷(Lab 色差,保持明暗顺序),底板选一卷更深的。卡片下方是选中的耗材名。挂件尺寸,格 ${CELL.charm} mm;眼白 / 瞳孔用白色 / 黑色卷。</p>
 <div class="grid">${own.map((c, i) => card(c, `“${texts[i]}”`, `${c.info.sporeId} · ${FAM_ZH[c.info.family as string]} ${c.info.family} · ${c.info.widthMM}×${c.info.heightMM} mm · ${c.info.parts} 件`)).join('')}</div>`]);
 
 // ---- sheet 2: family spool sets ----
@@ -96,10 +98,10 @@ for (const [i, t] of texts.entries()) {
 }
 const famSets = FAMS.map((f) => {
   const c = fam.find((x) => x.info.family === f)!;
-  return `<div><b>${FAM_ZH[f]} ${f}</b>${chips(c.info.filaments as Record<string, string>)}</div>`;
+  return `<div><b>${FAM_ZH[f]} ${f}</b>${chips(c.info.filaments as Record<string, string>, c.info.spools as Spools)}</div>`;
 });
 pages.push(['catalog-family.png', `${head}<h1>Mycelium 首饰目录 <span>家族色卷 · 六组固定耗材,可批量</span></h1>
-<p class="lead">同样的孢子,身体色换成按家族固定的色卷(由引擎 FAMILY 表的色相/饱和度推出,每家族 1 卷底板 + ${colors} 卷身体色)。
+<p class="lead">同样的孢子,身体色换成按家族固定的色卷(按引擎 FAMILY 表的色相在手上的卷里选定,见 design/filaments.json 的 families;每家族 1 卷底板 + ${colors} 卷身体色)。
 一个家族的所有作品共用一组卷,镶片可以跨作品批量打印;代价是丢掉每只孢子自己的色相微差。</p>
 <div class="famrow">${famSets.join('')}</div>
 <div class="grid">${fam.map((c, i) => card(c, `“${texts[i]}”`, `${c.info.sporeId} · ${FAM_ZH[c.info.family as string]} · ${c.info.parts} 件`)).join('')}</div>`]);
@@ -108,7 +110,7 @@ pages.push(['catalog-family.png', `${head}<h1>Mycelium 首饰目录 <span>家族
 const pieceCards: string[] = [];
 for (const i of [0, 1, 2, 3]) {
   const cs = ['pendant', 'charm', 'earring'].map((pc) => gen(texts[i], pc, `pc_${i}_${pc}`, ['--family', FAMS[i % 6]]));
-  pieceCards.push(`<tr><th><b>“${texts[i]}”</b><code>${cs[0].info.sporeId} · ${FAM_ZH[cs[0].info.family as string]}</code>${chips(cs[0].info.filaments as Record<string, string>)}</th>${cs.map((c) =>
+  pieceCards.push(`<tr><th><b>“${texts[i]}”</b><code>${cs[0].info.sporeId} · ${FAM_ZH[cs[0].info.family as string]}</code>${chips(cs[0].info.filaments as Record<string, string>, cs[0].info.spools as Spools)}</th>${cs.map((c) =>
     `<td><div class="art">${inline(c.svg, 6)}${c.pair ? inline(c.pair, 6) : ''}</div><small>${c.info.piece} · ${c.info.widthMM}×${c.info.heightMM} mm · ${c.info.parts} 件 · ${c.info.gramsPLA} g</small></td>`).join('')}</tr>`);
 }
 pages.push(['catalog-pieces.png', `${head}<h1>Mycelium 首饰目录 <span>三种件</span></h1>
