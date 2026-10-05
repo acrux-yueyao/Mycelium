@@ -23,12 +23,19 @@
  *   .ply   per-face colour preview
  *   .svg   front view in mm: cells + cut outline (laser / acrylic / enamel)
  *   .json  meta (spore number, size, weight estimate, cell count)
- *   --split   one STL per colour group (base / palette band / white / black)
- *             + <name>_colors.txt for filament assignment
+ *   --split   one STL per colour group + <name>_colors.txt for filament
+ *             assignment. Colours are simplified for printing first:
+ *     --colors N   quantise the cells into N filaments (default 3 with --split;
+ *                  0 = keep every palette band). Plate is always its own colour.
+ *     --eyes merge eye whites take the lightest filament, pupils the plate
+ *                  colour (default with --split) · --eyes own = +white +black
+ *     --no-smooth  keep single-cell islands (default: a cell whose colour
+ *                  matches none of its neighbours joins the majority around it)
  *
  *   npx tsx scripts/spore_jewel.mts --text "…" [--piece pendant|earring|charm]
  *       [--family dreamy] [--size 32] [--cell 2.4] [--base 1.6] [--relief 0.8]
- *       [--loop ring|hole|none] [--pair] [--split] [--no-id] [--out out/jewel]
+ *       [--loop ring|hole|none] [--pair] [--split] [--colors 3] [--eyes merge|own]
+ *       [--no-smooth] [--no-id] [--out out/jewel]
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -66,6 +73,9 @@ const PRESET = {
 const loopMode = arg('loop', 'ring')!;           // ring | hole | none
 const PAIR = flag('pair') || piece === 'earring';
 const SPLIT = flag('split');
+const COLORS = Number(arg('colors', SPLIT ? '3' : '0'));   // 0 = every palette band
+const EYES = arg('eyes', SPLIT || COLORS > 0 ? 'merge' : 'own')!;
+const SMOOTH = !flag('no-smooth') && (SPLIT || COLORS > 0);
 const ENGRAVE = !flag('no-id');
 const name = arg('name') ?? `jewel_${piece}_${FAMS[charId]}_${h0.toString(16).slice(0, 6)}`;
 const outDir = arg('out', 'out/jewel')!;
@@ -153,6 +163,75 @@ for (const [c, kind] of [[eyes.L0, 3], [eyes.L0 + 1, 4], [eyes.R0, 4], [eyes.R0 
   const keep = new Set(best);
   for (const k of [...plan.keys()]) if (!keep.has(k)) plan.delete(k);
 }
+
+// ---------- 2.5) simplify for the printer: few filaments, no lone islands ----------
+// representative colour per group (for --split bill and previews)
+const groupRGB = new Map<string, RGB>([['base', BASE_RGB], ['white', WHITE], ['black', BLACK]]);
+palette.stops.forEach((st, k) => groupRGB.set(`band${k}`, hsl2rgb(st.h, st.s, st.l)));
+const lum = (c: RGB) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+if (COLORS > 0) {
+  // N bins by lightness quantile — the body's vertical gradient becomes N clean bands
+  const body = [...plan.values()].filter((p) => p.kind === 1 || p.kind === 2);
+  const ls = body.map((p) => lum(p.rgb)).sort((a, b) => a - b);
+  const bin = (p: Plan) => {
+    const rank = ls.findIndex((v) => v >= lum(p.rgb));
+    return Math.min(COLORS - 1, Math.floor((rank / ls.length) * COLORS));
+  };
+  const sums = Array.from({ length: COLORS }, () => [0, 0, 0, 0]);
+  for (const p of body) { const b = bin(p); sums[b][0] += p.rgb[0]; sums[b][1] += p.rgb[1]; sums[b][2] += p.rgb[2]; sums[b][3]++; }
+  const reps: RGB[] = sums.map((v) => (v[3] ? [v[0] / v[3], v[1] / v[3], v[2] / v[3]].map(Math.round) as RGB : BASE_RGB));
+  for (const p of body) { const b = bin(p); p.group = `c${b}`; }
+  reps.forEach((c, k) => groupRGB.set(`c${k}`, c));
+}
+if (EYES === 'merge') {
+  // eye whites → lightest filament, pupils → plate colour: zero extra spools for the face
+  let lightest = 'base', bestL = -1;
+  const prefix = COLORS > 0 ? 'c' : 'band';
+  for (const [g, c] of groupRGB) if (g.startsWith(prefix) && lum(c) > bestL) { bestL = lum(c); lightest = g; }
+  for (const p of plan.values()) {
+    if (p.kind === 3) p.group = lightest;
+    if (p.kind === 4) p.group = 'base';
+  }
+}
+if (SMOOTH) {
+  // a cell whose colour group matches none of its filled 4-neighbours joins
+  // the majority group around it — kills one-cell islands (= one tool change each)
+  for (let pass = 0; pass < 2; pass++)
+    for (const [k, p] of plan) {
+      if (p.kind !== 1 && p.kind !== 2) continue;
+      const [c, r] = k.split(',').map(Number);
+      const votes = new Map<string, number>();
+      for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const n = plan.get(K(c + dc, r + dr));
+        if (!n || n.kind === 0 || n.kind === 4) continue;
+        votes.set(n.group, (votes.get(n.group) ?? 0) + 1);
+      }
+      if (!votes.size || votes.has(p.group)) continue;
+      p.group = [...votes].sort((a, b) => b[1] - a[1])[0][0];
+    }
+}
+if (COLORS > 0 || EYES === 'merge') {
+  // previews show what the printer will actually lay down
+  for (const p of plan.values()) if (p.kind !== 0) p.rgb = groupRGB.get(p.group) ?? p.rgb;
+}
+// colour regions = separate islands per group (each is roughly one colour change per layer)
+const countRegions = (): Map<string, number> => {
+  const seen = new Set<string>(); const out = new Map<string, number>();
+  for (const [k, p] of plan) {
+    if (p.kind === 0 || seen.has(k)) continue;
+    const g = p.group; out.set(g, (out.get(g) ?? 0) + 1);
+    const st = [k]; seen.add(k);
+    while (st.length) {
+      const cur = st.pop()!; const [c, r] = cur.split(',').map(Number);
+      for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const n = K(c + dc, r + dr); const np = plan.get(n);
+        if (np && np.kind !== 0 && np.group === g && !seen.has(n)) { seen.add(n); st.push(n); }
+      }
+    }
+  }
+  return out;
+};
+const regions = countRegions();
 
 // ---------- 3) 3×5 pixel font for the back engraving ----------
 const FONT: Record<string, string[]> = {
@@ -438,9 +517,8 @@ for (const [suffix, mirror] of variants) {
     const bill: string[] = [];
     for (const [g, ts] of r.parts()) {
       writeSTL(`${base}_${g}.stl`, ts, `mycelium ${sporeId} ${g}`);
-      const col = g === 'base' ? BASE_RGB : g === 'white' ? WHITE : g === 'black' ? BLACK
-        : (() => { const st = palette.stops[+g.slice(4)]; return hsl2rgb(st.h, st.s, st.l); })();
-      bill.push(`${path.basename(base)}_${g}.stl\t${hex(col)}\t${ts.length / 2} faces`);
+      const col = groupRGB.get(g) ?? BASE_RGB;
+      bill.push(`${path.basename(base)}_${g}.stl\t${hex(col)}\t${regions.get(g) ?? 1} regions\t${ts.length / 2} faces`);
     }
     fs.writeFileSync(`${base}_colors.txt`, bill.join('\n') + '\n');
   }
@@ -451,9 +529,12 @@ for (const [suffix, mirror] of variants) {
     widthMM: +(cols * cell).toFixed(1), heightMM: +r.loopTop.toFixed(1),
     thickMM: +(BASE + RELIEF + EYE_EXTRA).toFixed(2),
     cells: cells.length, plateCells: plan.size, tris: r.tris.length,
+    filaments: Object.fromEntries([...new Set([...plan.values()].map((p) => p.group))].sort().map((g) => [g, hex(groupRGB.get(g) ?? BASE_RGB)])),
+    colourRegions: Object.fromEntries(regions),
     volumeMM3: +r.volMM3.toFixed(0), gramsPLA: +wPLA.toFixed(2), gramsResin: +wResin.toFixed(2),
   };
   summary.push(info);
-  console.log(`${info.file}: ${sporeId} ${piece} ${FAMS[charId]} · ${info.widthMM}×${info.heightMM}×${info.thickMM} mm · cell ${cell} · ${info.plateCells} cells · ~${info.gramsPLA} g PLA · id ${r.engraved ? 'engraved' : 'skipped (too small)'}`);
+  const nFil = Object.keys(info.filaments).length, nReg = [...regions.values()].reduce((a, b) => a + b, 0);
+  console.log(`${info.file}: ${sporeId} ${piece} ${FAMS[charId]} · ${info.widthMM}×${info.heightMM}×${info.thickMM} mm · cell ${cell} · ${info.plateCells} cells · ~${info.gramsPLA} g PLA · ${nFil} filaments / ${nReg} colour regions · id ${r.engraved ? 'engraved' : 'skipped (too small)'}`);
 }
 fs.writeFileSync(path.join(outDir, `${name}.json`), JSON.stringify(summary, null, 2));
