@@ -58,26 +58,26 @@ PARTS = {
     'C3': ('Capacitor_SMD', 'C_0805_2012Metric', '22uF', 'C45783', (-24.5, 26.0), 90, {1: 'AMP_VIN', 2: 'GND'}),
     'C4': ('Capacitor_SMD', 'C_0603_1608Metric', '100nF', 'C14663', (-13.6, -12.2), 90, {1: '3V3', 2: 'GND'}),
     'C5': ('Capacitor_SMD', 'C_0603_1608Metric', '100nF', 'C14663', (-11.4, -12.2), 90, {1: 'VREG', 2: 'GND'}),
-    'R5': ('Resistor_SMD', 'R_0603_1608Metric', '75k', 'C23196?', (-15.75, -12.2), 90, {1: 'REXT', 2: 'GND'}),
+    'R5': ('Resistor_SMD', 'R_0603_1608Metric', '75k', 'C18671', (-15.75, -12.2), 90, {1: 'REXT', 2: 'GND'}),
     'C6': ('Capacitor_SMD', 'C_0603_1608Metric', '100nF', 'C14663', (19.5, 0.5), 0, {1: '3V3', 2: 'GND'}),
     'C7': ('Capacitor_SMD', 'C_0603_1608Metric', '10nF', 'C57112', (13.5, 0.5), 0, {1: '3V3', 2: 'GND'}),
     'C8': ('Capacitor_SMD', 'C_0603_1608Metric', '100nF', 'C14663', (16.5, 0.5), 0, {1: 'REGOUT', 2: 'GND'}),
-    'C9': ('Capacitor_SMD', 'C_0603_1608Metric', '2.2nF', 'C1588', (15.5, -8.5), 0, {1: 'CPOUT', 2: 'GND'}),
+    'C9': ('Capacitor_SMD', 'C_0603_1608Metric', '2.2nF', 'C1604', (15.5, -8.5), 0, {1: 'CPOUT', 2: 'GND'}),
     'R1': ('Resistor_SMD', 'R_0603_1608Metric', '4.7k', 'C23162', (-14, -31), 0, {1: 'SDA0', 2: '3V3'}),
     'R2': ('Resistor_SMD', 'R_0603_1608Metric', '4.7k', 'C23162', (-14, -27.5), 0, {1: 'SCL0', 2: '3V3'}),
     'R3': ('Resistor_SMD', 'R_0603_1608Metric', '4.7k', 'C23162', (-14, -24), 0, {1: 'SDA1', 2: '3V3'}),
     'R4': ('Resistor_SMD', 'R_0603_1608Metric', '4.7k', 'C23162', (13, -18), 90, {1: 'SCL1', 2: '3V3'}),
-    'J1': ('Connector_JST', 'JST_SH_SM04B-SRSS-TB_1x04-1MP_P1.00mm_Horizontal', 'ToF 4P', 'C160404?',
+    'J1': ('Connector_JST', 'JST_SH_SM04B-SRSS-TB_1x04-1MP_P1.00mm_Horizontal', 'ToF 4P', 'C51940130',
            (21.5, 14), 'right', {1: '3V3', 2: 'GND', 3: 'SDA0', 4: 'SCL0'}),
-    'J3': ('Connector_JST', 'JST_SH_SM06B-SRSS-TB_1x06-1MP_P1.00mm_Horizontal', 'EYES 6P', 'C160405?',
+    'J3': ('Connector_JST', 'JST_SH_SM06B-SRSS-TB_1x06-1MP_P1.00mm_Horizontal', 'EYES 6P', 'C56123098',
            (-23, -22), 'left', {1: '3V3', 2: 'GND', 3: 'SDA0', 4: 'SCL0', 5: 'SDA1', 6: 'SCL1'}),
-    'J6': ('Connector_JST', 'JST_SH_SM05B-SRSS-TB_1x05-1MP_P1.00mm_Horizontal', 'AMP 5P', 'C160403?',
+    'J6': ('Connector_JST', 'JST_SH_SM05B-SRSS-TB_1x05-1MP_P1.00mm_Horizontal', 'AMP 5P', 'C136657',
            (-16.5, 29), 'down', {1: 'AMP_VIN', 2: 'GND', 3: 'I2S_BCLK', 4: 'I2S_LRC', 5: 'I2S_DIN'}),
-    'J5': ('Connector_JST', 'JST_SH_SM03B-SRSS-TB_1x03-1MP_P1.00mm_Horizontal', 'LED 3P', 'C160402?',
+    'J5': ('Connector_JST', 'JST_SH_SM03B-SRSS-TB_1x03-1MP_P1.00mm_Horizontal', 'LED 3P', 'C53055319',
            (-7.5, 29), 'down', {1: 'VBAT', 2: 'GND', 3: 'LED_DIN'}),
-    'J4': ('Connector_JST', 'JST_PH_S2B-PH-SM4-TB_1x02-1MP_P2.00mm_Horizontal', 'BAT', 'C295747?',
+    'J4': ('Connector_JST', 'JST_PH_S2B-PH-SM4-TB_1x02-1MP_P2.00mm_Horizontal', 'BAT', 'C54582899',
            (2, 27.8), 'down', {1: 'VBAT', 2: 'GND'}),
-    'J8': ('Connector_JST', 'JST_PH_S2B-PH-SM4-TB_1x02-1MP_P2.00mm_Horizontal', 'CHG', 'C295747?',
+    'J8': ('Connector_JST', 'JST_PH_S2B-PH-SM4-TB_1x02-1MP_P2.00mm_Horizontal', 'CHG', 'C54582899',
            (12, 27.8), 'down', {1: 'VBAT', 2: 'GND'}),
     'J2': ('Connector_PinHeader_2.54mm', 'PinHeader_1x06_P2.54mm_Vertical', 'MIC pads', '',
            (7, -2), 0, {1: 'GND', 2: 'MIC_WS', 3: 'MIC_SCK', 4: 'MIC_SD', 5: '3V3', 6: 'GND'}),
@@ -450,10 +450,12 @@ def exports(board, pcb_path, out, nets):
     g = f'{out}/gerber'
     shutil.rmtree(g, ignore_errors=True); os.makedirs(g)
     subprocess.run(['kicad-cli', 'pcb', 'export', 'gerbers', '-o', g + '/', '--layers',
-                    'F.Cu,B.Cu,F.Paste,B.Paste,F.SilkS,B.SilkS,F.Mask,B.Mask,Edge_Cuts',
+                    'F.Cu,B.Cu,F.Paste,B.Paste,F.SilkS,B.SilkS,F.Mask,B.Mask,Edge.Cuts',
                     '--subtract-soldermask', pcb_path], check=True, capture_output=True)
     subprocess.run(['kicad-cli', 'pcb', 'export', 'drill', '-o', g + '/', '--format', 'excellon',
                     '--excellon-units', 'mm', '--generate-map', pcb_path], check=True, capture_output=True)
+    edge = [f for f in os.listdir(g) if 'Edge_Cuts' in f or 'Edge.Cuts' in f]
+    assert edge and os.path.getsize(f'{g}/{edge[0]}') > 300, 'board outline gerber missing - JLCPCB rejects the order'
     shutil.make_archive(f'{out}/facebrd_gerber', 'zip', g)
     # JLCPCB BOM / CPL
     with open(f'{out}/facebrd_bom.csv', 'w', newline='') as f:
