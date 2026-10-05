@@ -28,7 +28,7 @@ NET_COL = {'3V3': '#c14953', 'GND': '#1c1c1a', 'VBAT': '#c9a35a', 'VBUS': '#d07f
 
 # block: (x, _, title, subtitle, [(pin, net)], side)  side = 'L'|'R' net labels
 BLOCKS = [
-    (0.0, 9.6, 'U1  XIAO ESP32-S3', '贴片焊(邮票孔)或 2×7P 低排母', [
+    (0.0, 9.6, 'U1  XIAO ESP32-S3', '邮票孔贴焊 · BAT± 走板上通孔', [
         ('D0', 'SDA1'), ('D1', 'I2S_LRC'), ('D2', 'I2S_BCLK'), ('D3', 'I2S_DIN'),
         ('D4', 'SDA0'), ('D5', 'SCL0'), ('D6', 'LED_DIN'), ('D7', 'SCL1'),
         ('D8', 'MIC_SCK'), ('D9', 'MIC_WS'), ('D10', 'MIC_SD'),
