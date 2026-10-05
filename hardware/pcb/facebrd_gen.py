@@ -272,6 +272,7 @@ def build(pcb_path):
     silk(board, 'AMP', -16.5, 25.2, 0.8); silk(board, 'LED', -7.5, 25.2, 0.8)
     silk(board, '3V3', -26.7, 29.8, 0.8); silk(board, 'VBAT', -21.6, 27.9, 0.8); silk(board, 'JP1', -23.2, 23.6, 0.8)
     silk(board, 'MC03-F v1  mycelium.yueyao.design', 0, 0, 1.2, pcbnew.B_SilkS)
+    silk(board, 'JLCJLCJLCJLC', 0, 14, 1.0, pcbnew.B_SilkS)      # JLCPCB order-number placeholder
     silk(board, 'X ▶', 20.5, -6, 0.8)    # MPU6050 +X points creature-right
     pcbnew.SaveBoard(pcb_path, board)
     return board, nets
