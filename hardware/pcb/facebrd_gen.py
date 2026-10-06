@@ -48,11 +48,13 @@ PARTS = {
     'U1': ('XIAO', None, 'XIAO-ESP32S3', '', (0, -24.5), 0, XIAO_NETS),   # not stocked at JLCPCB: hand-solder (C48405120 is the nRF52840 Plus!)
     'U2': ('QFN20', None, 'MPR121QR2',
            'C91322', (-16, -8), 180,
-           {2: 'SCL0', 3: 'SDA0', 4: 'GND', 5: 'VREG', 6: 'GND', 7: '3V3', 8: 'REXT',
-            **{9 + i: f'ELE{i}' for i in range(12)}, 21: 'GND', '': 'GND'}),
+           # MPR121 (datasheet / KiCad Sensor_Touch): 1 IRQ 2 SCL 3 SDA 4 ADDR 5 VREG 6 VSS 7 REXT 8-19 ELE0-11 20 VDD
+           {2: 'SCL0', 3: 'SDA0', 4: 'GND', 5: 'VREG', 6: 'GND', 7: 'REXT',
+            **{8 + i: f'ELE{i}' for i in range(12)}, 20: '3V3', 21: 'GND'}),
     'U3': ('Sensor_Motion', 'InvenSense_QFN-24_4x4mm_P0.5mm', 'MPU-6050', 'C24112', (16, -4), 0,
+           # MPU-6050: RESV pins 19/21/22 left unconnected (KiCad symbol omits them)
            {1: 'GND', 8: '3V3', 9: 'GND', 10: 'REGOUT', 11: 'GND', 13: '3V3', 18: 'GND',
-            20: 'CPOUT', 22: 'GND', 23: 'SCL0', 24: 'SDA0'}),
+            20: 'CPOUT', 23: 'SCL0', 24: 'SDA0'}),
     'C1': ('Capacitor_SMD', 'C_0603_1608Metric', '10uF', 'C19702', (12.5, -28), 0, {1: '3V3', 2: 'GND'}),
     'C2': ('Capacitor_SMD', 'C_0603_1608Metric', '100nF', 'C14663', (12.5, -25.5), 0, {1: '3V3', 2: 'GND'}),
     'C3': ('Capacitor_SMD', 'C_0805_2012Metric', '22uF', 'C45783', (-24.5, 26.0), 90, {1: 'AMP_VIN', 2: 'GND'}),
@@ -166,7 +168,8 @@ def qfn20_footprint(board):
             fp.Add(pad)
     ep = pcbnew.PAD(fp)
     ep.SetNumber('21'); ep.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
-    ep.SetShape(pcbnew.PAD_SHAPE_RECT); ep.SetSize(P(1.7, 1.7)); ep.SetLayerSet(ep.SMDMask())
+    ep.SetShape(pcbnew.PAD_SHAPE_RECT); ep.SetSize(P(1.7, 1.7))
+    ep.SetLayerSet(pcbnew.LSET(pcbnew.F_Cu).addLayer(pcbnew.F_Mask))   # copper + mask opening, NO paste
     ep.SetPos0(P(0, 0)); ep.SetPosition(P(0, 0))
     fp.Add(ep)
     for (x0, y0, x1, y1) in ((-1.5, -1.5, 1.5, -1.5), (1.5, -1.5, 1.5, 1.5), (1.5, 1.5, -1.5, 1.5), (-1.5, 1.5, -1.5, -1.5)):
