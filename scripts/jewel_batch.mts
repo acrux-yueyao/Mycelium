@@ -5,9 +5,10 @@
  * runs scripts/spore_jewel.mts for each, then lays the parts out on print
  * beds the way a single-colour printer wants them:
  *
- *   beds/bed_<spool>.stl   ONE STL per spool colour: every plate printed in that colour plus every
- *                          tessera of that colour across all designs, in labelled blocks per
- *                          size × height step (+spare %); overflow → _2, _3…
+ *   beds/tiles_hK_<h>mm.stl   one STL per tile HEIGHT, the whole bed filled with identical tiles —
+ *                             colour is whichever spool you load; the manifest lists how many of
+ *                             each colour × height the batch needs
+ *   beds/plates_<spool>.stl   every plate printed in that spool colour, shelf-packed (overflow → _2…)
  *   *.svg beside each bed  layout preview with labels
  *   batch_manifest.json / .md           per-bed contents and per-design part lists
  *   designs/<name>/…                    each design's own files (plate, tiles, map, views)
@@ -111,7 +112,7 @@ function bedSVG(file: string, bed: Item[], title: string) {
 const manifest: Record<string, unknown> = { bed: BED, spare: SPARE, beds: [] as unknown[], designs: [] as unknown[] };
 const md: string[] = [`# 批量排产 · ${designs.length} 件 · 盘 ${BED}×${BED} mm · 备用 ${Math.round(SPARE * 100)}%`, '',
   UNI ? `统一规格:格 ${UNI.cell} · 底板 ${UNI.base} · 口袋 ${UNI.pocket} · 浮雕 ${UNI.relief} → 方片 ${(UNI.cell - 0.4 - 0.2).toFixed(1)} mm 方,所有款通用。` : '各件型用自己的预设(片尺寸不通用)。', '',
-  '一种耗材色一个 STL(超出一盘自动分 _2、_3…):里面是这个颜色的全部底板 + 全部马赛克片,片按"方边长 × 高度"分块,块上方有标注。', ''];
+  '方片按高度各一个 STL(不分颜色,整盘铺满);底板按底板色各一个 STL。', ''];
 
 // collect per spool
 const perSpool = new Map<string, { zh: string; hex: string; items: Item[]; rows: string[] }>();
@@ -128,47 +129,67 @@ for (const d of designs) {
       svg: `<path d="${footprint(tris)}" fill="${pl.hex}" stroke="${pl.hex}" stroke-width="0.05"/>` });
   sp.rows.push(`底板 ${d.sporeId}${d.mirror ? ' R' : d.piece === 'earring' ? ' L' : ''} · ${d.piece}${d.qty > 1 ? ` ×${d.qty}` : ''}`);
 }
-// tile blocks: (spool, w, h) → one grid block
-const tileGroups = new Map<string, { spool: string; zh: string; hex: string; w: number; h: number; count: number; sample: Tri[]; from: string[] }>();
+// tiles: colour does not matter for the file (you load whichever spool) — one STL per tile HEIGHT,
+// the whole bed filled with identical tiles; the manifest says how many of each colour × height to pick
+interface Need { spool: string; zh: string; hex: string; count: number }
+const needs = new Map<string, { w: number; h: number; per: Map<string, Need> }>();   // key = w|h
 for (const d of designs)
   for (const p of d.parts) {
     if (p.kind !== 'tile') continue;
-    const k = `${p.spool || p.hex}|${p.w}|${p.h}`;
-    const n = p.count * d.qty;
-    const e = tileGroups.get(k);
-    if (e) { e.count += n; e.from.push(`${d.sporeId}×${n}`); }
-    else tileGroups.set(k, { spool: p.spool || p.hex, zh: p.zh, hex: p.hex, w: p.w!, h: p.h!, count: n, sample: readSTL(path.join(d.dir, p.file)), from: [`${d.sporeId}×${n}`] });
+    const k = `${p.w}|${p.h}`;
+    const e = needs.get(k) ?? needs.set(k, { w: p.w!, h: p.h!, per: new Map() }).get(k)!;
+    const sp = p.spool || p.hex;
+    const n = e.per.get(sp) ?? e.per.set(sp, { spool: sp, zh: p.zh, hex: p.hex, count: 0 }).get(sp)!;
+    n.count += p.count * d.qty;
   }
 const GAP = 1.0;
-for (const g of tileGroups.values()) {
-  const total = Math.ceil(g.count * (1 + SPARE));
-  const pitch = g.w + GAP;
-  const cols = Math.max(1, Math.min(Math.max(Math.ceil(Math.sqrt(total)), Math.ceil(44 / pitch)), Math.floor((BED - 8) / pitch)));
-  const rows = Math.ceil(total / cols);
-  const tris: Tri[] = [], sq: string[] = [];
-  for (let i = 0; i < total; i++) {
-    const x = (i % cols) * pitch, y = Math.floor(i / cols) * pitch;
-    tris.push(...moved(g.sample, x, y, 0));
-    sq.push(`<rect x="${x}" y="${y}" width="${g.w}" height="${g.w}" fill="${g.hex}" stroke="#333" stroke-width="0.1"/>`);
-  }
-  const sp = spoolOf(g.spool, g.zh, g.hex);
-  sp.items.push({ tris, w: cols * pitch, h: rows * pitch, hex: g.hex, label: `片 ${g.w.toFixed(1)} 方 × 高 ${g.h.toFixed(2)} · ${total} 片`, svg: sq.join('') });
-  sp.rows.push(`片 ${g.w.toFixed(1)}×${g.w.toFixed(1)}×${g.h.toFixed(2)} · ${total} 片(需 ${g.count};${g.from.join(' ')})`);
-}
-// pack and write
+const box = (x: number, y: number, w: number, h: number): Tri[] => {   // plain closed box at (x,y,0)
+  const v = (a: number, b: number, c: number): V => [x + a, y + b, c];
+  const q = (a: V, b: V, c: V, d: V, n: V): Tri[] => [{ n, a, b, c }, { n, a, b: c, c: d }];
+  return [
+    ...q(v(0, 0, 0), v(0, w, 0), v(w, w, 0), v(w, 0, 0), [0, 0, -1]),
+    ...q(v(0, 0, h), v(w, 0, h), v(w, w, h), v(0, w, h), [0, 0, 1]),
+    ...q(v(0, 0, 0), v(w, 0, 0), v(w, 0, h), v(0, 0, h), [0, -1, 0]),
+    ...q(v(w, 0, 0), v(w, w, 0), v(w, w, h), v(w, 0, h), [1, 0, 0]),
+    ...q(v(w, w, 0), v(0, w, 0), v(0, w, h), v(w, w, h), [0, 1, 0]),
+    ...q(v(0, w, 0), v(0, 0, 0), v(0, 0, h), v(0, w, h), [-1, 0, 0]),
+  ];
+};
+const heights = [...needs.values()].sort((a, b) => a.w - b.w || a.h - b.h);
+const sameW = new Set(heights.map((x) => x.w)).size === 1;
+md.push('## 方片(不分颜色,按高度各一个 STL,整盘铺满;要哪个颜色装哪卷)', '');
+heights.forEach((g, i) => {
+  const pitch = g.w + GAP, n = Math.floor((BED - GAP) / pitch), total = n * n;
+  const tris: Tri[] = [];
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) tris.push(...box(GAP + c * pitch, GAP + r * pitch, g.w, g.h));
+  const f = sameW ? `tiles_h${i + 1}_${g.h.toFixed(2)}mm` : `tiles_${g.w.toFixed(1)}sq_h${g.h.toFixed(2)}mm`;
+  writeSTL(path.join(outDir, 'beds', `${f}.stl`), tris, `mycelium tiles ${g.w}x${g.h}`);
+  const items: Item[] = [{ w: n * pitch, h: n * pitch, label: `${g.w.toFixed(1)} 方 × 高 ${g.h.toFixed(2)} · ${total} 片`, hex: '#999', tris: [], x: GAP, y: GAP,
+    svg: Array.from({ length: Math.min(total, 1600) }, (_, k) => `<rect x="${(k % 40) * pitch * n / 40}" y="${Math.floor(k / 40) * pitch * n / 40}" width="${g.w * n / 40}" height="${g.w * n / 40}" fill="#aaa"/>`).join('') }];
+  bedSVG(path.join(outDir, 'beds', `${f}.svg`), items, `方片 高${i + 1} · ${g.w.toFixed(1)} 方 × ${g.h.toFixed(2)} mm · 整盘 ${total} 片`);
+  const perColour = [...g.per.values()].sort((a, b) => b.count - a.count);
+  const needTotal = perColour.reduce((a, c) => a + c.count, 0);
+  (manifest.beds as unknown[]).push({ file: `beds/${f}.stl`, tile: { w: g.w, h: g.h }, perBed: total, need: perColour });
+  md.push(`- \`beds/${f}.stl\` · ${g.w.toFixed(1)} 方 × 高 **${g.h.toFixed(2)}** · 整盘 ${total} 片 · 本批共需 ${needTotal} 片(+${Math.round(SPARE * 100)}% 备用 → ${Math.ceil(needTotal * (1 + SPARE))}):`,
+    ...perColour.map((c) => `  - ${c.zh} \`${c.spool}\` ${c.hex}:${c.count} 片 → 打 ${Math.ceil(c.count * (1 + SPARE))}`));
+});
+md.push('', '切片时用"切割"或框选删除只留需要的行数;一盘太多就打一部分停掉,片彼此独立,随时可停。', '');
+
+// plates: one STL per plate colour
 fs.mkdirSync(path.join(outDir, 'beds'), { recursive: true });
+md.push('## 底板(按底板色各一个 STL)', '');
 for (const [spool, sp] of [...perSpool].sort()) {
+  if (!sp.items.length) continue;
   const beds = packBeds(sp.items, 4);
-  md.push(`## ${sp.zh} \`${spool}\` ${sp.hex}`, '');
   beds.forEach((bed, i) => {
-    const f = `bed_${spool}${beds.length > 1 ? `_${i + 1}` : ''}`;
-    writeSTL(path.join(outDir, 'beds', `${f}.stl`), bed.flatMap((p) => moved(p.tris, p.x!, p.y!, 0)), `mycelium ${spool}`);
-    bedSVG(path.join(outDir, 'beds', `${f}.svg`), bed, `${sp.zh} ${spool} · ${beds.length > 1 ? `第 ${i + 1} 盘 · ` : ''}${bed.length} 项`);
+    const f = `plates_${spool}${beds.length > 1 ? `_${i + 1}` : ''}`;
+    writeSTL(path.join(outDir, 'beds', `${f}.stl`), bed.flatMap((p) => moved(p.tris, p.x!, p.y!, 0)), `mycelium plates ${spool}`);
+    bedSVG(path.join(outDir, 'beds', `${f}.svg`), bed, `底板 · ${sp.zh} ${spool} · ${bed.length} 块`);
     (manifest.beds as unknown[]).push({ file: `beds/${f}.stl`, spool, zh: sp.zh, hex: sp.hex, items: bed.map((p) => p.label) });
-    md.push(`- \`beds/${f}.stl\``, ...bed.map((p) => `  - ${p.label}`));
+    md.push(`- \`beds/${f}.stl\` · **${sp.zh} ${spool}** · ${bed.map((p) => p.label.replace('底板 ', '')).join(', ')}`);
   });
-  md.push('');
 }
+md.push('');
 
 // ---------- 4) per-design summary ----------
 md.push('', '## 每款零件', '');
@@ -179,7 +200,7 @@ for (const d of designs) {
 }
 fs.writeFileSync(path.join(outDir, 'batch_manifest.json'), JSON.stringify(manifest, null, 1));
 fs.writeFileSync(path.join(outDir, 'batch_manifest.md'), md.join('\n') + '\n');
-console.log(`\n${perSpool.size} spools → ${(manifest.beds as unknown[]).length} bed STLs\nwrote ${path.join(outDir, 'batch_manifest.md')}`);
+console.log(`\n${heights.length} tile heights + ${[...perSpool.values()].filter((x) => x.items.length).length} plate colours → ${(manifest.beds as unknown[]).length} STLs\nwrote ${path.join(outDir, 'batch_manifest.md')}`);
 
 // ---------- 5) PNG previews of the beds (optional) ----------
 if (!flag('no-png')) {
