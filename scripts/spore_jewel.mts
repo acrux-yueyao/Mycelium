@@ -59,6 +59,8 @@
  * Outputs (out/jewel/<name>*):
  *   .stl / .ply   the piece (relief) or _assembled.stl (assembly) · colour preview
  *   .svg          front view in mm: cells + cut outline (laser / acrylic)
+ *   _views.svg    三视图: GB first-angle three-view drawing on A4 with dimensions,
+ *                 parts list and title block (--no-views to skip)
  *   .json         meta (spore number, size, weight, parts)
  *   _plate.stl, _<colour>.stl, _parts.txt   (assembly) parts + bill
  *
@@ -75,6 +77,7 @@ import { xmur3 } from '../src/core/seed';
 import { sporeId as makeSporeId } from '../src/core/sporeId';
 import type { CharId } from '../src/data/characters';
 import { PALETTES } from './jewel_palettes';
+import { renderViews } from './jewel_views';
 
 // ---------- args ----------
 const arg = (k: string, d?: string) => {
@@ -688,6 +691,7 @@ function buildPiece(mirror: boolean) {
       if (!isPlate(x, y - 1)) edges.push(`M${xs[x].toFixed(2)} ${ys[y].toFixed(2)}H${xs[x + 1].toFixed(2)}`);
     }
   return { tris, parts: partMeshes, ring, hole, engraved, volMM3: Math.abs(vol), runs, edges,
+           grid: { xs, ys, Z, FX, FY, columns: parts, colourAt },
            bbox: { minX, maxX, minY, maxY: ring ? loopY + RO : topY }, loopTop: ring ? loopY + RO : topY };
 }
 
@@ -789,6 +793,22 @@ for (const [suffix, mirror] of variants) {
       bill.push(`${path.basename(base)}_${g}.stl\t${hex(col)}${nm ? ` ${nm}${INVENTORY.find((f) => f.name === nm)?.zh ? ' ' + INVENTORY.find((f) => f.name === nm)!.zh : ''}` : ''}\t${n} ${unit}\t${ts.length / 2} faces`);
     }
     fs.writeFileSync(`${base}_${ASSEMBLY ? 'parts' : 'colors'}.txt`, bill.join('\n') + '\n');
+  }
+  // three-view drawing (GB first-angle), A4 landscape
+  if (!flag('no-views')) {
+    const FAM_ZH: Record<string, string> = { tender: '温柔', calm: '平静', curious: '好奇', dreamy: '梦幻', companion: '陪伴', lonely: '孤独' };
+    const billRows = [...r.parts.keys()].map((g) => {
+      const key = g === 'plate' ? 'base' : g;
+      const nm = spoolName.get(key) ?? '';
+      const n = g === 'plate' || g === 'base' ? 1 : regions.get(g) ?? 1;
+      return { file: `${path.basename(base)}_${g}.stl`, name: g === 'plate' ? '底板' : g === 'white' ? '眼白' : g === 'black' ? '瞳孔' : `镶片 ${g}`,
+        zh: INVENTORY.find((f) => f.name === nm)?.zh ?? nm, hexc: hex(groupRGB.get(key) ?? BASE_RGB), count: n, unit: g === 'plate' ? '块' : '片' };
+    });
+    fs.writeFileSync(`${base}_views.svg`, renderViews({
+      xs: r.grid.xs, ys: r.grid.ys, Z: r.grid.Z, FX: r.grid.FX, FY: r.grid.FY, parts: r.grid.columns, colourAt: (p, i, k) => r.grid.colourAt(p as Parameters<typeof r.grid.colourAt>[0], i, k), ring: r.ring, hole: r.hole, bbox: r.bbox, baseRGB: BASE_RGB, cell, fit: FIT, pocket: POCKET, relief: RELIEF, base: BASE,
+      meta: { sporeId, text, piece, family: FAMS[charId], familyZh: FAM_ZH[FAMS[charId]], mirror, grams: r.volMM3 / 1000 * 1.24, mode: MODE },
+      bill: billRows, date: new Date().toISOString().slice(0, 10),
+    }));
   }
   const wPLA = r.volMM3 / 1000 * 1.24, wResin = r.volMM3 / 1000 * 1.1;
   const info = {
