@@ -66,7 +66,7 @@
 | MIC SCK/WS/SD | U1 D8/D9/D10 · J2.3/2/4 |
 | LED_DIN | U1 D6 · J5.3 |
 | AMP_VIN | JP1.2 · C3 · J6.1 |
-| ELE0–11 | U2 脚 9–20 · J7.1–12 |
+| ELE0–11 | U2 脚 8–19 · J7.1–12 |
 
 I2C 地址:总线 0 = 左屏 0x3C · ToF 0x29 · MPU 0x68 · MPR121 0x5A;总线 1 = 右屏 0x3C。
 MPR121 的 IRQ 没接(11 个 GPIO 用完了),固件按 50 Hz 轮询触摸寄存器即可。
