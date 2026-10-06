@@ -6,7 +6,13 @@
  * small mosaic plaque that hangs from a ring: a pendant, a charm, or a
  * mirrored pair of earrings.
  *
- * Two build modes:
+ * Three build modes:
+ *
+ *   --mode mosaic    (default) real tesserae: the plate is a tray with one
+ *       square pocket per cell and --grout walls between them; every colour
+ *       is a pile of identical small square tiles (cell − grout − 2·fit) you
+ *       place yourself following <name>_map.svg (lettered cells + legend).
+ *       <name>_tile_<colour>.stl is one tile to print ×N.
  *
   *   Shape and colour follow the site's engine: the plate is exactly the cells
  *   the site draws (dither holes stay open, like spore3d) plus a --rim wall,
@@ -100,15 +106,18 @@ const tintHue = Number(arg('tint', String(h0 % 360)));
 const id = `w:${h0.toString(16)}`;
 const sporeId = makeSporeId({ text, id, charId });
 
-// piece presets: target body height (mm) · plate · relief
+// piece presets: target body height (mm) · plate · relief · mosaic cell (one tile per cell needs bigger cells)
 const PRESET = {
-  pendant: { size: 32, base: 1.6, relief: 0.8 },
-  charm:   { size: 24, base: 1.4, relief: 0.7 },
-  earring: { size: 20, base: 1.2, relief: 0.6 },
+  pendant: { size: 32, base: 1.6, relief: 0.8, mcell: 2.6 },
+  charm:   { size: 24, base: 1.4, relief: 0.7, mcell: 2.2 },
+  earring: { size: 20, base: 1.2, relief: 0.6, mcell: 1.8 },
 }[piece as 'pendant' | 'charm' | 'earring'];
-const MODE = arg('mode', 'assembly')!;           // assembly | relief
-if (!['assembly', 'relief'].includes(MODE)) throw new Error('--mode assembly|relief');
-const ASSEMBLY = MODE === 'assembly';
+// mosaic (default): one square tile per cell in its own pocket, grout walls between — real tesserae you
+// place yourself · assembly: one tile per connected colour patch · relief: one solid piece
+const MODE = arg('mode', 'mosaic')!;
+if (!['mosaic', 'assembly', 'relief'].includes(MODE)) throw new Error('--mode mosaic|assembly|relief');
+const MOSAIC = MODE === 'mosaic';
+const ASSEMBLY = MODE !== 'relief';              // both pocketed modes
 const loopMode = arg('loop', 'ring')!;           // ring | hole | none
 const PAIR = flag('pair') || piece === 'earring';
 const SPLIT = ASSEMBLY || flag('split');
@@ -144,7 +153,7 @@ const ENGRAVE = !flag('no-id');
 // spore3d) + a thin rim so the pockets have a wall · 'mask' = the full silhouette envelope
 const PLATE_FILL = arg('plate-fill', 'cells')!;
 if (!['cells', 'mask'].includes(PLATE_FILL)) throw new Error('--plate-fill cells|mask');
-const RIM = PLATE_FILL === 'cells' && (MODE === 'assembly') ? Number(arg('rim', '0.6')) : 0;
+const RIM = PLATE_FILL === 'cells' && ASSEMBLY ? Number(arg('rim', '0.6')) : 0;
 // auto | inventory | family | bands | nearest — with a spool inventory on disk the default is
 // inventory: the spore's own colours, each snapped to the nearest spool you actually own
 const SPOOL_MAP = arg('spool-map', SPOOLS_GIVEN() ? 'bands' : INVENTORY.length ? 'inventory' : 'auto')!;
@@ -160,19 +169,28 @@ const spec = buildMosaic({
 const { cols, rows, cells, eyes, palette, mask } = spec;
 
 // cell size: --cell wins, else derive from the target height
-const cell = Number(arg('cell', String(Math.round((Number(arg('size', String(PRESET.size))) / rows) * 10) / 10)));
+const cell = Number(arg('cell', arg('size') || !MOSAIC
+  ? String(Math.round((Number(arg('size', String(PRESET.size))) / rows) * 10) / 10)
+  : String(PRESET.mcell)));
 const BASE = Number(arg('base', String(PRESET.base)));
 const RELIEF = Number(arg('relief', String(PRESET.relief)));
 const EYE_EXTRA = 0.3;                           // eye whites stand this much prouder
 const POCKET = ASSEMBLY ? Math.min(Number(arg('pocket', String(Math.min(0.6, BASE * 0.4)))), BASE - 0.6) : 0;
 const FIT = ASSEMBLY ? Number(arg('fit', '0.1')) : 0;    // tile clearance per side
+const GROUT = MOSAIC ? Number(arg('grout', '0.4')) : 0;   // wall between neighbouring pockets (0.4 = two 0.2 lines)
+const WISPY_HALF = MOSAIC ? flag('wispy-half') : true;    // mosaic: all tiles one height unless asked
+const TILE = cell - GROUT - 2 * FIT;                      // mosaic tile side
+if (MOSAIC && TILE < 0.9) console.warn(`warning: tiles are ${TILE.toFixed(2)} mm — hard to handle; use --cell ≥ ${(0.9 + GROUT + 2 * FIT).toFixed(1)}`);
 const ENG = Math.min(0.4, (BASE - POCKET) * 0.35);       // engraving depth into the back (under the pocket floor)
 const SUB = 4;                                   // engraving pixels per cell
 // fine grid per cell: assembly splits each cell into [fit, a, a, a, a, fit] so
 // tiles can be shrunk by exactly --fit; relief uses 4 equal pixels
-const PAT = ASSEMBLY ? [FIT, ...Array(4).fill((cell - 2 * FIT) / 4), FIT] : Array(SUB).fill(cell / SUB);
+// mosaic: [grout/2, fit, a, a, a, a, fit, grout/2] — wall strip, clearance strip, tile
+const PAT = MOSAIC ? [GROUT / 2, FIT, ...Array(4).fill(TILE / 4), FIT, GROUT / 2]
+  : ASSEMBLY ? [FIT, ...Array(4).fill((cell - 2 * FIT) / 4), FIT] : Array(SUB).fill(cell / SUB);
 const SUBN = PAT.length;
-const pixOf = (j: number) => (ASSEMBLY ? Math.max(0, Math.min(SUB - 1, j - 1)) : j);  // sub → engraving pixel
+const INNER0 = MOSAIC ? 2 : 1, INNER1 = SUBN - 1 - INNER0;                       // sub index range of the tile body
+const pixOf = (j: number) => (ASSEMBLY ? Math.max(0, Math.min(SUB - 1, j - INNER0)) : j);  // sub → engraving pixel
 const q = cell / SUB;                            // engraving pixel size
 
 // ---------- colours ----------
@@ -482,13 +500,23 @@ function buildPiece(mirror: boolean) {
       if (!p) continue;
       const yCell = rows - 1 - r + 1, gc = c + 1;
       const onPlate = !ASSEMBLY || p.group === 'base';
+      const kindH = p.kind === 2 && !WISPY_HALF ? 1 : p.kind;      // mosaic: wispy tiles print full height
       for (let sy = 0; sy < SUBN; sy++)
         for (let sx = 0; sx < SUBN; sx++) {
           const i = fi(gc * SUBN + sx, yCell * SUBN + sy);
+          const wall = MOSAIC && (sx === 0 || sx === SUBN - 1 || sy === 0 || sy === SUBN - 1);   // grout strip
           plate.zb[i] = 0;
-          plate.zt[i] = onPlate ? ZI[TOP_OF[p.kind]] : ZI.pocket;
+          plate.zt[i] = onPlate ? ZI[TOP_OF[kindH]] : wall ? ZI.base : ZI.pocket;
           plate.rgb[i] = onPlate ? p.rgb : BASE_RGB; plate.grp[i] = onPlate ? p.group : 'base';
           if (onPlate) continue;
+          if (MOSAIC) {
+            // one square tile per cell, inset by grout/2 + fit on every side
+            if (sx < INNER0 || sx > INNER1 || sy < INNER0 || sy > INNER1) continue;
+            const g = p.group;
+            const t = tiles.get(g) ?? tiles.set(g, newPart(g, g)).get(g)!;
+            t.zb[i] = ZI.pocket; t.zt[i] = ZI[TOP_OF[kindH]]; t.rgb[i] = p.rgb; t.grp[i] = g;
+            continue;
+          }
           // tile: erode the colour patch by --fit (L∞), so it drops into the pocket
           const L = sx === 0, R = sx === SUBN - 1, B = sy === 0, T = sy === SUBN - 1;  // y up: sy=0 is the lower row
           const g = p.group;
@@ -771,6 +799,82 @@ function writeSVG(file: string, mirror: boolean, r: ReturnType<typeof buildPiece
   fs.writeFileSync(file, svg);
 }
 
+// pick the first (tallest) tile out of an in-situ tile mesh and move it to the origin
+function singleTile(ts: Tri[]): { tris: Tri[]; w: number; h: number } | null {
+  if (!ts.length) return null;
+  // tiles are separated by ≥ grout; cluster triangles by their min-corner cell
+  const key = (t: Tri) => `${Math.floor(Math.min(t.a[0], t.b[0], t.c[0]) / cell)},${Math.floor(Math.min(t.a[1], t.b[1], t.c[1]) / cell)}`;
+  const groups = new Map<string, Tri[]>();
+  for (const t of ts) (groups.get(key(t)) ?? groups.set(key(t), []).get(key(t))!).push(t);
+  let best: Tri[] = [], bestH = -1;
+  for (const g of groups.values()) {
+    const zs = g.flatMap((t) => [t.a[2], t.b[2], t.c[2]]);
+    const h = Math.max(...zs) - Math.min(...zs);
+    if (h > bestH) { bestH = h; best = g; }
+  }
+  const xs0 = best.flatMap((t) => [t.a[0], t.b[0], t.c[0]]), ys0 = best.flatMap((t) => [t.a[1], t.b[1], t.c[1]]), zs0 = best.flatMap((t) => [t.a[2], t.b[2], t.c[2]]);
+  const mx = Math.min(...xs0), my = Math.min(...ys0), mz = Math.min(...zs0);
+  const mv = (v: V): V => [v[0] - mx, v[1] - my, v[2] - mz];
+  return { tris: best.map((t) => ({ ...t, a: mv(t.a), b: mv(t.b), c: mv(t.c) })), w: Math.max(...xs0) - mx, h: bestH };
+}
+
+// assembly chart (拼装图): the grid with column letters / row numbers, one lettered tile per cell, legend with counts
+function writeMap(file: string, mirror: boolean, r: ReturnType<typeof buildPiece>) {
+  const groups = [...new Set([...plan.values()].filter((p) => p.kind !== 0).map((p) => p.group))].sort((a, b) => a.localeCompare(b));
+  const code = new Map(groups.map((g, i) => [g, String.fromCharCode(65 + i)]));   // A, B, C…
+  const S = 7, M = 14, LEG = 36;                                                   // mm per cell on paper · margins · legend width
+  const gw = cols * S, gh = rows * S;
+  const X = (c: number) => M + 8 + c * S, Y = (rr: number) => M + 14 + rr * S;
+  const out: string[] = [];
+  const t = (x: number, y: number, s: string, size = 2.6, anchor = 'middle', fill = '#333') =>
+    out.push(`<text x="${x.toFixed(2)}" y="${y.toFixed(2)}" font-size="${size}" text-anchor="${anchor}" fill="${fill}">${s.replace(/[<&]/g, ' ')}</text>`);
+  // grid
+  for (let c = 0; c <= cols; c++) out.push(`<path d="M${X(c)} ${Y(0)}V${Y(rows)}" stroke="#ccc" stroke-width="0.15"/>`);
+  for (let rr = 0; rr <= rows; rr++) out.push(`<path d="M${X(0)} ${Y(rr)}H${X(cols)}" stroke="#ccc" stroke-width="0.15"/>`);
+  for (let c = 0; c < cols; c++) t(X(c) + S / 2, Y(0) - 1.5, String.fromCharCode(97 + c), 2.4, 'middle', '#888');
+  for (let rr = 0; rr < rows; rr++) t(X(0) - 2, Y(rr) + S / 2 + 0.9, String(rr + 1), 2.4, 'end', '#888');
+  // plate footprint (cells + rim) as a soft fill, then tiles
+  for (const [x0, y0, x1, y1] of r.runs) {
+    const px0 = X(0) + (x0 - cell) / cell * S, px1 = X(0) + (x1 - cell) / cell * S;
+    const py0 = Y(rows) - (y1 - cell) / cell * S, py1 = Y(rows) - (y0 - cell) / cell * S;
+    out.push(`<rect x="${px0.toFixed(2)}" y="${py0.toFixed(2)}" width="${(px1 - px0 + 0.02).toFixed(2)}" height="${(py1 - py0 + 0.02).toFixed(2)}" fill="${hex(BASE_RGB)}" fill-opacity="0.35"/>`);
+  }
+  for (let rr = 0; rr < rows; rr++)
+    for (let c = 0; c < cols; c++) {
+      const p = plan.get(K(mirror ? cols - 1 - c : c, rr));
+      if (!p || p.kind === 0) continue;
+      const lum_ = 0.2126 * p.rgb[0] + 0.7152 * p.rgb[1] + 0.0722 * p.rgb[2];
+      out.push(`<rect x="${(X(c) + 0.6).toFixed(2)}" y="${(Y(rr) + 0.6).toFixed(2)}" width="${(S - 1.2).toFixed(2)}" height="${(S - 1.2).toFixed(2)}" fill="${hex(p.rgb)}" stroke="#333" stroke-width="0.15"/>`);
+      t(X(c) + S / 2, Y(rr) + S / 2 + 1.1, code.get(p.group)!, 3, 'middle', lum_ > 140 ? '#222' : '#fff');
+    }
+  // legend
+  const lx = X(cols) + 8, ly0 = Y(0);
+  t(lx, ly0 - 1.5, '图例 · 每格一片', 2.8, 'start');
+  groups.forEach((g, i) => {
+    const y = ly0 + 2 + i * 8;
+    const rgb = groupRGB.get(g) ?? BASE_RGB;
+    const n = [...plan.values()].filter((p) => p.kind !== 0 && p.group === g).length;
+    const nm = spoolName.get(g); const zh = INVENTORY.find((f) => f.name === nm)?.zh ?? nm ?? '';
+    out.push(`<rect x="${lx}" y="${y}" width="6" height="6" fill="${hex(rgb)}" stroke="#333" stroke-width="0.15"/>`);
+    t(lx + 3, y + 4.3, code.get(g)!, 3, 'middle', (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) > 140 ? '#222' : '#fff');
+    t(lx + 8, y + 2.6, `${g === 'white' ? '眼白' : g === 'black' ? '瞳孔' : '镶片'} · ${zh} ${hex(rgb)}`, 2.5, 'start');
+    t(lx + 8, y + 5.6, `${n} 片 · ${TILE.toFixed(1)} mm 方`, 2.5, 'start', '#666');
+  });
+  const by = ly0 + 4 + groups.length * 8;
+  out.push(`<rect x="${lx}" y="${by}" width="6" height="6" fill="${hex(BASE_RGB)}" stroke="#333" stroke-width="0.15"/>`);
+  t(lx + 8, by + 2.6, `底板 · ${INVENTORY.find((f) => f.name === spoolName.get('base'))?.zh ?? ''} ${hex(BASE_RGB)}`, 2.5, 'start');
+  t(lx + 8, by + 5.6, `格 ${cell} · 缝 ${GROUT} · 口袋深 ${POCKET.toFixed(2)} · 间隙 ${FIT}`, 2.5, 'start', '#666');
+  const W = M * 2 + 8 + gw + 8 + LEG + 30, H = M * 2 + 14 + gh + 10;
+  fs.writeFileSync(file, `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${W}mm" height="${H}mm" viewBox="0 0 ${W} ${H}" font-family="'Noto Sans CJK SC','PingFang SC',Arial,sans-serif">
+  <rect width="${W}" height="${H}" fill="#fff"/>
+  <text x="${M}" y="${M}" font-size="4.2" fill="#222">${sporeId} · ${piece}${mirror ? ' (R 镜像)' : ''} · 拼装图</text>
+  <text x="${M}" y="${M + 5.5}" font-size="3" fill="#666">“${text.replace(/[<&]/g, ' ')}” · 正面朝上,列 a→ 右,行 1→ 下 · 字母 = 颜色</text>
+  ${out.join('\n  ')}
+</svg>
+`);
+}
+
 const variants: Array<[string, boolean]> = PAIR ? [['_L', false], ['_R', true]] : [['', false]];
 const summary: Record<string, unknown>[] = [];
 for (const [suffix, mirror] of variants) {
@@ -780,6 +884,10 @@ for (const [suffix, mirror] of variants) {
   writeSTL(`${base}${ASSEMBLY ? '_assembled' : ''}.stl`, r.tris, `mycelium ${sporeId} ${piece}`);
   writePLY(`${base}.ply`, r.tris);
   writeSVG(`${base}.svg`, mirror, r);
+  // mosaic: how many tiles of each colour (and height) — every tile of a group is identical
+  const tileCount = (g: string, kindFilter?: (k: number) => boolean) =>
+    [...plan.values()].filter((p) => p.kind !== 0 && p.group === g && (!kindFilter || kindFilter(p.kind))).length;
+  const countOf = (g: string) => (MOSAIC ? tileCount(g) : g === 'plate' || g === 'base' ? 1 : regions.get(g) ?? 1);
   let nParts = 0;
   if (SPLIT) {
     const bill: string[] = [];
@@ -787,20 +895,27 @@ for (const [suffix, mirror] of variants) {
       writeSTL(`${base}_${g}.stl`, ts, `mycelium ${sporeId} ${g}`);
       const col = groupRGB.get(g === 'plate' ? 'base' : g) ?? BASE_RGB;
       const nm = spoolName.get(g === 'plate' ? 'base' : g);
-      const n = g === 'plate' || g === 'base' ? 1 : regions.get(g) ?? 1;
+      const n = g === 'plate' ? 1 : countOf(g);
       nParts += n;
       const unit = !ASSEMBLY ? 'regions' : g === 'plate' ? 'plate' : n === 1 ? 'tile' : 'tiles';
-      bill.push(`${path.basename(base)}_${g}.stl\t${hex(col)}${nm ? ` ${nm}${INVENTORY.find((f) => f.name === nm)?.zh ? ' ' + INVENTORY.find((f) => f.name === nm)!.zh : ''}` : ''}\t${n} ${unit}\t${ts.length / 2} faces`);
+      let extra = '';
+      if (MOSAIC && g !== 'plate') {
+        // one tile at the origin, to print n copies of
+        const one = singleTile(ts);
+        if (one) { writeSTL(`${base}_tile_${g}.stl`, one.tris, `mycelium ${sporeId} tile ${g}`); extra = `\t${one.w.toFixed(2)}×${one.w.toFixed(2)}×${one.h.toFixed(2)} mm → ${path.basename(base)}_tile_${g}.stl ×${n}`; }
+      }
+      bill.push(`${path.basename(base)}_${g}.stl\t${hex(col)}${nm ? ` ${nm}${INVENTORY.find((f) => f.name === nm)?.zh ? ' ' + INVENTORY.find((f) => f.name === nm)!.zh : ''}` : ''}\t${n} ${unit}${extra}`);
     }
     fs.writeFileSync(`${base}_${ASSEMBLY ? 'parts' : 'colors'}.txt`, bill.join('\n') + '\n');
   }
+  if (MOSAIC) writeMap(`${base}_map.svg`, mirror, r);
   // three-view drawing (GB first-angle), A4 landscape
   if (!flag('no-views')) {
     const FAM_ZH: Record<string, string> = { tender: '温柔', calm: '平静', curious: '好奇', dreamy: '梦幻', companion: '陪伴', lonely: '孤独' };
     const billRows = [...r.parts.keys()].map((g) => {
       const key = g === 'plate' ? 'base' : g;
       const nm = spoolName.get(key) ?? '';
-      const n = g === 'plate' || g === 'base' ? 1 : regions.get(g) ?? 1;
+      const n = g === 'plate' ? 1 : countOf(g);
       return { file: `${path.basename(base)}_${g}.stl`, name: g === 'plate' ? '底板' : g === 'white' ? '眼白' : g === 'black' ? '瞳孔' : `镶片 ${g}`,
         zh: INVENTORY.find((f) => f.name === nm)?.zh ?? nm, hexc: hex(groupRGB.get(key) ?? BASE_RGB), count: n, unit: g === 'plate' ? '块' : '片' };
     });

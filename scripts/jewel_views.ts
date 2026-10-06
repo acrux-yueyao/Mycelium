@@ -172,7 +172,7 @@ export function renderViews(inp: ViewInput): string {
     txt(tbX + 2, tbY + 20, `${meta.sporeId} · ${meta.familyZh} ${meta.family}`, 'start', 3.6),
     txt(tbX + 2, tbY + 31.5, `“${meta.text}”`, 'start', 3),
     txt(tbX + 2, tbY + 42, `比例 ${S}:1`, 'start', 3), txt(tbX + 62, tbY + 42, `单位 mm · ${meta.grams.toFixed(2)} g PLA`, 'start', 3), txt(tbX + 92, tbY + 42, inp.date, 'start', 3),
-    txt(tbX + 62, tbY + 31.5, `第一角画法 · ${meta.mode === 'assembly' ? '分件胶装' : '一体浮雕'}`, 'start', 3),
+    txt(tbX + 62, tbY + 31.5, `第一角画法 · ${meta.mode === 'mosaic' ? '马赛克拼装' : meta.mode === 'assembly' ? '分件胶装' : '一体浮雕'}`, 'start', 3),
   ];
   // first-angle projection symbol (truncated cone: small circle left of trapezoid) near the title block
   const symX = tbX - 22, symY = tbY + TB_H - 8;
