@@ -16,10 +16,11 @@
  *       --heights steps (default 3): --height-by edt makes the body domed
  *       (edge low, centre tall), band makes lighter cells taller, flat = one.
  *
-  *   Shape and colour follow the site's engine: the plate is exactly the cells
- *   the site draws (dither holes stay open, like spore3d) plus a --rim wall,
- *   and the body colours are that spore's own palette, quantised to a few
- *   filaments. --plate-fill mask fills the whole silhouette envelope instead.
+  *   Shape and colour follow the site's engine: the plate is the spore's outer
+ *   contour (the drawn cells, enclosed dither holes filled as grout, edge
+ *   notches kept) plus a --rim wall, and the body colours are that spore's own
+ *   palette, quantised to a few filaments. --plate-fill cells keeps the holes
+ *   open; --plate-fill mask fills the whole silhouette envelope.
  *
  *   --mode assembly  (default) parts for a single-colour printer, glued:
  *       plate   the full silhouette, with pockets where the colour tiles sit;
@@ -152,11 +153,14 @@ const SPOOLS = arg('spools') ? arg('spools')!.split(',').map(parseHex)
   : PALETTE ? PALETTES[PALETTE].spools.map(parseHex) : null;
 const PLATE_HEX = arg('plate') ?? (PALETTE ? PALETTES[PALETTE].plate : undefined);
 const ENGRAVE = !flag('no-id');
-// plate footprint: 'cells' = exactly the cells the site draws (dither holes stay open, like
-// spore3d) + a thin rim so the pockets have a wall · 'mask' = the full silhouette envelope
-const PLATE_FILL = arg('plate-fill', 'cells')!;
-if (!['cells', 'mask'].includes(PLATE_FILL)) throw new Error('--plate-fill cells|mask');
-const RIM = PLATE_FILL === 'cells' && ASSEMBLY ? Number(arg('rim', '0.6')) : 0;
+// plate footprint:
+//   outline (default) the spore's outer contour: the cells the site draws, with enclosed dither
+//                     holes filled as grout-level plate; notches on the edge stay open
+//   cells             exactly the drawn cells, interior holes open through (like spore3d)
+//   mask              the full silhouette envelope the engine grew the dither inside
+const PLATE_FILL = arg('plate-fill', 'outline')!;
+if (!['outline', 'cells', 'mask'].includes(PLATE_FILL)) throw new Error('--plate-fill outline|cells|mask');
+const RIM = PLATE_FILL !== 'mask' && ASSEMBLY ? Number(arg('rim', '0.6')) : 0;
 // auto | inventory | family | bands | nearest — with a spool inventory on disk the default is
 // inventory: the spore's own colours, each snapped to the nearest spool you actually own
 const SPOOL_MAP = arg('spool-map', SPOOLS_GIVEN() ? 'bands' : INVENTORY.length ? 'inventory' : 'auto')!;
@@ -272,6 +276,28 @@ for (const [c, kind] of [[eyes.L0, 3], [eyes.L0 + 1, 4], [eyes.R0, 4], [eyes.R0 
   }
   const keep = new Set(best);
   for (const k of [...plan.keys()]) if (!keep.has(k)) plan.delete(k);
+}
+
+// outline: fill holes that are fully enclosed by the body (not reachable from outside the grid)
+if (PLATE_FILL === 'outline') {
+  const outside = new Set<string>();
+  const q: Array<[number, number]> = [];
+  for (let c = -1; c <= cols; c++) { q.push([c, -1]); q.push([c, rows]); }
+  for (let r = 0; r < rows; r++) { q.push([-1, r]); q.push([cols, r]); }
+  for (const [c, r] of q) outside.add(K(c, r));
+  while (q.length) {
+    const [c, r] = q.pop()!;
+    for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nc = c + dc, nr = r + dr;
+      if (nc < -1 || nr < -1 || nc > cols || nr > rows) continue;
+      const k = K(nc, nr);
+      if (outside.has(k) || plan.has(k)) continue;
+      outside.add(k); q.push([nc, nr]);
+    }
+  }
+  for (let r = 0; r < rows; r++)
+    for (let c = 0; c < cols; c++)
+      if (!plan.has(K(c, r)) && !outside.has(K(c, r))) plan.set(K(c, r), { kind: 0, rgb: BASE_RGB, group: 'base', h: 0 });
 }
 
 // ---------- 2.5) simplify for the printer: few filaments, no lone islands ----------

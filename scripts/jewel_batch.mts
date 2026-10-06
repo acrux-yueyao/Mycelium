@@ -75,16 +75,19 @@ for (const [i, d] of (M.designs as Array<{ text: string; family?: string; piece:
 }
 
 // ---------- 2) plates: group by plate spool, shelf-pack on beds ----------
-interface Placed { tris: Tri[]; w: number; h: number; label: string; hex: string; x?: number; y?: number }
+interface Placed { tris: Tri[]; w: number; h: number; label: string; hex: string; x?: number; y?: number; outline?: string }
+// the plate's real footprint for the preview: its downward-facing faces, as polygons (model mm, y up)
+const footprint = (tris: Tri[]) => tris.filter((t) => t.n[2] < -0.5).map((t) => `M${t.a[0].toFixed(2)} ${t.a[1].toFixed(2)}L${t.b[0].toFixed(2)} ${t.b[1].toFixed(2)}L${t.c[0].toFixed(2)} ${t.c[1].toFixed(2)}Z`).join('');
 function packBeds(items: Placed[], gap: number): Placed[][] {
   const beds: Placed[][] = [];
   const sorted = [...items].sort((a, b) => b.h - a.h);
   let bed: Placed[] = [], x = gap, y = gap, rowH = 0;
   const open = () => { if (bed.length) beds.push(bed); bed = []; x = gap; y = gap; rowH = 0; };
   for (const it of sorted) {
+    const lab = it.outline ? 4 : 0;   // room for the label above a plate
     if (x + it.w + gap > BED) { x = gap; y += rowH + gap; rowH = 0; }
-    if (y + it.h + gap > BED) open();
-    it.x = x; it.y = y; bed.push(it); x += it.w + gap; rowH = Math.max(rowH, it.h);
+    if (y + it.h + lab + gap > BED) open();
+    it.x = x; it.y = y; bed.push(it); x += it.w + gap; rowH = Math.max(rowH, it.h + lab);
   }
   if (bed.length) beds.push(bed);
   return beds;
@@ -92,7 +95,9 @@ function packBeds(items: Placed[], gap: number): Placed[][] {
 function bedSVG(file: string, bed: Placed[], title: string, labels: string[] = []) {
   const sc = 1;   // mm
   const lab = labels.map((l) => { const [x, y, t] = l.split('|'); return `<text x="${x}" y="${BED - +y - 1}" font-size="2.8" fill="#333">${t}</text>`; });
-  const items = bed.map((p) => `<g transform="translate(${p.x} ${BED - p.y! - p.h})"><rect width="${p.w}" height="${p.h}" fill="${p.hex}" fill-opacity="0.85" stroke="#333" stroke-width="0.2"/>${p.w > 12 ? `<text x="${p.w / 2}" y="${p.h / 2 + 1}" font-size="2.4" text-anchor="middle" fill="#fff">${p.label}</text>` : ''}</g>`);
+  const items = bed.map((p) => `<g transform="translate(${p.x} ${BED - p.y!}) scale(1 -1)">${p.outline
+    ? `<path d="${p.outline}" fill="${p.hex}" stroke="${p.hex}" stroke-width="0.05"/>`
+    : `<rect width="${p.w}" height="${p.h}" fill="${p.hex}" fill-opacity="0.85" stroke="#333" stroke-width="0.2"/>`}</g>${p.w > 12 ? `<text x="${p.x! + p.w / 2}" y="${BED - p.y! - p.h - 1.5}" font-size="2.4" text-anchor="middle" fill="#333">${p.label}</text>` : ''}`);
   fs.writeFileSync(file, `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${(BED + 20) * sc}mm" height="${(BED + 28) * sc}mm" viewBox="-10 -18 ${BED + 20} ${BED + 28}" font-family="'Noto Sans CJK SC',sans-serif">
   <rect x="-10" y="-18" width="${BED + 20}" height="${BED + 28}" fill="#fff"/>
@@ -113,7 +118,7 @@ for (const d of designs) {
   const { mn, mx } = bbox(tris);
   for (let q = 0; q < d.qty; q++)
     (plateGroups.get(pl.spool || pl.hex) ?? plateGroups.set(pl.spool || pl.hex, []).get(pl.spool || pl.hex)!)
-      .push({ tris: moved(tris, -mn[0], -mn[1], -mn[2]), w: mx[0] - mn[0], h: mx[1] - mn[1], label: `${d.sporeId}${d.mirror ? ' R' : d.piece === 'earring' ? ' L' : ''}`, hex: pl.hex });
+      .push({ tris: moved(tris, -mn[0], -mn[1], -mn[2]), w: mx[0] - mn[0], h: mx[1] - mn[1], label: `${d.sporeId}${d.mirror ? ' R' : d.piece === 'earring' ? ' L' : ''}`, hex: pl.hex, outline: footprint(moved(tris, -mn[0], -mn[1], -mn[2])) });
 }
 md.push('## 底板盘(每盘一种底板色)', '');
 for (const [spool, items] of [...plateGroups].sort()) {
