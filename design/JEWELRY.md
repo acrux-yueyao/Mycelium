@@ -30,7 +30,7 @@ npx tsx scripts/spore_jewel.mts --text "…" --loop hole                        
 | `_tile_<色>_h<档>.stl` | **一片**该色该高度的方片,放在原点;按 `_parts.txt` 的数量复制打印(同色同档的片完全相同) |
 | `_c0.stl` `_white.stl` … | 该色所有方片原位摆放(看组装效果用) |
 | `_map.svg` | **拼装图**:网格带列字母 / 行号,每格"颜色字母 + 高度数字"(如 B2),图例列出每色每档片数和耗材名 |
-| `_parts.txt` | 零件清单:文件 → 耗材色/名 → 片数 → 单片尺寸 |
+| `_parts.txt` / `_parts.json` | 零件清单:文件 → 耗材色/名 → 片数 → 单片尺寸(json 给批量脚本用) |
 | `catalog/catalog-*.png` `.html` | `jewel_catalog.mts` 生成的配色目录 |
 | `_assembled.stl` / `.ply` | 组装效果(看的,不是打的);`.ply` 带颜色 |
 | `.svg` | 正面图纸(mm),`#cut` 层是轮廓+孔,给激光/亚克力 |
@@ -135,6 +135,24 @@ npx tsx scripts/spore_jewel.mts --text "…" --loop hole                        
 | 梦幻 dreamy | 紫色 | 薰衣草紫 · 胭脂雪 · 淡粉(大理石) |
 | 陪伴 companion | 深绿色 | 青绿色 · 牛油果绿 · 青水蓝 |
 | 孤独 lonely | 黑色 | 蓝(备选) · 海雾蓝 · 淡粉(大理石) |
+
+### 2.2 · 批量排产(`jewel_batch.mts`)
+
+```
+npx tsx scripts/jewel_batch.mts            # 读 design/jewel_batch.json,输出 out/jewel/batch/
+```
+
+`design/jewel_batch.json` 每行一款(句子 · 家族 · 件型 · 件数),脚本逐款生成后按单色打印机的习惯合盘:
+
+| 输出 | 内容 |
+|---|---|
+| `plates/bed_plate_<底板色>.stl/.svg` | 这个颜色的所有底板排在一盘(4 mm 间距,超出自动分盘),预览图上标孢子号 |
+| `tiles/bed_tile_<颜色>_N.stl/.svg` | 这个颜色的所有马赛克片排一盘;盘内按"方边长 × 高度"分块并标注,数量 = 全部款式汇总 × (1 + 备用比例) |
+| `batch_manifest.md/.json` | 每盘内容、每块来自哪些款、每款的零件清单和拼装图路径 |
+| `designs/<款>/` | 每款自己的全部文件(底板、单片、拼装图、三视图) |
+
+样本清单 14 款(12 句话挂件 + 第一句的吊坠和耳饰):4 种底板色 → 4 盘底板;14 种颜色 → 14 盘片,
+盘内 1–7 块。盘尺寸 `--bed 180`(可用区域 mm),备用 `--spare 0.1`。
 
 ## 3 · 三种件
 

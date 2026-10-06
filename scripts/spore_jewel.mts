@@ -968,6 +968,21 @@ for (const [suffix, mirror] of variants) {
     fs.writeFileSync(`${base}_${ASSEMBLY ? 'parts' : 'colors'}.txt`, bill.join('\n') + '\n');
   }
   if (MOSAIC) writeMap(`${base}_map.svg`, mirror, r);
+  // machine-readable parts list for the batch planner (scripts/jewel_batch.mts)
+  if (SPLIT) {
+    const rows: Array<Record<string, unknown>> = [];
+    for (const [g, ts] of r.parts) {
+      const key = g === 'plate' ? 'base' : g;
+      const nm = spoolName.get(key) ?? '';
+      const common = { group: g, spool: nm, zh: INVENTORY.find((f) => f.name === nm)?.zh ?? '', hex: hex(groupRGB.get(key) ?? BASE_RGB) };
+      if (g === 'plate') { rows.push({ ...common, kind: 'plate', file: `${path.basename(base)}_plate.stl`, count: 1 }); continue; }
+      if (MOSAIC) {
+        const vs = tilesByHeight(ts);
+        vs.forEach((v, k) => rows.push({ ...common, kind: 'tile', file: `${path.basename(base)}_tile_${g}${vs.length > 1 ? `_h${k + 1}` : ''}.stl`, count: v.count, w: +v.w.toFixed(2), h: +v.h.toFixed(2), step: vs.length > 1 ? k + 1 : 1 }));
+      } else rows.push({ ...common, kind: 'patch', file: `${path.basename(base)}_${g}.stl`, count: countOf(g) });
+    }
+    fs.writeFileSync(`${base}_parts.json`, JSON.stringify({ sporeId, text, piece, family: FAMS[charId], mirror, mode: MODE, cell, tile: TILE, parts: rows }, null, 1));
+  }
   // three-view drawing (GB first-angle), A4 landscape
   if (!flag('no-views')) {
     const FAM_ZH: Record<string, string> = { tender: '温柔', calm: '平静', curious: '好奇', dreamy: '梦幻', companion: '陪伴', lonely: '孤独' };
