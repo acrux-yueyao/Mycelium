@@ -29,9 +29,9 @@
  *               separate inlay, shrunk --fit mm per side (default 0.1) so it
  *               drops into its pocket. Tiles stand --relief above the plate;
  *               wispy edge cells half as high
- *       eyes    eye whites and pupils are their own tiny tiles (white/black)
- *               print once in bulk, glue in — or --eyes merge to fold them
- *               into the body colours / the plate
+ *       eyes    eye whites and pupils are their own tiny tiles (white/black),
+ *               both on the top height step (mosaic) — print once in bulk,
+ *               glue in — or --eyes merge to fold them into the body colours
  *   --mode relief    one solid piece (plate + raised cells), for mono printing
  *               or a multi-material printer (--split: one closed STL per colour)
  *
@@ -436,7 +436,7 @@ if (SMOOTH) {
       const votes = new Map<string, number>();
       for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
         const n = plan.get(K(c + dc, r + dr));
-        if (!n || n.kind === 0 || n.kind === 4) continue;
+        if (!n || n.kind === 0 || n.kind === 3 || n.kind === 4) continue;   // eyes never recruit body cells
         votes.set(n.group, (votes.get(n.group) ?? 0) + 1);
       }
       if (!votes.size || votes.has(p.group)) continue;
@@ -502,7 +502,9 @@ const regions = countRegions();
       p.h = dmax <= 1 ? top : Math.min(top, Math.round(((d - 1) / (dmax - 1)) * top));
     }
   }
-  for (const [, p] of body) { if (p.kind === 2) p.h = 0; if (p.kind === 4) p.h = 0; if (p.kind === 3) p.h = top; }
+  // eyes: mosaic → white and pupil share the top step (a flat, even face); relief/assembly keep the
+  // mono-readable version (white proud, pupil sunk)
+  for (const [, p] of body) { if (p.kind === 2) p.h = 0; if (p.kind === 4) p.h = MOSAIC ? top : 0; if (p.kind === 3) p.h = top; }
 }
 
 // ---------- 3) 3×5 pixel font for the back engraving ----------
@@ -542,7 +544,7 @@ type V = [number, number, number];
 interface Tri { a: V; b: V; c: V; col: RGB; group: string }
 // kind → top z-level name
 // top z-level name of a cell: plate-only → base · eye white → eye · otherwise its height step
-const topOf = (p: Plan) => (p.kind === 0 ? 'base' : p.kind === 3 ? 'eye' : `r${p.h}`);
+const topOf = (p: Plan) => (p.kind === 0 ? 'base' : p.kind === 3 && !MOSAIC ? 'eye' : `r${p.h}`);
 
 function buildPiece(mirror: boolean) {
   // one empty cell of margin all round so the rim has room; grid cell (gc, gy) = (c + 1, rows - 1 - r + 1)
@@ -937,7 +939,7 @@ function writeMap(file: string, mirror: boolean, r: ReturnType<typeof buildPiece
     out.push(`<rect x="${lx}" y="${y}" width="6" height="6" fill="${hex(rgb)}" stroke="#333" stroke-width="0.15"/>`);
     t(lx + 3, y + 4.3, code.get(g)!, 3, 'middle', (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) > 140 ? '#222' : '#fff');
     t(lx + 8, y + 2.6, `${g === 'white' ? '眼白' : g === 'black' ? '瞳孔' : '镶片'} · ${zh} ${hex(rgb)}`, 2.5, 'start');
-    const perH = Array.from({ length: HEIGHTS }, (_, k) => [...plan.values()].filter((p) => p.kind !== 0 && p.group === g && (p.kind === 3 ? k === HEIGHTS - 1 : p.kind === 4 ? k === 0 : p.h === k)).length);
+    const perH = Array.from({ length: HEIGHTS }, (_, k) => [...plan.values()].filter((p) => p.kind !== 0 && p.group === g && p.h === k).length);
     const hNote = HEIGHTS > 1 && (g !== 'white' && g !== 'black') ? ` · 高 ${perH.map((c, k) => `${k + 1}:${c}`).filter((_, k) => perH[k] > 0).join(' ')}` : '';
     t(lx + 8, y + 5.6, `${n} 片 · ${TILE.toFixed(1)} mm 方${hNote}`, 2.5, 'start', '#666');
   });
