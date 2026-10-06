@@ -426,5 +426,5 @@
   <text x="129.00" y="59.60" font-size="2.5" text-anchor="start" fill="#666">2 片 · 2.0 mm 方</text>
   <rect x="121" y="64" width="6" height="6" fill="#2d3672" stroke="#333" stroke-width="0.15"/>
   <text x="129.00" y="66.60" font-size="2.5" text-anchor="start" fill="#333">底板 · 蓝(备选) #2d3672</text>
-  <text x="129.00" y="69.60" font-size="2.5" text-anchor="start" fill="#666">格 2.6 · 缝 0.4 · 口袋深 0.60 · 间隙 0.1</text>
+  <text x="129.00" y="69.60" font-size="2.5" text-anchor="start" fill="#666">格 2.6 · 缝 0.4 · 口袋深 0.40 · 间隙 0.1</text>
 </svg>

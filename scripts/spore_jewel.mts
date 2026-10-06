@@ -109,10 +109,11 @@ const id = `w:${h0.toString(16)}`;
 const sporeId = makeSporeId({ text, id, charId });
 
 // piece presets: target body height (mm) · plate · relief · mosaic cell (one tile per cell needs bigger cells)
+// mosaic presets (m*): a thin tray and tall tesserae — plate 1.0, pockets 0.4, tiles stand up to 2.0 above the walls
 const PRESET = {
-  pendant: { size: 32, base: 1.6, relief: 0.8, mcell: 2.6 },
-  charm:   { size: 24, base: 1.4, relief: 0.7, mcell: 2.2 },
-  earring: { size: 20, base: 1.2, relief: 0.6, mcell: 1.8 },
+  pendant: { size: 32, base: 1.6, relief: 0.8, mcell: 2.6, mbase: 1.0, mpocket: 0.4, mrelief: 2.0 },
+  charm:   { size: 24, base: 1.4, relief: 0.7, mcell: 2.2, mbase: 0.9, mpocket: 0.4, mrelief: 1.6 },
+  earring: { size: 20, base: 1.2, relief: 0.6, mcell: 1.8, mbase: 0.8, mpocket: 0.35, mrelief: 1.4 },
 }[piece as 'pendant' | 'charm' | 'earring'];
 // mosaic (default): one square tile per cell in its own pocket, grout walls between — real tesserae you
 // place yourself · assembly: one tile per connected colour patch · relief: one solid piece
@@ -174,10 +175,12 @@ const { cols, rows, cells, eyes, palette, mask } = spec;
 const cell = Number(arg('cell', arg('size') || !MOSAIC
   ? String(Math.round((Number(arg('size', String(PRESET.size))) / rows) * 10) / 10)
   : String(PRESET.mcell)));
-const BASE = Number(arg('base', String(PRESET.base)));
-const RELIEF = Number(arg('relief', String(MOSAIC ? PRESET.relief * 1.5 : PRESET.relief)));  // mosaic: total relief range, split into height steps
+const BASE = Number(arg('base', String(MOSAIC ? PRESET.mbase : PRESET.base)));
+const RELIEF = Number(arg('relief', String(MOSAIC ? PRESET.mrelief : PRESET.relief)));  // mosaic: total relief range, split into height steps
 const EYE_EXTRA = 0.3;                           // eye whites stand this much prouder
-const POCKET = ASSEMBLY ? Math.min(Number(arg('pocket', String(Math.min(0.6, BASE * 0.4)))), BASE - 0.6) : 0;
+// pocket depth: keep ≥ 0.5 mm of floor under it (mosaic tiles are located by the grout walls, so pockets can be shallow)
+const POCKET = ASSEMBLY ? Math.min(Number(arg('pocket', String(MOSAIC ? PRESET.mpocket : Math.min(0.6, BASE * 0.4)))), BASE - 0.5) : 0;
+if (ASSEMBLY && BASE - POCKET < 0.5) console.warn(`warning: only ${(BASE - POCKET).toFixed(2)} mm of plate under the pockets`);
 const FIT = ASSEMBLY ? Number(arg('fit', '0.1')) : 0;    // tile clearance per side
 const GROUT = MOSAIC ? Number(arg('grout', '0.4')) : 0;   // wall between neighbouring pockets (0.4 = two 0.2 lines)
 // tile heights: mosaic tiles come in --heights steps (default 3) chosen by --height-by:
