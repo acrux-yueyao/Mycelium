@@ -46,7 +46,7 @@ XIAO_NETS = {1: 'SDA1', 2: 'I2S_LRC', 3: 'I2S_BCLK', 4: 'I2S_DIN', 5: 'SDA0', 6:
              12: '3V3', 13: 'GND', 14: 'VBUS'}
 PARTS = {
     'U1': ('XIAO', None, 'XIAO-ESP32S3', '', (0, -24.5), 0, XIAO_NETS),   # not stocked at JLCPCB: hand-solder (C48405120 is the nRF52840 Plus!)
-    'U2': ('Package_DFN_QFN', 'SiliconLabs_QFN-20-1EP_3x3mm_P0.5mm_EP1.8x1.8mm', 'MPR121QR2',
+    'U2': ('QFN20', None, 'MPR121QR2',
            'C91322', (-16, -8), 180,
            {2: 'SCL0', 3: 'SDA0', 4: 'GND', 5: 'VREG', 6: 'GND', 7: '3V3', 8: 'REXT',
             **{9 + i: f'ELE{i}' for i in range(12)}, 21: 'GND', '': 'GND'}),
@@ -134,6 +134,57 @@ def xiao_footprint(board):
     fp.Add(t)
     fp.Reference().SetPos0(P(0, 12)); fp.Reference().SetPosition(P(0, 12))
     fp.Value().SetPos0(P(0, 0)); fp.Value().SetPosition(P(0, 0)); fp.Value().SetLayer(pcbnew.F_Fab)
+    return fp
+
+
+def qfn20_footprint(board):
+    """NXP MPR121QR2: QFN-20, 3×3 mm body, 0.5 mm pitch, 5 leads per side
+    (no corner leads), exposed pad. Lands 0.22×0.75 centred 1.625 from the
+    body centre (outer end 2.0) so the pads of adjacent sides keep 0.14 mm
+    clearance at the corners; EP 1.7×1.7. Pin 1 top-left, counter-clockwise."""
+    fp = pcbnew.FOOTPRINT(board)
+    fp.SetFPID(pcbnew.LIB_ID('MC03', 'QFN-20_3x3_P0.5_MPR121'))
+    R, L, W = 1.625, 0.75, 0.22
+    n = 1
+    for side in range(4):                    # left (top→bottom), bottom (l→r), right (b→t), top (r→l)
+        for i in range(5):
+            t = -1.0 + 0.5 * i
+            if side == 0:
+                x, y, sz = -R, t, (L, W)
+            elif side == 1:
+                x, y, sz = t, R, (W, L)
+            elif side == 2:
+                x, y, sz = R, -t, (L, W)
+            else:
+                x, y, sz = -t, -R, (W, L)
+            pad = pcbnew.PAD(fp)
+            pad.SetNumber(str(n)); n += 1
+            pad.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
+            pad.SetShape(pcbnew.PAD_SHAPE_ROUNDRECT); pad.SetRoundRectRadiusRatio(0.25)
+            pad.SetSize(P(*sz)); pad.SetLayerSet(pad.SMDMask())
+            pad.SetPos0(P(x, y)); pad.SetPosition(P(x, y))
+            fp.Add(pad)
+    ep = pcbnew.PAD(fp)
+    ep.SetNumber('21'); ep.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
+    ep.SetShape(pcbnew.PAD_SHAPE_RECT); ep.SetSize(P(1.7, 1.7)); ep.SetLayerSet(ep.SMDMask())
+    ep.SetPos0(P(0, 0)); ep.SetPosition(P(0, 0))
+    fp.Add(ep)
+    for (x0, y0, x1, y1) in ((-1.5, -1.5, 1.5, -1.5), (1.5, -1.5, 1.5, 1.5), (1.5, 1.5, -1.5, 1.5), (-1.5, 1.5, -1.5, -1.5)):
+        sh = pcbnew.FP_SHAPE(fp); sh.SetShape(pcbnew.SHAPE_T_SEGMENT)
+        sh.SetStart0(P(x0, y0)); sh.SetEnd0(P(x1, y1)); sh.SetStart(P(x0, y0)); sh.SetEnd(P(x1, y1))
+        sh.SetLayer(pcbnew.F_Fab); sh.SetWidth(MM(0.1)); fp.Add(sh)
+    for (x0, y0, x1, y1) in ((-1.6, -2.1, -1.6, -1.45), (-1.6, -2.1, -0.9, -2.1),     # pin-1 corner mark
+                             (1.6, -2.1, 1.6, -1.45), (1.6, -2.1, 0.9, -2.1),
+                             (1.6, 2.1, 1.6, 1.45), (1.6, 2.1, 0.9, 2.1),
+                             (-1.6, 2.1, -1.6, 1.45), (-1.6, 2.1, -0.9, 2.1)):
+        sh = pcbnew.FP_SHAPE(fp); sh.SetShape(pcbnew.SHAPE_T_SEGMENT)
+        sh.SetStart0(P(x0, y0)); sh.SetEnd0(P(x1, y1)); sh.SetStart(P(x0, y0)); sh.SetEnd(P(x1, y1))
+        sh.SetLayer(pcbnew.F_SilkS); sh.SetWidth(MM(0.15)); fp.Add(sh)
+    dot = pcbnew.FP_SHAPE(fp); dot.SetShape(pcbnew.SHAPE_T_CIRCLE)
+    dot.SetStart0(P(-2.35, -1.0)); dot.SetEnd0(P(-2.2, -1.0)); dot.SetStart(P(-2.35, -1.0)); dot.SetEnd(P(-2.2, -1.0))
+    dot.SetLayer(pcbnew.F_SilkS); dot.SetWidth(MM(0.3)); fp.Add(dot)
+    fp.Reference().SetPos0(P(0, -3.0)); fp.Reference().SetPosition(P(0, -3.0))
+    fp.Value().SetLayer(pcbnew.F_Fab)
     return fp
 
 
@@ -229,7 +280,8 @@ def build(pcb_path):
         return nets[name]
 
     for ref, (lib, name, value, lcsc, (x, y), rot, padnets) in PARTS.items():
-        fp = xiao_footprint(board) if lib == 'XIAO' else pcbnew.FootprintLoad(f'{LIB}/{lib}.pretty', name)
+        fp = (xiao_footprint(board) if lib == 'XIAO' else qfn20_footprint(board) if lib == 'QFN20'
+              else pcbnew.FootprintLoad(f'{LIB}/{lib}.pretty', name))
         assert fp, (ref, name)
         fp.SetReference(ref); fp.SetValue(value)
         fp.SetPosition(P(x, y))
@@ -282,14 +334,19 @@ def pour_gnd(board, gnd, layers=(pcbnew.B_Cu,)):
     """GND plane on the back only: the front stays a plain routed layer
     (readable, no fragmented pour); GND pads reach the plane by short stubs
     and vias that the router adds itself because the plane is in the DSN."""
-    for layer in layers:
+    ux, uy = PARTS['U2'][4]
+    areas = [(layer, (BX0, BY0, BX1, BY1)) for layer in layers]
+    # small front pour around the touch chip: its GND pins / EP / R5 reach
+    # the plane through stitched vias instead of router stubs
+    areas.append((pcbnew.F_Cu, (ux - 2.6, uy - 6.3, ux + 2.6, uy + 2.6)))
+    for layer, (x0, y0, x1, y1) in areas:
         z = pcbnew.ZONE(board)
         z.SetLayer(layer); z.SetNet(gnd)
         z.SetLocalClearance(MM(0.25)); z.SetMinThickness(MM(0.25))
         z.SetPadConnection(pcbnew.ZONE_CONNECTION_THERMAL)
         z.SetThermalReliefGap(MM(0.3)); z.SetThermalReliefSpokeWidth(MM(0.35))
         ol = z.Outline(); ol.NewOutline()
-        for x, y in ((BX0, BY0), (BX1, BY0), (BX1, BY1), (BX0, BY1)):
+        for x, y in ((x0, y0), (x1, y0), (x1, y1), (x0, y1)):
             ol.Append(MM(x), MM(y))
         board.Add(z)
     pcbnew.ZONE_FILLER(board).Fill(board.Zones())
@@ -464,7 +521,7 @@ def exports(board, pcb_path, out, nets):
         for ref, (lib, name, value, lcsc, *_r) in PARTS.items():
             if ref in HAND:
                 continue
-            groups.setdefault((value, name or 'XIAO-ESP32S3_SMD', lcsc), []).append(ref)
+            groups.setdefault((value, name or ('QFN-20_3x3_P0.5' if ref == 'U2' else 'XIAO-ESP32S3_SMD'), lcsc), []).append(ref)
         for (value, name, lcsc), refs in groups.items():
             w.writerow([value, ','.join(refs), name, lcsc])
     with open(f'{out}/facebrd_cpl.csv', 'w', newline='') as f:
@@ -508,6 +565,12 @@ def main(out, do_route=True):
         nets = {n.GetNetname(): n for n in board.GetNetInfo().NetsByName().values()}
     pcbnew.ZONE_FILLER(board).Fill(board.Zones())
     stitch(board, nets['GND'])
+    # U2 pin 6 (VSS) is too small for a via: tie it to the exposed pad
+    ux, uy = PARTS['U2'][4]
+    for a, c in (((ux + 1.0, uy - 1.625), (ux + 1.0, uy - 0.5)), ((ux + 1.0, uy - 0.5), (ux + 0.7, uy - 0.5))):
+        t = pcbnew.PCB_TRACK(board); t.SetStart(P(*a)); t.SetEnd(P(*c)); t.SetWidth(MM(0.2))
+        t.SetLayer(pcbnew.F_Cu); t.SetNet(nets['GND']); board.Add(t)
+    pcbnew.ZONE_FILLER(board).Fill(board.Zones())
     pcbnew.SaveBoard(pcb_path, board)
     rep, unrouted = exports(board, pcb_path, out, nets)
     txt = open(rep).read()
