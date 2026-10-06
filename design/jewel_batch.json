@@ -2,20 +2,97 @@
   "_readme": "批量排产清单(scripts/jewel_batch.mts)。每行一款:text 句子 · family 家族(可省,按句子哈希) · piece pendant|charm|earring · qty 件数(耳饰 1 = 一对)。extra 是每种片多打的备用比例。",
   "bed": 180,
   "spare": 0.1,
+  "_uniform": "统一规格:所有款共用同一组格/厚度参数,方片和眼睛片在所有款之间通用。删掉这个字段就恢复各件型自己的预设。",
+  "uniform": {
+    "cell": 2.2,
+    "base": 0.9,
+    "pocket": 0.4,
+    "relief": 1.6
+  },
   "designs": [
-    { "text": "轻轻地生长",        "family": "tender",    "piece": "pendant", "qty": 1 },
-    { "text": "轻轻地生长",        "family": "tender",    "piece": "charm",   "qty": 1 },
-    { "text": "轻轻地生长",        "family": "tender",    "piece": "earring", "qty": 1 },
-    { "text": "今晚的月亮很安静",  "family": "calm",      "piece": "charm",   "qty": 1 },
-    { "text": "I miss the sea",    "family": "curious",   "piece": "charm",   "qty": 1 },
-    { "text": "把今天的我留在这里","family": "dreamy",    "piece": "charm",   "qty": 1 },
-    { "text": "想被人记得",        "family": "companion", "piece": "charm",   "qty": 1 },
-    { "text": "雨停了就出门",      "family": "lonely",    "piece": "charm",   "qty": 1 },
-    { "text": "small, warm, and a little late", "family": "tender", "piece": "charm", "qty": 1 },
-    { "text": "一个人也可以",      "family": "calm",      "piece": "charm",   "qty": 1 },
-    { "text": "谢谢你还在",        "family": "curious",   "piece": "charm",   "qty": 1 },
-    { "text": "今天什么都没发生",  "family": "dreamy",    "piece": "charm",   "qty": 1 },
-    { "text": "the room hums when you leave", "family": "companion", "piece": "charm", "qty": 1 },
-    { "text": "慢慢来",            "family": "lonely",    "piece": "charm",   "qty": 1 }
+    {
+      "text": "轻轻地生长",
+      "family": "tender",
+      "piece": "pendant",
+      "qty": 1
+    },
+    {
+      "text": "轻轻地生长",
+      "family": "tender",
+      "piece": "charm",
+      "qty": 1
+    },
+    {
+      "text": "轻轻地生长",
+      "family": "tender",
+      "piece": "earring",
+      "qty": 1
+    },
+    {
+      "text": "今晚的月亮很安静",
+      "family": "calm",
+      "piece": "charm",
+      "qty": 1
+    },
+    {
+      "text": "I miss the sea",
+      "family": "curious",
+      "piece": "charm",
+      "qty": 1
+    },
+    {
+      "text": "把今天的我留在这里",
+      "family": "dreamy",
+      "piece": "charm",
+      "qty": 1
+    },
+    {
+      "text": "想被人记得",
+      "family": "companion",
+      "piece": "charm",
+      "qty": 1
+    },
+    {
+      "text": "雨停了就出门",
+      "family": "lonely",
+      "piece": "charm",
+      "qty": 1
+    },
+    {
+      "text": "small, warm, and a little late",
+      "family": "tender",
+      "piece": "charm",
+      "qty": 1
+    },
+    {
+      "text": "一个人也可以",
+      "family": "calm",
+      "piece": "charm",
+      "qty": 1
+    },
+    {
+      "text": "谢谢你还在",
+      "family": "curious",
+      "piece": "charm",
+      "qty": 1
+    },
+    {
+      "text": "今天什么都没发生",
+      "family": "dreamy",
+      "piece": "charm",
+      "qty": 1
+    },
+    {
+      "text": "the room hums when you leave",
+      "family": "companion",
+      "piece": "charm",
+      "qty": 1
+    },
+    {
+      "text": "慢慢来",
+      "family": "lonely",
+      "piece": "charm",
+      "qty": 1
+    }
   ]
 }
