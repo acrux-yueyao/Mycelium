@@ -29,7 +29,9 @@ matplotlib.rcParams['font.family'] = 'monospace'
 matplotlib.rcParams['font.monospace'] = ['Noto Sans Mono CJK SC', 'DejaVu Sans Mono']
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
-from matplotlib.patches import Rectangle
+from matplotlib.patches import Rectangle, Circle
+
+NC, SC = '#c14953', '#3e6fb8'
 
 
 def luma(h):
@@ -72,11 +74,31 @@ def main(vdir, out):
             if c.get('eye'):
                 ax.add_patch(Rectangle((c['x'] + 0.06, c['z'] + 0.06), 0.88, 0.88, fill=False, ec='#3b82f6', lw=2, ls='--'))
             tc = '#1c1c1a' if luma(col) > 130 else '#f6f5f0'
-            ax.text(c['x'] + 0.5, c['z'] + 0.42, str(c['seq']), ha='center', va='center', fontsize=11,
-                    fontweight='bold', color=tc, family='monospace')
+            # magnet pockets in the CREATURE frame: + faces (right/front/up) S out, - faces N out
+            mask = {tuple(m) for m in c['mask']}
+            seam = {tuple(m) for m in c['eye']['seam']} if c.get('eye') else set()
+            x0, z0 = c['x'], c['z']
+            marks = {(0, False): (x0 + 0.12, z0 + 0.5, 'N'), (0, True): (x0 + 0.88, z0 + 0.5, 'S'),
+                     (1, False): (x0 + 0.5, z0 + 0.12, 'N'), (1, True): (x0 + 0.5, z0 + 0.88, 'S')}
+            for key, (mx, mz, pole) in marks.items():
+                if key in mask:
+                    small = key in seam
+                    sz = 0.14 if small else 0.2
+                    ax.add_patch(Rectangle((mx - sz / 2, mz - sz / 2), sz, sz, fc=NC if pole == 'N' else SC, ec='#1c1c1a', lw=0.3))
+                    ax.text(mx, mz, pole.lower() if small else pole, ha='center', va='center', fontsize=5 if small else 6,
+                            color='#ffffff', family='monospace', fontweight='bold')
+            if (2, True) in mask:                                  # up face
+                ax.add_patch(Circle((x0 + 0.5, z0 + 0.42), 0.2, fc=SC, ec='#1c1c1a', lw=0.3))
+                ax.text(x0 + 0.5, z0 + 0.42, str(c['seq']), ha='center', va='center', fontsize=8, fontweight='bold',
+                        color='#ffffff', family='monospace')
+            else:
+                ax.text(x0 + 0.5, z0 + 0.42, str(c['seq']), ha='center', va='center', fontsize=10, fontweight='bold',
+                        color=tc, family='monospace')
+            if (2, False) in mask:                                 # down face
+                ax.text(x0 + 0.22, z0 + 0.3, '底N', ha='center', va='center', fontsize=5, color=NC, family='monospace', fontweight='bold')
             tag = c['code'][0] if c['code'][0] in 'WMUG' else ''
-            ax.text(c['x'] + 0.5, c['z'] + 0.82, (tag + ' ' if tag else '') + c['code'][2:], ha='center', va='center',
-                    fontsize=6, color=tc, family='monospace')
+            ax.text(c['x'] + 0.5, c['z'] + 0.7, (tag + ' ' if tag else '') + c['code'][2:], ha='center', va='center',
+                    fontsize=5.5, color=tc, family='monospace')
         # frame + axes
         ax.set_xlim(X0 - 0.8, X1 + 0.8); ax.set_ylim(Z0 - 1.2, Z1 + 0.8)
         ax.set_aspect('equal'); ax.invert_yaxis()
@@ -94,10 +116,10 @@ def main(vdir, out):
                      f'{min(c["seq"] for c in this)}–{max(c["seq"] for c in this)}\n{legend}',
                      fontsize=12, family='monospace')
         fig.text(0.5, 0.015,
-                 '规则:每颗方块刻 S 的面朝 右/前/上,刻 N 的面朝 左/后/下 · 灰虚线=下一层(对齐用)· 蓝虚框=眼框块 · '
-                 '斜线=两件式重打块 · W ToF窗 M 麦克风孔 U 充电口 G 喇叭网孔',
+                 '磁铁:边上的方块=侧面的袋(左N 右S 后N 前S) · 蓝圆底的序号=朝上有袋(S) · 底N=朝下有袋 · 小写=Ø2×1 小磁铁\n'
+                 '规则:刻 S 的面朝 右/前/上,刻 N 的面朝 左/后/下 · 灰虚线=下一层 · 蓝虚框=眼框块 · 斜线=两件式重打块 · W ToF窗 M 麦 U 充电口 G 喇叭',
                  ha='center', fontsize=8.5, family='monospace', color='#6d6a62')
-        fig.tight_layout(rect=(0, 0.03, 1, 1))
+        fig.tight_layout(rect=(0, 0.05, 1, 1))
         fig.savefig(f'{out}/layer_{li + 1:02d}.png', dpi=130, facecolor='#f6f5f0')
         pdf.savefig(fig, facecolor='#f6f5f0')
         plt.close(fig)
