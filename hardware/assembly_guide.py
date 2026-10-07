@@ -63,6 +63,18 @@ def main(vdir, out):
         below = [c for c in cells if c['y'] == ly - 1]
         fig, ax = plt.subplots(figsize=(11, 8.5), facecolor='#f6f5f0')
         ax.set_facecolor('#f6f5f0')
+        door = [c for c in cells if c.get('tag') == 'door']
+        if door and any(c['door_face'][0] == 0 and c['y'] == ly for c in door) or \
+           door and min(c['y'] for c in door if c['door_face'][0] == 0) <= ly <= max(c['y'] for c in door if c['door_face'][0] == 0) + 0:
+            pass
+        if door:
+            zb = door[0]['z']; xs_ = sorted({c['x'] for c in door if c['door_face'][0] == 2})
+            ys_ = [c['y'] for c in door if c['door_face'][0] == 2]
+            if min(ys_) < ly < max(ys_):
+                for x in range(min(c['x'] for c in door if c['door_face'][0] == 0) + 1, max(c['x'] for c in door if c['door_face'][0] == 0)):
+                    ax.add_patch(Rectangle((x, zb), 1, 1, fc='#e6e2d8', ec='#8a8880', lw=0.8, hatch='..'))
+                ax.text((min(c['x'] for c in door) + max(c['x'] for c in door) + 1) / 2, zb + 0.5, '门板 MC04-D(最后装)', ha='center',
+                        va='center', fontsize=8, color='#6d6a62', family='monospace')
         for c in below:                                 # alignment ghost
             ax.add_patch(Rectangle((c['x'], c['z']), 1, 1, fc='none', ec='#b8b4a8', lw=0.8, ls=(0, (2, 2))))
         for c in this:

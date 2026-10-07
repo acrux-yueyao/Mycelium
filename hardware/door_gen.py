@@ -96,17 +96,6 @@ def main(base, vdir, out):
     # ---- door anchors: pocket + pins/dimples on the side walls toward the ring cubes
     anchors = [c for c in man['cells'] if c.get('tag') == 'door']
     ym = (y0 + y1) / 2                                  # cube-face centre depth
-    for c in anchors:
-        face = tuple(c['door_face'])                    # ring cube's face toward the door
-        dx, dz = 0.0, 0.0
-        if face[0] == 0:                                # ring column → door side wall
-            wall_x = x0 if face[1] else x1              # ring +x face meets door's -x wall
-            door_pos = not face[1]
-            cz = (c['y'] + 0.5) * P
-            adds.append(B(wall_x if door_pos else wall_x - WALL - BOSS, y0 + BACK, cz - 3.5,
-                          wall_x + WALL + BOSS if not door_pos else wall_x, y1, cz + 3.5) if False else
-                        B(min(wall_x, wall_x + (WALL + BOSS) * (1 if not face[1] is False else 1)), y0, cz - 3.5, wall_x, y1, cz + 3.5))
-        # (geometry for anchors is added below in a cleaner, explicit way)
     adds = []
     for c in anchors:
         face = tuple(c['door_face'])
@@ -161,9 +150,9 @@ def main(base, vdir, out):
     R = RM(np.pi / 2, [1, 0, 0])                        # (0,-1,0) → (0,0,-1): outer face down
     d = door.copy(); d.apply_transform(R); lo = d.bounds[0]; d.apply_transform(TM(-lo))
     d.export(f'{out}/door_body_{dom}.stl')
-    for fid, ms in tile_meshes.items():
-        t = trimesh.util.concatenate(ms); t.apply_transform(TM([0, 0, 0]))
-        t.export(f'{out}/door_tiles_{fid}.stl')
+    for fid, ms in tile_meshes.items():          # tiles print flat, coloured face up
+        t = trimesh.util.concatenate(ms); t.apply_transform(RM(-np.pi / 2, [1, 0, 0]))
+        t.apply_transform(TM(-t.bounds[0])); t.export(f'{out}/door_tiles_{fid}.stl')
     spec = {'outer_mm': [round(x1 - x0, 1), round(z1 - z0, 1), round(y1 - y0, 1)], 'dominant': dom,
             'tiles': {f'{x},{y}': fid for (x, y), fid in tiles.items()}, 'anchors': len(anchors),
             'standoff_mm': round(board_bottom - (y0 + BACK), 1)}
