@@ -358,6 +358,21 @@ def main(base, out_dir):
                (tcx - 1, rows - 1 - (er + 4), 0): 'V-vent',
                (tcx + 1, rows - 1 - (er + 4), 0): 'V-vent'}
 
+    # back door (MC04-D) anchors: 8 ring cubes in the cavity's back layer get
+    # a magnet pocket + pins on the face toward the opening; the door carries
+    # the mating couplings (door_gen.py). Replaces the MC02-P plate.
+    door_anchor = {}
+    if zone:
+        zb = min((z for (x, y, z) in kit if x in (tx, tx + 6) and ty + 1 <= y <= ty + 6), default=None)
+        if zb is not None:
+            for y in (ty + 2, ty + 5):
+                door_anchor[(tx, y, zb)] = (0, True)          # left column → its right face
+                door_anchor[(tx + 6, y, zb)] = (0, False)
+            for x in (tx + 2, tx + 4):
+                door_anchor[(x, ty, zb)] = (2, True)           # bottom row → its top face
+                door_anchor[(x, ty + 7, zb)] = (2, False)
+            door_anchor = {k: v for k, v in door_anchor.items() if k in kit}
+
     # 安全掏空:埋没块(六邻居全实)逐个尝试移除,
     # 只有当每个邻居移除后仍有 ≥1 个其他面接触时才真移除;
     # 最后整体 BFS 验证连通,不连通的方案直接放弃该次移除。
@@ -597,6 +612,8 @@ def main(base, out_dir):
             key for key, _ in FACE_KEYS
             if (x + DIRS[key][0], y + DIRS[key][1], z + DIRS[key][2]) in solid
             and not blocked_from((x + DIRS[key][0], y + DIRS[key][1], z + DIRS[key][2]), key)))
+        if zone and (x, y, z) in door_anchor:
+            mask = tuple(sorted(set(mask) | {door_anchor[(x, y, z)]}))
         tag0 = special.get((x, y, z))
         if tag0 in FUNC_VERTICAL:
             # vertical bore through the cube: no magnet pocket on top/bottom
@@ -605,9 +622,11 @@ def main(base, out_dir):
         variants.setdefault(code, {'mask': mask, 'count': 0})['count'] += 1
         tag = special.get((x, y, z))
         vmap[f'{x},{y},{z}'] = f'{code}{"·" + tag if tag else ""}'
-        percube.append({'x': x, 'y': y, 'z': z, 'code': code,
-                        'mask': [list(k) for k in mask],
-                        'ci': ci_of[(x, y, z)], 'tag': tag})
+        cell = {'x': x, 'y': y, 'z': z, 'code': code, 'mask': [list(k) for k in mask],
+                'ci': ci_of[(x, y, z)], 'tag': tag}
+        if zone and (x, y, z) in door_anchor:
+            cell['tag'] = 'door'; cell['door_face'] = list(door_anchor[(x, y, z)])
+        percube.append(cell)
 
     os.makedirs(out_dir, exist_ok=True)
     lines = [f'{meta["name"]} — exposure-aware cube bill',
