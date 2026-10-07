@@ -446,8 +446,11 @@ def main(base, out_dir):
         pcx = sum(x for x, _ in patch_xy) / max(1, len(patch_xy))
         pby = min(y for _, y in patch_xy)
         # fixed cells shared by every creature, so one face board (MC03-F)
-        # serves them all: W = core (3,2), M = core (2,3). Fall back to the
-        # eye-relative pick only if a shape covers those cells.
+        # serves them all: W = core (3,2), M = core (4,3). NOTE the printed
+        # kit is the MIRROR image of the web spore (cube mesh axes are
+        # (x, front, up) = left-handed), so the board's mic box at board
+        # x=-12 (web col 2) meets the physical cell of web col 4. Fall back
+        # to the eye-relative pick only if a shape covers those cells.
         if exposed:
             w = (tx + 3, ty + 2)
             if w not in exposed:
@@ -455,7 +458,7 @@ def main(base, out_dir):
             special[(w[0], w[1], SKIN_Z)] = 'W'
             rest = [c for c in exposed if c != w]
             if rest:
-                m = (tx + 2, ty + 3)
+                m = (tx + 4, ty + 3)
                 if m not in rest:
                     m = min(rest, key=lambda c: (abs(c[0] - pcx) + abs(c[1] - (pby - 3)), c))
                 special[(m[0], m[1], SKIN_Z)] = 'M'

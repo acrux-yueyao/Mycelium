@@ -101,15 +101,15 @@ def main(vdir, out):
                     fontsize=5.5, color=tc, family='monospace')
         # frame + axes
         ax.set_xlim(X0 - 0.8, X1 + 0.8); ax.set_ylim(Z0 - 1.2, Z1 + 0.8)
-        ax.set_aspect('equal'); ax.invert_yaxis()
+        ax.set_aspect('equal')                      # z (front) increases UP the page: builder stands behind
         ax.set_xticks([x + 0.5 for x in range(X0, X1)]); ax.set_xticklabels([str(x - X0 + 1) for x in range(X0, X1)], fontsize=8)
         ax.set_yticks([]); ax.tick_params(length=0)
         for sp in ax.spines.values():
             sp.set_visible(False)
-        ax.text(X0 - 0.5, Z0 - 0.6, '← 左', fontsize=9, color='#6d6a62', ha='left')
-        ax.text(X1 + 0.5, Z0 - 0.6, '右 →', fontsize=9, color='#6d6a62', ha='right')
-        ax.text((X0 + X1) / 2, Z0 - 0.6, '▲ 背面(后)', fontsize=9, color='#6d6a62', ha='center')
-        ax.text((X0 + X1) / 2, Z1 + 0.5, '▼ 正面(前,脸)', fontsize=9, color='#6d6a62', ha='center')
+        ax.text(X0 - 0.5, Z1 + 0.5, '← 你的左手', fontsize=9, color='#6d6a62', ha='left')
+        ax.text(X1 + 0.5, Z1 + 0.5, '你的右手 →', fontsize=9, color='#6d6a62', ha='right')
+        ax.text((X0 + X1) / 2, Z1 + 0.5, '▲ 正面(脸,远离你)', fontsize=9, color='#6d6a62', ha='center')
+        ax.text((X0 + X1) / 2, Z0 - 0.6, '▼ 背面(后,靠近你)— 你站在机器人背后拼', fontsize=9, color='#6d6a62', ha='center')
         cols_here = sorted({c['ci'] for c in this})
         legend = ' · '.join(f"{nos[ci]}号 {names[ci].split(' ')[0] if names[ci] else ''}" for ci in cols_here)
         ax.set_title(f'第 {li + 1} / {len(layers)} 层(从下往上)· 本层 {len(this)} 颗 · 序号 '
@@ -117,7 +117,8 @@ def main(vdir, out):
                      fontsize=12, family='monospace')
         fig.text(0.5, 0.015,
                  '磁铁:边上的方块=侧面的袋(左N 右S 后N 前S) · 蓝圆底的序号=朝上有袋(S) · 底N=朝下有袋 · 小写=Ø2×1 小磁铁\n'
-                 '规则:刻 S 的面朝 右/前/上,刻 N 的面朝 左/后/下 · 灰虚线=下一层 · 蓝虚框=眼框块 · 斜线=两件式重打块 · W ToF窗 M 麦 U 充电口 G 喇叭',
+                 '规则(站在背后看):刻 S 的面朝 右手/远处(脸)/上, 刻 N 的面朝 左手/近处(背)/下 · 从盘里拿起方块:抬起远离你那一边把它立起来 · '
+                 '灰虚线=下一层 · 蓝虚框=眼框块 · 斜线=两件式重打块 · W ToF窗 M 麦 U 充电口 G 喇叭',
                  ha='center', fontsize=8.5, family='monospace', color='#6d6a62')
         fig.tight_layout(rect=(0, 0.05, 1, 1))
         fig.savefig(f'{out}/layer_{li + 1:02d}.png', dpi=130, facecolor='#f6f5f0')
