@@ -116,9 +116,8 @@ def main(vdir, out):
                      f'{min(c["seq"] for c in this)}–{max(c["seq"] for c in this)}\n{legend}',
                      fontsize=12, family='monospace')
         fig.text(0.5, 0.015,
-                 '磁铁:边上的方块=侧面的袋(左N 右S 后N 前S) · 蓝圆底的序号=朝上有袋(S) · 底N=朝下有袋 · 小写=Ø2×1 小磁铁\n'
-                 '规则(站在背后看):刻 S 的面朝 右手/远处(脸)/上, 刻 N 的面朝 左手/近处(背)/下 · 从盘里拿起方块:抬起远离你那一边把它立起来 · '
-                 '灰虚线=下一层 · 蓝虚框=眼框块 · 斜线=两件式重打块 · W ToF窗 M 麦 U 充电口 G 喇叭',
+                 '站在机器人背后拼 · 刻 S 的面朝 右手/远处/上,刻 N 的面朝 左手/近处/下 · 从盘里拿方块:抬起远离你的那边,向你翻 90° 立起来\n'
+                 '边上小块=侧面磁铁袋 · 蓝圆底序号=朝上有袋(S) · 底N=朝下有袋 · 小写=Ø2×1 · 灰虚线=下一层 · 蓝虚框=眼框 · 斜线=两件式 · W ToF M 麦 U 充电 G 喇叭',
                  ha='center', fontsize=8.5, family='monospace', color='#6d6a62')
         fig.tight_layout(rect=(0, 0.05, 1, 1))
         fig.savefig(f'{out}/layer_{li + 1:02d}.png', dpi=130, facecolor='#f6f5f0')
