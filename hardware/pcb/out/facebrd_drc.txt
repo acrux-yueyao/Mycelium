@@ -1,5 +1,5 @@
 ** Drc report for  **
-** Created on 2026-10-06 14:44:07 **
+** Created on 2026-10-07 14:03:12 **
 
 ** Found 55 DRC violations **
 [silk_overlap]: Silkscreen overlap
@@ -161,7 +161,7 @@
 [lib_footprint_issues]: The current configuration does not include the library ''.
     Local override; Severity: warning
     @(16.0000 mm, -4.0000 mm): Footprint U3
-[lib_footprint_issues]: The current configuration does not include the library 'MC03'.
+[lib_footprint_issues]: The current configuration does not include the library ''.
     Local override; Severity: warning
     @(-16.0000 mm, -8.0000 mm): Footprint U2
 [lib_footprint_issues]: The current configuration does not include the library 'MC03'.

@@ -46,11 +46,11 @@ XIAO_NETS = {1: 'SDA1', 2: 'I2S_LRC', 3: 'I2S_BCLK', 4: 'I2S_DIN', 5: 'SDA0', 6:
              12: '3V3', 13: 'GND', 14: 'VBUS'}
 PARTS = {
     'U1': ('XIAO', None, 'XIAO-ESP32S3', '', (0, -24.5), 0, XIAO_NETS),   # not stocked at JLCPCB: hand-solder (C48405120 is the nRF52840 Plus!)
-    'U2': ('QFN20', None, 'MPR121QR2',
+    'U2': ('Package_DFN_QFN', 'UQFN-20_3x3mm_P0.4mm', 'MPR121QR2',   # KiCad's own pairing for MPR121QR2: 0.4 mm pitch, no EP
            'C91322', (-16, -8), 180,
            # MPR121 (datasheet / KiCad Sensor_Touch): 1 IRQ 2 SCL 3 SDA 4 ADDR 5 VREG 6 VSS 7 REXT 8-19 ELE0-11 20 VDD
            {2: 'SCL0', 3: 'SDA0', 4: 'GND', 5: 'VREG', 6: 'GND', 7: 'REXT',
-            **{8 + i: f'ELE{i}' for i in range(12)}, 20: '3V3', 21: 'GND'}),
+            **{8 + i: f'ELE{i}' for i in range(12)}, 20: '3V3'}),
     'U3': ('Sensor_Motion', 'InvenSense_QFN-24_4x4mm_P0.5mm', 'MPU-6050', 'C24112', (16, -4), 0,
            # MPU-6050: RESV pins 19/21/22 left unconnected (KiCad symbol omits them)
            {1: 'GND', 8: '3V3', 9: 'GND', 10: 'REGOUT', 11: 'GND', 13: '3V3', 18: 'GND',
@@ -270,10 +270,10 @@ def build(pcb_path):
     ds = board.GetDesignSettings()
     # JLCPCB 2-layer capability is 0.127/0.127; 0.15/0.25 leaves margin and
     # still lets a track leave a 0.5 mm-pitch QFN pad
-    ds.m_MinClearance = MM(0.15); ds.m_TrackMinWidth = MM(0.2)
+    ds.m_MinClearance = MM(0.13); ds.m_TrackMinWidth = MM(0.2)
     ds.m_ViasMinSize = MM(0.6); ds.m_MinThroughDrill = MM(0.3); ds.m_CopperEdgeClearance = MM(0.3)
     nc = ds.m_NetSettings.m_DefaultNetClass
-    nc.SetClearance(MM(0.15)); nc.SetTrackWidth(MM(0.25)); nc.SetViaDiameter(MM(0.6)); nc.SetViaDrill(MM(0.3))
+    nc.SetClearance(MM(0.13)); nc.SetTrackWidth(MM(0.2));  nc.SetViaDiameter(MM(0.6)); nc.SetViaDrill(MM(0.3))
 
     nets = {}
     def net(name):
@@ -418,9 +418,9 @@ def route(board, pcb_path, out):
     if not os.path.exists(ses) or '--reroute' in sys.argv:
         # the router's clearance maths is a hair looser than KiCad's DRC:
         # route at 0.2, check at 0.15
-        nc.SetClearance(MM(0.2))
+        nc.SetClearance(MM(0.16))     # MPR121 is 0.4 mm pitch: 0.2 pads, 0.2 gaps
         assert pcbnew.ExportSpecctraDSN(board, dsn), 'DSN export failed'
-        nc.SetClearance(MM(0.15))
+        nc.SetClearance(MM(0.13))     # check at 0.13 (JLCPCB 2-layer min 0.10)
         cmd = ['xvfb-run', '-a', 'java', '-jar', FR_JAR, '-de', dsn, '-do', ses, '-mp', '200', '-oit', '0.1', '-mt', '4']
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=1500)
         log = (r.stdout + r.stderr)
@@ -524,7 +524,7 @@ def exports(board, pcb_path, out, nets):
         for ref, (lib, name, value, lcsc, *_r) in PARTS.items():
             if ref in HAND:
                 continue
-            groups.setdefault((value, name or ('QFN-20_3x3_P0.5' if ref == 'U2' else 'XIAO-ESP32S3_SMD'), lcsc), []).append(ref)
+            groups.setdefault((value, name or 'XIAO-ESP32S3_SMD', lcsc), []).append(ref)
         for (value, name, lcsc), refs in groups.items():
             w.writerow([value, ','.join(refs), name, lcsc])
     with open(f'{out}/facebrd_cpl.csv', 'w', newline='') as f:
@@ -568,11 +568,21 @@ def main(out, do_route=True):
         nets = {n.GetNetname(): n for n in board.GetNetInfo().NetsByName().values()}
     pcbnew.ZONE_FILLER(board).Fill(board.Zones())
     stitch(board, nets['GND'])
-    # U2 pin 6 (VSS) is too small for a via: tie it to the exposed pad
-    ux, uy = PARTS['U2'][4]
-    for a, c in (((ux + 1.0, uy - 1.625), (ux + 1.0, uy - 0.5)), ((ux + 1.0, uy - 0.5), (ux + 0.7, uy - 0.5))):
-        t = pcbnew.PCB_TRACK(board); t.SetStart(P(*a)); t.SetEnd(P(*c)); t.SetWidth(MM(0.2))
-        t.SetLayer(pcbnew.F_Cu); t.SetNet(nets['GND']); board.Add(t)
+    # MPR121 ADDR (pin 4) → GND: stub INWARD to a tented via under the package
+    # centre (the UQFN has no exposed pad, the area under it is free)
+    u2 = next(f for f in board.GetFootprints() if f.GetReference() == 'U2')
+    p4 = next(p for p in u2.Pads() if p.GetNumber() == '4')
+    if not any(t.GetNetname() == 'GND' and (t.GetStart() == p4.GetPosition() or t.GetEnd() == p4.GetPosition())
+               for t in board.GetTracks()):
+        c = p4.GetPosition(); ux = u2.GetPosition().x
+        end = u2.GetPosition()
+        knee = VECTOR2I(end.x, c.y)                    # straight in along the pad, then to the centre
+        for a_, b_ in ((c, knee), (knee, end)):
+            t = pcbnew.PCB_TRACK(board); t.SetStart(a_); t.SetEnd(b_); t.SetWidth(MM(0.2))
+            t.SetLayer(pcbnew.F_Cu); t.SetNet(nets['GND']); board.Add(t)
+        v = pcbnew.PCB_VIA(board); v.SetPosition(end); v.SetViaType(pcbnew.VIATYPE_THROUGH)
+        v.SetLayerPair(pcbnew.F_Cu, pcbnew.B_Cu); v.SetWidth(MM(0.6)); v.SetDrill(MM(0.3)); v.SetNet(nets['GND'])
+        board.Add(v)
     pcbnew.ZONE_FILLER(board).Fill(board.Zones())
     pcbnew.SaveBoard(pcb_path, board)
     rep, unrouted = exports(board, pcb_path, out, nets)
