@@ -7,7 +7,7 @@ back) flush with the surrounding cubes. Outer face: 30 tile faces in
 the colours of their skin columns (grooves between them, other colours
 as flush inlays). Inside: a hollow box (battery lies in it) with four
 Ø6 standoffs that carry the face board at the right depth behind the
-skin. Held by 8 magnets + pins into the 8 door-anchor cubes of the ring
+skin. Held by 8 magnets (no pins: it slides in from the back) on the 8 door-anchor cubes of the ring
 (kit_cubes marks them; same polarity rule as every cube face).
 
 Built in the cube mesh frame (x, front, up) so it prints and mirrors
@@ -108,11 +108,6 @@ def main(base, vdir, out):
             sgn = -1 if door_face == (0, False) else 1          # outward normal direction
             pocket_h = (xw, xw - sgn * MAG_D)                   # from wall plane inward
             cuts.append(cyl(0, (ym, cz), MAG_R, min(pocket_h) - (1 if sgn < 0 else 0), max(pocket_h) + (1 if sgn > 0 else 0)))
-            for s in (OFF, -OFF):
-                if door_face[1]:                                # + face → pins
-                    adds.append(cyl(0, (ym + s, cz + s), NUB_R, xw, xw + NUB_H))
-                else:                                           # - face → dimples
-                    cuts.append(cyl(0, (ym + s, cz + s), DIM_R, xw - 1, xw + DIM_D))
         else:
             door_face = (2, not face[1])
             zw = z0 if door_face[1] is False else z1
@@ -122,11 +117,6 @@ def main(base, vdir, out):
             sgn = -1 if door_face == (2, False) else 1
             pocket_h = (zw, zw - sgn * MAG_D)
             cuts.append(cyl(2, (cx, ym), MAG_R, min(pocket_h) - (1 if sgn < 0 else 0), max(pocket_h) + (1 if sgn > 0 else 0)))
-            for s in (OFF, -OFF):
-                if door_face[1]:
-                    adds.append(cyl(2, (cx + s, ym + s), NUB_R, zw, zw + NUB_H))
-                else:
-                    cuts.append(cyl(2, (cx + s, ym + s), DIM_R, zw - 1, zw + DIM_D))
     # ---- board standoffs: board holes are 40×55 about the cavity centre
     cxm, czm = (tx + 3.5) * P, (ty + 4) * P
     skin_rear = SKIN * P

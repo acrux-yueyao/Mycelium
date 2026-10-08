@@ -152,6 +152,14 @@ def variant_mesh(code, mask, pitch=12.0):
     m = mosaic_cube(faces=list(mask))
     if code[0] in 'WMUG':
         m = trimesh.boolean.difference([m] + _function_cut(code[0], pitch))
+    if code[0] in 'DB':                       # door anchor: shave the pins off the door face
+        from trimesh.creation import box as _box
+        ax = 0 if code[0] == 'D' else 2
+        lo = [-2.0, -2.0, -2.0]; hi = [pitch + 2.0] * 3
+        hi[ax] = pitch
+        keep = _box(extents=[hi[i] - lo[i] for i in range(3)],
+                    transform=TM([(hi[i] + lo[i]) / 2 for i in range(3)]))
+        m = trimesh.boolean.intersection([m, keep])
     import os as _os
     if _os.environ.get('ENGRAVE', '1') == '0':
         return m
@@ -619,6 +627,12 @@ def main(base, out_dir):
             # vertical bore through the cube: no magnet pocket on top/bottom
             mask = tuple(k for k in mask if k[0] != 2)
         code = ('C-%02X' if not tag0 else f'{tag0[0]}-%02X') % sum(1 << FACE_BIT[k] for k in mask)
+        if zone and (x, y, z) in door_anchor:
+            # door anchor: the face toward the door keeps its magnet pocket but
+            # no pin (pins on + faces would scrape the door sliding in)
+            df = door_anchor[(x, y, z)]
+            pre = {(0, True): 'D', (2, True): 'B'}.get(df, 'K')
+            code = f'{pre}-%02X' % sum(1 << FACE_BIT[k] for k in mask)
         variants.setdefault(code, {'mask': mask, 'count': 0})['count'] += 1
         tag = special.get((x, y, z))
         vmap[f'{x},{y},{z}'] = f'{code}{"·" + tag if tag else ""}'
