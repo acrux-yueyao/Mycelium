@@ -95,6 +95,9 @@ def main(base, vdir, out):
     cuts.append(B(mx - 7, y0 - 1, z0 - 1, mx + 7, y0 + 3.0, z0 + 2.5))
     # ---- door anchors: pocket + pins/dimples on the side walls toward the ring cubes
     anchors = [c for c in man['cells'] if c.get('tag') == 'door']
+    from seq_plates import build_order
+    for i, cc in enumerate(build_order(man['cells'])[0]):
+        cc['seq'] = i + 1
     ym = (y0 + y1) / 2                                  # cube-face centre depth
     adds = []
     for c in anchors:
@@ -160,12 +163,15 @@ def main(base, vdir, out):
     for a in ax:
         a.set_facecolor('#f6f5f0'); a.set_aspect('equal'); a.axis('off')
     fh = {f['id']: f['hex'] for f in fil}
-    for (x, y), fid in tiles.items():            # seen from BEHIND: x mirrored
-        ax[0].add_patch(Rectangle((-(x + 1), y), 1, 1, fc=fh[fid], ec='#1c1c1a', lw=0.6))
+    for (x, y), fid in tiles.items():            # seen from BEHIND: kit x grows to the builder's right
+        ax[0].add_patch(Rectangle((x, y), 1, 1, fc=fh[fid], ec='#1c1c1a', lw=0.6))
     for c in anchors:
-        ax[0].add_patch(Circle((-(c['x'] + 0.5), c['y'] + 0.5), 0.3, fc='none', ec='#c14953', lw=2))
-    ax[0].set_xlim(-(tx + 7.5), -(tx - 0.5)); ax[0].set_ylim(ty - 0.5, ty + 8.5)
-    ax[0].set_title('门板外面(从机器人背后看)· 红圈=周围 8 颗锚定方块', fontsize=9)
+        ax[0].add_patch(Circle((c['x'] + 0.5, c['y'] + 0.5), 0.3, fc='none', ec='#c14953', lw=2))
+        ax[0].text(c['x'] + 0.5, c['y'] + 0.5, str(c.get('seq', '')), ha='center', va='center', fontsize=7, color='#c14953')
+    ax[0].set_xlim(tx - 0.5, tx + 7.5); ax[0].set_ylim(ty - 0.5, ty + 8.5)
+    ax[0].text(tx - 0.4, ty - 0.3, '← 你的左手', fontsize=8, color='#6d6a62')
+    ax[0].text(tx + 7.4, ty - 0.3, '你的右手 →', fontsize=8, color='#6d6a62', ha='right')
+    ax[0].set_title('门板外面(站在机器人背后看)· 红圈+序号=周围 8 颗锚定方块', fontsize=9)
     from mpl_toolkits.mplot3d.art3d import Poly3DCollection
     ax[1].remove(); ax3 = fig.add_subplot(122, projection='3d'); ax3.set_facecolor('#f6f5f0')
     light = np.array([0.3, -0.5, 0.8]); light /= np.linalg.norm(light)
