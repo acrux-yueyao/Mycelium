@@ -147,7 +147,7 @@ npx tsx scripts/jewel_batch.mts            # 读 design/jewel_batch.json,输出 
 | 输出 | 内容 |
 |---|---|
 | `beds/tiles_h<档>_<高>mm.stl` | **方片按高度各一个 STL,不分颜色**,整盘铺满同一种片;装哪卷就是哪色,清单写明每色每档要多少片 |
-| `beds/plates_<底板色>.stl/.svg` | 这个底板色的全部底板排一盘(超出自动分 `_2`、`_3`),预览画真实轮廓并标孢子号 |
+| `beds/plates_<底板色>.stl/.svg` | 这个底板色的全部底板排一盘(超出自动分 `_2`、`_3`),预览画真实轮廓并标孢子号。清单里 `plate` 字段可把所有底板统一成一卷(现为 white → 只有一个 `plates_white.stl`) |
 | `batch_manifest.md/.json` | 每个 STL 里有什么、每块片来自哪些款、每款的零件清单和拼装图路径 |
 | `designs/<款>/` | 每款自己的全部文件(底板、单片、拼装图、三视图) |
 

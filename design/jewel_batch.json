@@ -2,6 +2,8 @@
   "_readme": "批量排产清单(scripts/jewel_batch.mts)。每行一款:text 句子 · family 家族(可省,按句子哈希) · piece pendant|charm|earring · qty 件数(耳饰 1 = 一对)。extra 是每种片多打的备用比例。",
   "bed": 180,
   "spare": 0.1,
+  "_plate": "所有款底板统一用这卷(filaments.json 里的名字或 #hex);删掉则按每只孢子自己的深色。",
+  "plate": "white",
   "_uniform": "统一规格:所有款共用同一组格/厚度参数,方片和眼睛片在所有款之间通用。删掉这个字段就恢复各件型自己的预设。",
   "uniform": {
     "cell": 2.2,

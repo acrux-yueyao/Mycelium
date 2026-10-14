@@ -33,6 +33,7 @@ const outDir = arg('out', 'out/jewel/batch')!;
 // uniform spec: one cell / plate / pocket / relief for every design, so every tile (eyes included) is
 // interchangeable across the whole batch; omit "uniform" in the manifest to use the per-piece presets
 const UNI: { cell: number; base: number; pocket: number; relief: number } | null = M.uniform ?? null;
+const PLATE: string | null = M.plate ?? null;        // one spool for every plate (name or #hex), e.g. "white"
 for (const d of ['designs', 'beds']) fs.mkdirSync(path.join(outDir, d), { recursive: true });
 
 // ---------- STL helpers ----------
@@ -73,6 +74,7 @@ for (const [i, d] of (M.designs as Array<{ text: string; family?: string; piece:
   const args = ['tsx', 'scripts/spore_jewel.mts', '--text', d.text, '--piece', d.piece, '--name', name, '--out', dir];
   if (d.family) args.push('--family', d.family);
   if (UNI) args.push('--cell', String(UNI.cell), '--base', String(UNI.base), '--pocket', String(UNI.pocket), '--relief', String(UNI.relief));
+  if (PLATE) args.push('--plate', PLATE);
   const r = spawnSync('npx', args, { encoding: 'utf8' });
   if (r.status !== 0) throw new Error(r.stderr || r.stdout);
   for (const suffix of d.piece === 'earring' ? ['_L', '_R'] : ['']) {
@@ -111,7 +113,8 @@ function bedSVG(file: string, bed: Item[], title: string) {
 }
 const manifest: Record<string, unknown> = { bed: BED, spare: SPARE, beds: [] as unknown[], designs: [] as unknown[] };
 const md: string[] = [`# 批量排产 · ${designs.length} 件 · 盘 ${BED}×${BED} mm · 备用 ${Math.round(SPARE * 100)}%`, '',
-  UNI ? `统一规格:格 ${UNI.cell} · 底板 ${UNI.base} · 口袋 ${UNI.pocket} · 浮雕 ${UNI.relief} → 方片 ${(UNI.cell - 0.4 - 0.2).toFixed(1)} mm 方,所有款通用。` : '各件型用自己的预设(片尺寸不通用)。', '',
+  UNI ? `统一规格:格 ${UNI.cell} · 底板 ${UNI.base} · 口袋 ${UNI.pocket} · 浮雕 ${UNI.relief} → 方片 ${(UNI.cell - 0.4 - 0.2).toFixed(1)} mm 方,所有款通用。` : '各件型用自己的预设(片尺寸不通用)。',
+  PLATE ? `底板统一用 ${PLATE}。` : '', '',
   '方片按高度各一个 STL(不分颜色,整盘铺满);底板按底板色各一个 STL。', ''];
 
 // collect per spool
