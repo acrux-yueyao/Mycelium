@@ -167,13 +167,14 @@ heights.forEach((g, i) => {
   for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) tris.push(...box(GAP + c * pitch, GAP + r * pitch, g.w, g.h));
   const f = sameW ? `tiles_h${i + 1}_${g.h.toFixed(2)}mm` : `tiles_${g.w.toFixed(1)}sq_h${g.h.toFixed(2)}mm`;
   writeSTL(path.join(outDir, 'beds', `${f}.stl`), tris, `mycelium tiles ${g.w}x${g.h}`);
+  writeSTL(path.join(outDir, 'beds', `${f.replace('tiles_', 'tile_single_')}.stl`), box(0, 0, g.w, g.h), `mycelium one tile ${g.w}x${g.h}`);   // one tile, to replicate in the slicer
   const items: Item[] = [{ w: n * pitch, h: n * pitch, label: `${g.w.toFixed(1)} 方 × 高 ${g.h.toFixed(2)} · ${total} 片`, hex: '#999', tris: [], x: GAP, y: GAP,
     svg: Array.from({ length: Math.min(total, 1600) }, (_, k) => `<rect x="${(k % 40) * pitch * n / 40}" y="${Math.floor(k / 40) * pitch * n / 40}" width="${g.w * n / 40}" height="${g.w * n / 40}" fill="#aaa"/>`).join('') }];
   bedSVG(path.join(outDir, 'beds', `${f}.svg`), items, `方片 高${i + 1} · ${g.w.toFixed(1)} 方 × ${g.h.toFixed(2)} mm · 整盘 ${total} 片`);
   const perColour = [...g.per.values()].sort((a, b) => b.count - a.count);
   const needTotal = perColour.reduce((a, c) => a + c.count, 0);
   (manifest.beds as unknown[]).push({ file: `beds/${f}.stl`, tile: { w: g.w, h: g.h }, perBed: total, need: perColour });
-  md.push(`- \`beds/${f}.stl\` · ${g.w.toFixed(1)} 方 × 高 **${g.h.toFixed(2)}** · 整盘 ${total} 片 · 本批共需 ${needTotal} 片(+${Math.round(SPARE * 100)}% 备用 → ${Math.ceil(needTotal * (1 + SPARE))}):`,
+  md.push(`- \`beds/${f}.stl\`(整盘 ${total} 片)/ \`beds/${f.replace('tiles_', 'tile_single_')}.stl\`(单片,切片里自己复制)· ${g.w.toFixed(1)} 方 × 高 **${g.h.toFixed(2)}** · 本批共需 ${needTotal} 片(+${Math.round(SPARE * 100)}% 备用 → ${Math.ceil(needTotal * (1 + SPARE))}):`,
     ...perColour.map((c) => `  - ${c.zh} \`${c.spool}\` ${c.hex}:${c.count} 片 → 打 ${Math.ceil(c.count * (1 + SPARE))}`));
 });
 md.push('', '切片时用"切割"或框选删除只留需要的行数;一盘太多就打一部分停掉,片彼此独立,随时可停。', '');
