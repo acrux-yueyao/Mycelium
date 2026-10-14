@@ -176,6 +176,8 @@ export default function App() {
     kioskRaw === 'field' || kioskRaw === 'archive' || kioskRaw === 'sky' || kioskRaw === 'micro'
       ? (kioskRaw as Scene)
       : null;
+  // ?survey — printed QR codes at the booth open the feedback questionnaire directly.
+  const openSurvey = params.has('survey');
   if (showGallery) return <Gallery />;
 
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
@@ -184,7 +186,9 @@ export default function App() {
   const [probes, setProbes] = useState<ExplorationProbe[]>([]);
   // Scene: the landing poster gates entry into the live field. Debug
   // mode skips straight into the field.
-  const [scene, setScene] = useState<Scene>(kiosk ?? (showDebug ? 'field' : 'landing'));
+  const [scene, setScene] = useState<Scene>(
+    kiosk ?? (openSurvey ? 'survey' : showDebug ? 'field' : 'landing'),
+  );
   // observation mode: the spore currently on the field's watch bench
   const [observed, setObserved] = useState<ObserveInfo | null>(null);
   // The creature this visitor most recently grew — shown on the feedback
