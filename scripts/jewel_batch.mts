@@ -32,7 +32,7 @@ const SPARE = Number(arg('spare', String(M.spare ?? 0.1)));
 const outDir = arg('out', 'out/jewel/batch')!;
 // uniform spec: one cell / plate / pocket / relief for every design, so every tile (eyes included) is
 // interchangeable across the whole batch; omit "uniform" in the manifest to use the per-piece presets
-const UNI: { cell: number; base: number; pocket: number; relief: number } | null = M.uniform ?? null;
+const UNI: { cell: number; base: number; pocket: number; relief: number; heights?: number } | null = M.uniform ?? null;
 const PLATE: string | null = M.plate ?? null;        // one spool for every plate (name or #hex), e.g. "white"
 for (const d of ['designs', 'beds']) fs.mkdirSync(path.join(outDir, d), { recursive: true });
 
@@ -74,6 +74,7 @@ for (const [i, d] of (M.designs as Array<{ text: string; family?: string; piece:
   const args = ['tsx', 'scripts/spore_jewel.mts', '--text', d.text, '--piece', d.piece, '--name', name, '--out', dir];
   if (d.family) args.push('--family', d.family);
   if (UNI) args.push('--cell', String(UNI.cell), '--base', String(UNI.base), '--pocket', String(UNI.pocket), '--relief', String(UNI.relief));
+  if (UNI?.heights) args.push('--heights', String(UNI.heights));
   if (PLATE) args.push('--plate', PLATE);
   const r = spawnSync('npx', args, { encoding: 'utf8' });
   if (r.status !== 0) throw new Error(r.stderr || r.stdout);
