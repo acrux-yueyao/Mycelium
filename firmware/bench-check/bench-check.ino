@@ -2,8 +2,8 @@
  * MC-01 面包板验货程序
  *
  * 阶段1(I2C):扫描两条总线,报出每个找到的地址并标注是哪个模块。
- *   总线0(SDA→G21 SCL→G22):左眼屏 + ToF + 姿态 + 触摸
- *   总线1(SDA→G18 SCL→G19):右眼屏(两块屏都保持出厂 0x3C,不用改地址)
+ *   总线0(XIAO D4/D5,WROOM G21/G22):左眼屏 + ToF + 姿态 + 触摸
+ *   总线1(XIAO D0/D7,WROOM G18/G19):右眼屏(两块屏都保持出厂 0x3C,不用改地址)
  * 阶段2(可选):把下面的 TEST_SCREEN 改成 1,会在屏1画一个方框+文字,
  *   确认屏幕真的能显示(需要装 Adafruit_SSD1306 / Adafruit_GFX 库)。
  */
@@ -41,9 +41,31 @@ const char* whois(uint8_t a) {
   }
 }
 
+// 焊点自检:每根 I2C 线在板上都有 4.7k 上拉到 3V3。脚位设成弱下拉输入,
+// 读到 HIGH = 焊点通、上拉在;读到 LOW = 这根脚没接上(虚焊)或上拉没电。
+char pullReport[160];
+void pullTest() {
+  const int pins[4] = {SDA_PIN, SCL_PIN, SDA2_PIN, SCL2_PIN};
+  const char *names[4] = {"SDA0", "SCL0", "SDA1", "SCL1"};
+  int n = 0;
+  for (int i = 0; i < 4; i++) {
+    pinMode(pins[i], INPUT_PULLDOWN);
+    delay(5);
+    bool hi = digitalRead(pins[i]);
+    n += snprintf(pullReport + n, sizeof(pullReport) - n, "  %s(GPIO%d) %s\n",
+                  names[i], pins[i], hi ? "HIGH 通" : "LOW  不通!");
+    pinMode(pins[i], INPUT);
+  }
+}
+
+char label0[48], label1[48];
+
 void setup() {
   Serial.begin(115200);
   delay(400);
+  pullTest();
+  snprintf(label0, sizeof(label0), "总线0  SDA=GPIO%d SCL=GPIO%d", SDA_PIN, SCL_PIN);
+  snprintf(label1, sizeof(label1), "总线1  SDA=GPIO%d SCL=GPIO%d", SDA2_PIN, SCL2_PIN);
   Wire.begin(SDA_PIN, SCL_PIN);
   Wire.setClock(100000);
   Wire1.begin(SDA2_PIN, SCL2_PIN);
@@ -93,8 +115,15 @@ int scan(TwoWire &bus, const char *label) {
 
 void loop() {
   Serial.println();
-  int a = scan(Wire,  "总线0  SDA=G21 SCL=G22");
-  int b = scan(Wire1, "总线1  SDA=G18 SCL=G19");
+#if defined(ARDUINO_XIAO_ESP32S3)
+  Serial.println("板型: XIAO ESP32S3(合板脚位 D4/D5 · D0/D7)");
+#else
+  Serial.println("板型: 非 XIAO(WROOM 面包板脚位)—— 合板上请选 XIAO_ESP32S3!");
+#endif
+  Serial.println("--- 上拉自检(上电时测一次)---");
+  Serial.print(pullReport);
+  int a = scan(Wire,  label0);
+  int b = scan(Wire1, label1);
   if (a + b == 0) {
     Serial.println("两条都是空的:查 3V3/GND 有没有接反,SDA/SCL 有没有插错脚");
   } else {
