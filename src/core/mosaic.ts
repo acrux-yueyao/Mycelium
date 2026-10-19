@@ -86,26 +86,22 @@ export const CELL_PX = 12;
 export const BOARD = { cols: 14, rows: 16 } as const;
 
 /**
- * Where a creature sits on the universal board: its silhouette (mask) bounding box,
- * centred, rounded towards the top-left. Board cell = (cell.col + dc, cell.row + dr).
+ * Where a creature sits on the universal board: flush to the top (its highest drawn cell
+ * lands on board row 0, right under the ring) and centred left–right on the bounding box
+ * of its drawn cells (odd leftovers go left). Board cell = (cell.col + dc, cell.row + dr).
  */
-export function boardPlacement(spec: Pick<MosaicSpec, 'cols' | 'rows' | 'mask'>): {
+export function boardPlacement(spec: Pick<MosaicSpec, 'cols' | 'rows' | 'mask' | 'cells'>): {
   dc: number; dr: number; width: number; height: number;
 } {
   let c0 = spec.cols, c1 = -1, r0 = spec.rows, r1 = -1;
-  for (let k = 0; k < spec.mask.length; k++) {
-    if (!spec.mask[k]) continue;
-    const r = Math.floor(k / spec.cols), c = k % spec.cols;
+  const take = (c: number, r: number) => {
     if (c < c0) c0 = c; if (c > c1) c1 = c; if (r < r0) r0 = r; if (r > r1) r1 = r;
-  }
+  };
+  if (spec.cells.length) for (const cell of spec.cells) take(cell.col, cell.row);
+  else for (let k = 0; k < spec.mask.length; k++) if (spec.mask[k]) take(k % spec.cols, Math.floor(k / spec.cols));
   if (c1 < 0) return { dc: 0, dr: 0, width: 0, height: 0 };
   const width = c1 - c0 + 1, height = r1 - r0 + 1;
-  return {
-    dc: Math.floor((BOARD.cols - width) / 2) - c0,
-    dr: Math.floor((BOARD.rows - height) / 2) - r0,
-    width,
-    height,
-  };
+  return { dc: Math.floor((BOARD.cols - width) / 2) - c0, dr: -r0, width, height };
 }
 
 /** Family base hues + saturation. Index = CharId. (Exported for the print pipelines.) */
