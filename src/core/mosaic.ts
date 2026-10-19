@@ -78,6 +78,36 @@ export interface MosaicInputs {
 /** Internal per-cell pixel resolution. Display scales this to the box. */
 export const CELL_PX = 12;
 
+/**
+ * The universal mosaic board: one fixed tray of BOARD.cols × BOARD.rows pockets that
+ * every creature fits on. buildMosaic grids are 10–14 cols × 12–16 rows, so the
+ * silhouette can never exceed 14 × 16 (300k-sample check: both extremes occur).
+ */
+export const BOARD = { cols: 14, rows: 16 } as const;
+
+/**
+ * Where a creature sits on the universal board: its silhouette (mask) bounding box,
+ * centred, rounded towards the top-left. Board cell = (cell.col + dc, cell.row + dr).
+ */
+export function boardPlacement(spec: Pick<MosaicSpec, 'cols' | 'rows' | 'mask'>): {
+  dc: number; dr: number; width: number; height: number;
+} {
+  let c0 = spec.cols, c1 = -1, r0 = spec.rows, r1 = -1;
+  for (let k = 0; k < spec.mask.length; k++) {
+    if (!spec.mask[k]) continue;
+    const r = Math.floor(k / spec.cols), c = k % spec.cols;
+    if (c < c0) c0 = c; if (c > c1) c1 = c; if (r < r0) r0 = r; if (r > r1) r1 = r;
+  }
+  if (c1 < 0) return { dc: 0, dr: 0, width: 0, height: 0 };
+  const width = c1 - c0 + 1, height = r1 - r0 + 1;
+  return {
+    dc: Math.floor((BOARD.cols - width) / 2) - c0,
+    dr: Math.floor((BOARD.rows - height) / 2) - r0,
+    width,
+    height,
+  };
+}
+
 /** Family base hues + saturation. Index = CharId. (Exported for the print pipelines.) */
 export const FAMILY = [
   { hue: 24, sat: 0.62, sparkle: false }, // 0 tender   — warm peach
