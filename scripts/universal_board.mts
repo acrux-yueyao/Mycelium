@@ -4,10 +4,13 @@
  * The engine grows creatures on grids of 10–14 cols × 12–16 rows, so no silhouette is
  * ever wider than 14 or taller than 16 cells. This board has exactly BOARD.cols × BOARD.rows
  * pockets with the same pocket spec as the batch plates (cell 2.2 · pocket 1.8 · depth 0.4 ·
- * plate 0.9 · rim 0.6), so the same printed tiles drop in. Where a creature sits on it is
+ * plate 0.9), so the same printed tiles drop in. The outer wall is only half a grout wall
+ * (no thick rim): every cell is an identical 2.2 square, so the board can be cut along any
+ * grout line into a single design's plate; the ring stays on, joined to the top edge by a
+ * short neck that only touches the edge wall. Where a creature sits on it is
  * boardPlacement() in src/core/mosaic.ts — the site and this script use the same rule.
  *
- *   npx tsx scripts/universal_board.mts [--out out/board] [--loop ring|none]
+ *   npx tsx scripts/universal_board.mts [--out out/board] [--loop ring|none] [--rim 0]
  *       [--text "…"]   also draw that sentence's creature onto the board chart
  */
 import fs from 'node:fs';
@@ -22,7 +25,7 @@ const CELL = Number(arg('cell', '2.2'));
 const GROUT = Number(arg('grout', '0.4'));
 const BASE = Number(arg('base', '0.9'));
 const POCKET = Number(arg('pocket', '0.4'));
-const RIM = Number(arg('rim', '0.6'));
+const RIM = Number(arg('rim', '0'));        // 0: outer wall = half a grout wall, so the board is a seamless tiling you can cut anywhere
 const LOOP = arg('loop', 'ring')!;
 const HOLE = CELL - GROUT;                 // pocket opening (tile 1.6 + 2 × 0.1 fit)
 const EDGE = RIM + GROUT / 2;              // outer wall
@@ -61,10 +64,20 @@ for (let l = 0; l < 2; l++) for (let j = 0; j < NY; j++) for (let i = 0; i < NX;
 }
 const boardTris = tris.length;
 
-// jump ring on the top edge, same proportions as the single-design plates; sunk into the rim only
-const RO = Math.max(2.4, CELL * 1.1), RI = Math.max(1.2, RO * 0.5), SINK = EDGE - 0.1;
-const ring = { x: W / 2, y: H + RO - SINK };
+// jump ring above the top edge, same proportions as the single-design plates, joined by a neck
+// that sits on the edge wall only (centred on the grout line between the two middle columns)
+const RO = Math.max(2.4, CELL * 1.1), RI = Math.max(1.2, RO * 0.5);
+const NECK = Number(arg('neck', '0.8'));            // clear gap between board edge and ring
+const ring = { x: W / 2, y: H + NECK + RO };
 if (LOOP === 'ring') {
+  const nx0 = ring.x - CELL / 2, nx1 = ring.x + CELL / 2, ny0 = H - EDGE, ny1 = ring.y - (RO + RI) / 2;
+  const v = (x: number, y: number, z: number): V => [x, y, z];
+  quad(v(nx0, ny0, BASE), v(nx1, ny0, BASE), v(nx1, ny1, BASE), v(nx0, ny1, BASE));
+  quad(v(nx0, ny0, 0), v(nx0, ny1, 0), v(nx1, ny1, 0), v(nx1, ny0, 0));
+  quad(v(nx0, ny0, 0), v(nx1, ny0, 0), v(nx1, ny0, BASE), v(nx0, ny0, BASE));
+  quad(v(nx0, ny1, 0), v(nx0, ny1, BASE), v(nx1, ny1, BASE), v(nx1, ny1, 0));
+  quad(v(nx0, ny0, 0), v(nx0, ny0, BASE), v(nx0, ny1, BASE), v(nx0, ny1, 0));
+  quad(v(nx1, ny0, 0), v(nx1, ny1, 0), v(nx1, ny1, BASE), v(nx1, ny0, BASE));
   const N = 48, pt = (r: number, a: number, z: number): V => [ring.x + Math.cos(a) * r, ring.y + Math.sin(a) * r, z];
   for (let k = 0; k < N; k++) {
     const a0 = (k / N) * Math.PI * 2, a1 = ((k + 1) / N) * Math.PI * 2;
@@ -114,11 +127,12 @@ if (text) {
 }
 const S = 1;                                   // svg user unit = 1 mm (prints 1:1)
 const M = 8;                                   // margin for labels
-const ringTop = LOOP === 'ring' ? RO * 2 - SINK : 0;
+const ringTop = LOOP === 'ring' ? NECK + RO * 2 : 0;
 const svgW = W + 2 * M, svgH = H + 2 * M + ringTop + 6;
 const top = M + ringTop + 6;                   // board's top edge in svg
 const g: string[] = [];
 g.push(`<rect x="${M}" y="${top}" width="${W}" height="${H}" rx="0.3" fill="#fafaf7" stroke="#999" stroke-width="0.15"/>`);
+if (LOOP === 'ring') g.push(`<rect x="${M + ring.x - CELL / 2}" y="${top - NECK - (RO - RI) / 2}" width="${CELL}" height="${NECK + (RO - RI) / 2 + EDGE}" fill="#999" fill-opacity="0.35"/>`);
 if (LOOP === 'ring') g.push(`<circle cx="${M + ring.x}" cy="${top - (ring.y - H)}" r="${(RO + RI) / 2}" fill="none" stroke="#999" stroke-width="${RO - RI}" stroke-opacity="0.35"/>`);
 for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) {
   const x = M + EDGE + c * CELL, y = top + EDGE + r * CELL;
@@ -128,7 +142,7 @@ for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) {
 }
 for (let c = 0; c < C; c++) {
   const x = M + EDGE + c * CELL + HOLE / 2;
-  g.push(`<text x="${x.toFixed(2)}" y="${(top - 1.2).toFixed(2)}" font-size="1.6" text-anchor="middle" fill="#666">${COLS[c]}</text>`);
+  g.push(`<text x="${x.toFixed(2)}" y="${(top - ringTop - 1.2).toFixed(2)}" font-size="1.6" text-anchor="middle" fill="#666">${COLS[c]}</text>`);
   g.push(`<text x="${x.toFixed(2)}" y="${(top + H + 2.4).toFixed(2)}" font-size="1.6" text-anchor="middle" fill="#666">${COLS[c]}</text>`);
 }
 for (let r = 0; r < R; r++) {
