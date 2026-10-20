@@ -58,10 +58,10 @@ export function drawCostume(g: G, spec: MosaicSpec, ox: number, oy: number, cell
   const er = spec.eyes.row;
   if (kind === 'pumpkin') {
     // a round pumpkin shell over the cap, eyes looking out of carved holes
-    const l = h.left - 1, r = h.right + 1;
-    const t0 = h.top, b = er + 1;
+    const l = h.left - 2, r = h.right + 2;
+    const t0 = h.top - 1, b = er + 1;
     const cx = (l + r) / 2, cy = (t0 + b) / 2;
-    const rx = (r - l) / 2 + 0.5, ry = (b - t0) / 2 + 0.5;
+    const rx = (r - l) / 2 + 0.6, ry = (b - t0) / 2 + 0.6;
     for (let y = t0; y <= b; y++) {
       for (let x = l; x <= r; x++) {
         let d = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2;
@@ -94,29 +94,31 @@ export function drawCostume(g: G, spec: MosaicSpec, ox: number, oy: number, cell
     // so the top of the spore disappears under the crown
     const brim = Math.max(h.top + 1, Math.min(h.top + 2, er - 2));
     let bl = spec.cols, br = -1;
-    for (let c = 0; c < spec.cols; c++) if (spec.mask[brim * spec.cols + c]) { bl = Math.min(bl, c); br = Math.max(br, c); }
+    for (let y = h.top; y <= brim; y++)
+      for (let c = 0; c < spec.cols; c++) if (spec.mask[y * spec.cols + c]) { bl = Math.min(bl, c); br = Math.max(br, c); }
     if (br < bl) { bl = h.left; br = h.right; }
     const l = bl - 2, r = br + 2;
     for (let x = l; x <= r; x++) px(x, brim, '#2a1d38');            // brim
     px(l, brim, '#2a1d38', 0.6); px(r, brim, '#2a1d38', 0.6);
     const band = brim - 1;
-    const w0 = Math.max(4, Math.round((br - bl + 1) * 0.75));
-    const c0 = Math.round((bl + br) / 2 - w0 / 2 + 0.5);
-    for (let x = c0; x < c0 + w0; x++) px(x, band, '#7b4fd0');       // band
+    const w0 = Math.max(5, Math.round((br - bl + 1) * 0.85));
+    let c0 = Math.round((bl + br) / 2 - w0 / 2 + 0.5), c1 = c0 + w0 - 1;
+    for (let c = 0; c < spec.cols; c++) if (spec.mask[band * spec.cols + c]) { c0 = Math.min(c0, c); c1 = Math.max(c1, c); }
+    for (let x = c0; x <= c1; x++) px(x, band, '#7b4fd0');           // band
     px(Math.round((bl + br) / 2), band, '#f0c445');                  // buckle
     // crown: covers every cap cell above the band, then a short cone
     const mid = (bl + br) / 2;
     let w = w0 - 1;
-    for (let k = 1; k <= 4 && w > 0; k++, w--) {
+    for (let k = 1; k <= 5 && w > 0; k++, w -= k % 2 ? 1 : 0) {
       const y = band - k;
-      let cs = Math.round(mid - w / 2 + 0.5) + (k === 4 ? 1 : 0), ce = cs + w - 1;
+      let cs = Math.round(mid - w / 2 + 0.5) + (k >= 4 ? 1 : 0), ce = cs + w - 1;
       if (y >= 0) for (let c = 0; c < spec.cols; c++) if (spec.mask[y * spec.cols + c]) { cs = Math.min(cs, c); ce = Math.max(ce, c); }
       for (let x = cs; x <= ce; x++) px(x, y, x === cs ? '#3a2950' : '#2a1d38');
     }
-    for (let y = band - 5; y >= h.top; y--) {                         // very tall caps
+    for (let y = band - 6; y >= h.top; y--) {                         // very tall caps
       for (let c = 0; c < spec.cols; c++) if (spec.mask[y * spec.cols + c]) px(c, y, '#2a1d38');
     }
-    px(Math.round(mid) + 2, Math.min(band - 5, h.top - 1), '#2a1d38');
+    px(Math.round(mid) + 2, Math.min(band - 6, h.top - 1), '#2a1d38');
   } else if (kind === 'ghost') {
     // a sheet that follows the spore's own silhouette (mask grown by one
     // cell), hanging a few rows past the eyes with a wavy hem
