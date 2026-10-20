@@ -9,8 +9,8 @@
  */
 import type { MosaicSpec } from './mosaic';
 
-export type Costume = 'pumpkin' | 'witch' | 'ghost' | 'lantern';
-export const COSTUMES: Costume[] = ['pumpkin', 'witch', 'ghost', 'lantern'];
+export type Costume = 'pumpkin' | 'witch' | 'ghost';
+export const COSTUMES: Costume[] = ['pumpkin', 'witch', 'ghost'];
 
 /** rows a costume may reach above the spore's own grid (witch hat tip). */
 export const COSTUME_HEADROOM = 9;
@@ -148,27 +148,6 @@ export function drawCostume(g: G, spec: MosaicSpec, ox: number, oy: number, cell
       px(e0 - 1, er, '#2c2d3e', 0.5); px(e0 + 2, er, '#2c2d3e', 0.5);
     }
     px(Math.round(cx), er + 2, '#2c2d3e', 0.55);                      // tiny "o" mouth
-  } else if (kind === 'lantern') {
-    // no hat: carved cap lines + glowing triangle eyes + jagged grin
-    for (const dx of [-2, 0, 2]) {
-      const x = Math.round(h.mid + dx);
-      for (let y = h.top + 1; y < er - 1; y++) {
-        if (spec.mask[y * spec.cols + x]) px(x, y, '#1a0d05', 0.42);
-      }
-    }
-    const flick = 0.85 + 0.15 * Math.sin(t * 9);
-    for (const e0 of [spec.eyes.L0, spec.eyes.R0]) {
-      for (let dx = -1; dx <= 2; dx++) px(e0 + dx, er, '#ffb02e', 0.25 * flick);   // halo
-      px(e0, er, '#ff9a1f', flick); px(e0 + 1, er, '#ff9a1f', flick);
-      px(e0 + (e0 === spec.eyes.L0 ? 1 : 0), er - 1, '#ffd36a', flick);
-    }
-    const my = er + 2;
-    for (let x = spec.eyes.L0; x <= spec.eyes.R0 + 1; x++) {
-      if (my < spec.rows && spec.mask[my * spec.cols + x]) {
-        const yy = my - ((x - spec.eyes.L0) % 2);
-        px(x, yy, '#1a0d05', 0.55); px(x, yy, '#ff9a1f', 0.8 * flick);
-      }
-    }
   }
   g.restore();
 }
