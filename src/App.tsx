@@ -8,6 +8,7 @@ import { SceneNav, type Scene } from './components/SceneNav';
 import { ArchiveScene } from './components/ArchiveScene';
 import { FeedbackScene } from './components/FeedbackScene';
 import { SurveyScene } from './components/SurveyScene';
+import { CostumeSheet } from './components/CostumeSheet';
 import { SkyScene } from './components/SkyScene';
 import { MicroScene } from './components/MicroScene';
 import { KioskInvite } from './components/KioskInvite';
@@ -179,6 +180,7 @@ export default function App() {
   // ?survey — printed QR codes at the booth open the feedback questionnaire directly.
   const openSurvey = params.has('survey');
   if (showGallery) return <Gallery />;
+  if (params.has('costumes')) return <CostumeSheet mode={params.get('costumes')} />;
 
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
   const [entities, setEntities] = useState<LiveEntity[]>([]);
