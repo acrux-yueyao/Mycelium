@@ -9,6 +9,7 @@ import { scanRecord } from './scanRecord';
 import { nameFor } from './names';
 import { CHARACTERS } from '../data/characters';
 import type { FieldCreature } from '../components/DitherField';
+import { costumeFor, halloweenActive, drawCandy } from './halloween';
 
 const W = 1080, H = 1350, PAD = 84;
 const CREAM = '#F1F0EB', INK = '#101010', DIM = '#6b6a63', SOFT = '#9d9c93', ACCENT = '#5b4fd0';
@@ -50,6 +51,22 @@ export async function renderShareCard(c: FieldCreature): Promise<string> {
   g.imageSmoothingEnabled = false;
 
   g.fillStyle = CREAM; g.fillRect(0, 0, W, H);
+  const hw = halloweenActive();
+  if (hw) {
+    // Halloween frame: a pixel border of pumpkin orange and night purple,
+    // with sweets in the corners
+    const s = 14;
+    for (let x = 0; x < W; x += s) {
+      const c = (x / s) % 2 ? '#ef8526' : '#2a1d38';
+      g.fillStyle = c; g.fillRect(x, 0, s, s); g.fillRect(x, H - s, s, s);
+    }
+    for (let y = 0; y < H; y += s) {
+      const c = (y / s) % 2 ? '#2a1d38' : '#ef8526';
+      g.fillStyle = c; g.fillRect(0, y, s, s); g.fillRect(W - s, y, s, s);
+    }
+    drawCandy(g, 46, 46, 6, 0, 0.5); drawCandy(g, W - 46, 46, 6, 1, -0.5);
+    drawCandy(g, 46, H - 46, 6, 2, -0.4); drawCandy(g, W - 46, H - 46, 6, 3, 0.4);
+  }
 
   const rec = scanRecord(c.id, c.bornAt ?? Date.now(), 1);
   const name = c.name || nameFor(c.id);
@@ -66,11 +83,12 @@ export async function renderShareCard(c: FieldCreature): Promise<string> {
 
   // creature — centred, sized to a comfortable block height
   const spec = creatureSpec(c);
-  const cell = Math.max(6, Math.floor(430 / spec.rows));
+  const costume = costumeFor(c);
+  const cell = Math.max(6, Math.floor(430 / (spec.rows + (costume ? 4 : 0))));
   const cw = spec.cols * cell, ch = spec.rows * cell;
-  const ox = (W - cw) / 2, oy = 168;
+  const ox = (W - cw) / 2, oy = 168 + (costume ? cell * 4 : 0);
   const gz = 0.5;
-  drawMoshCreature(g, spec, ox, oy, cell, c.id, gz);
+  drawMoshCreature(g, spec, ox, oy, cell, c.id, gz, null, false, costume);
 
   let y = oy + ch + 96;
 
@@ -115,6 +133,20 @@ export async function renderShareCard(c: FieldCreature): Promise<string> {
   g.fillStyle = ACCENT;
   g.font = '600 20px "JetBrains Mono", monospace';
   g.fillText('the same sentence always grows the same spore', PAD, H - PAD);
+  if (hw) {
+    // date stamp, slightly askew like a rubber stamp
+    g.save();
+    g.translate(W - PAD - 150, oy - 40);
+    g.rotate(-0.12);
+    g.strokeStyle = '#d8661a'; g.lineWidth = 4;
+    g.strokeRect(-140, -44, 280, 88);
+    g.fillStyle = '#d8661a'; g.textAlign = 'center';
+    g.font = '700 30px "JetBrains Mono", monospace';
+    g.fillText('HALLOWEEN', 0, -6);
+    g.font = '600 24px "JetBrains Mono", monospace';
+    g.fillText('2026', 0, 28);
+    g.restore();
+  }
 
   return cv.toDataURL('image/png');
 }

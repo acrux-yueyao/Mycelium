@@ -14,6 +14,7 @@
  *   cueConnect()         — bell-like tone when a tendril reaches target.
  *   cueInfect()          — low warm rumble when infection begins.
  */
+import { halloweenActive } from './halloween';
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
@@ -34,6 +35,10 @@ const PENTATONIC_HZ = [
   587.33, // D5
   659.25, // E5
 ];
+// Halloween: the same walk over A minor pentatonic, a little lower and
+// darker, so the field sounds like a lantern-lit night instead of noon.
+const HALLOWEEN_HZ = [196.0, 220.0, 261.63, 293.66, 329.63, 392.0, 440.0, 523.25];
+const scale = () => (halloweenActive() ? HALLOWEEN_HZ : PENTATONIC_HZ);
 let lastNoteIdx = 2; // start around E4, middle of the range
 
 export function ensureAudioContext(): AudioContext | null {
@@ -132,9 +137,9 @@ function playMelodyAndScheduleNext(): void {
   const step = Math.floor(Math.random() * 5) - 2;
   lastNoteIdx = Math.max(
     0,
-    Math.min(PENTATONIC_HZ.length - 1, lastNoteIdx + step),
+    Math.min(scale().length - 1, lastNoteIdx + step),
   );
-  const freq = PENTATONIC_HZ[lastNoteIdx];
+  const freq = scale()[lastNoteIdx];
   playMelodyNote(freq);
 
   const gapMs = 3000 + Math.random() * 3500; // 3–6.5 s between notes
@@ -231,10 +236,18 @@ function pluck(
 export function cueSpawn(): void {
   ensureAudioContext();
   if (!ctx || muted) return;
-  const base = 440 + (Math.random() - 0.5) * 80;
+  const base = (halloweenActive() ? 330 : 440) + (Math.random() - 0.5) * 80;
   pluck(base, 1.6, 0.11, 'sine');
   // Tiny harmonic a 5th up, softer
   pluck(base * 1.5, 1.4, 0.04, 'triangle');
+}
+
+/** Halloween: a little two-note "trick-or-treat" toss (minor third down). */
+export function cueCandy(): void {
+  ensureAudioContext();
+  if (!ctx || muted) return;
+  pluck(784, 0.5, 0.07, 'triangle');
+  window.setTimeout(() => pluck(659.25, 0.7, 0.06, 'triangle'), 140);
 }
 
 /** Bell-like tone when a tendril reaches its target (primary only). */

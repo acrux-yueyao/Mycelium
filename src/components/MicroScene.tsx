@@ -20,6 +20,7 @@ import type { FieldCreature } from './DitherField';
 import { nameFor } from '../core/names';
 import { CHARACTERS } from '../data/characters';
 import { agedSpec, drawMoshCreature } from '../core/fieldRender';
+import { costumeFor } from '../core/halloween';
 import { Rng, xmur3 } from '../core/seed';
 import { towerSubscribe, type TowerInfo, type TowerMsg, type TowerSeed } from '../core/towerBus';
 
@@ -197,7 +198,8 @@ function LiveSpecimen({ seed, slot, cell, height }: {
       g.rotate(tilt);
       g.scale(1 + sq, 1 - sq);
       g.translate(-cx, -cy);
-      drawMoshCreature(g, spec, ox, oy, cell, seed.id, gaze, f?.dye ?? null, blink);
+      const costume = costumeFor(seed);
+      drawMoshCreature(g, spec, ox, oy + (costume ? cell * 2 : 0), cell, seed.id, gaze, f?.dye ?? null, blink, costume, now / 1000);
       g.restore();
 
       // petting throws off motes in the spore's own colours

@@ -19,6 +19,8 @@ import { drawDitherField, drawMoshCreature, agedSpec, growthStage, type Creature
 import type { MosaicSpec, MosaicPaletteSpec } from '../core/mosaic';
 import { compatibility, type CharId } from '../data/characters';
 import { nameFor } from '../core/names';
+import { costumeFor, drawCandy } from '../core/halloween';
+import { cueCandy } from '../core/audio';
 
 export interface FieldCreature extends CreatureSeed {
   x: number; y: number; cell: number;
@@ -230,6 +232,28 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
     // little rising tiles emitted while a creature is petted
     let petFx: Array<{ x: number; y: number; born: number; color: string; drift: number }> = [];
     let petEmitAt = 0;
+    // Halloween: tapping a costumed spore shakes it and it tosses a candy
+    // to the spore that has been left alone the longest (trick or treat)
+    let candies: Array<{ sx: number; sy: number; toId: string; born: number; dur: number; i: number; perp: number }> = [];
+    const shakeUntil = new Map<string, number>();
+    const glowAt = new Map<string, number>();
+    const trickOrTreat = (from: Body, now: number) => {
+      shakeUntil.set(from.id, now + 520);
+      let to: Body | null = null, best = -Infinity;
+      for (const b of bodies) {
+        if (b.id === from.id) continue;
+        // loneliest first (longest since its last bond), nearer breaks ties
+        const score = (now - b.lastBondAt) / 1000 - Math.hypot(b.x - from.x, b.y - from.y) / 400;
+        if (score > best) { best = score; to = b; }
+      }
+      if (!to || candies.length > 12) return;
+      candies.push({
+        sx: from.x, sy: from.y - (from.spec.rows * from.cell) / 2, toId: to.id, born: now,
+        dur: 1400 + Math.min(1400, Math.hypot(to.x - from.x, to.y - from.y) * 1.6),
+        i: (seed01(from.id + (now | 0)) * 4) | 0, perp: (from.x < to.x ? -1 : 1) * 60,
+      });
+      cueCandy();
+    };
     // per-family temperament toward the cursor: + approaches, − shies away
     const TEMPER: Record<number, number> = { 0: 0.006, 1: -0.010, 2: 0.016, 3: 0.009, 4: 0.013, 5: -0.016 };
     // landing cursor parallax — the whole field leans toward the cursor
@@ -693,10 +717,23 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
             });
           }
         }
+        const shk = shakeUntil.get(a.id);
+        if (shk && now < shk) sway += Math.sin(now * 0.09) * Math.max(2, dcell * 0.7);
+        const costume = costumeFor(a.src);
         const dw = a.spec.cols * dcell, dh = a.spec.rows * dcell;
+        // a candy just landed: a brief warm glow behind the body
+        const ga = glowAt.get(a.id);
+        if (ga && now - ga < 1600) {
+          const k = 1 - (now - ga) / 1600, R = Math.max(dw, dh) * 0.9;
+          const grd = ctx.createRadialGradient(a.x, a.y, 0, a.x, a.y, R);
+          grd.addColorStop(0, `rgba(255,190,90,${0.55 * k})`);
+          grd.addColorStop(1, 'rgba(255,190,90,0)');
+          ctx.fillStyle = grd;
+          ctx.fillRect(a.x - R, a.y - R, R * 2, R * 2);
+        } else if (ga) glowAt.delete(a.id);
         const drawA = mAlpha * (clusteredRef.current && W < 640 ? 0.55 : 1);
         if (drawA < 1) ctx.globalAlpha = drawA;
-        drawMoshCreature(ctx, a.spec, a.x + sway - dw / 2, a.y - dh / 2, dcell, a.id, gz, dye, blink);
+        drawMoshCreature(ctx, a.spec, a.x + sway - dw / 2, a.y - dh / 2, dcell, a.id, gz, dye, blink, costume, now / 1000);
         if (drawA < 1) ctx.globalAlpha = 1;
 
         // resident name tag — small mono label beneath each creature.
@@ -763,6 +800,36 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
         petFx = keep2;
       }
 
+      // candies in flight: a bowed toss, spinning, landing with a glow
+      if (candies.length) {
+        const keep3: typeof candies = [];
+        for (const c of candies) {
+          const to = bodyById.get(c.toId);
+          if (!to) continue;
+          const t = (now - c.born) / c.dur;
+          if (t >= 1) {
+            glowAt.set(to.id, now);
+            for (let k = 0; k < 6 && petFx.length < 30; k++) {
+              petFx.push({ x: to.x + (k - 2.5) * 5, y: to.y - (to.spec.rows * to.cell) / 3, born: now,
+                color: ['#ef8526', '#f0c445', '#7b4fd0'][k % 3], drift: (k - 2.5) * 6 });
+            }
+            continue;
+          }
+          const ease = t * t * (3 - 2 * t);
+          const dx = to.x - c.sx, dy = to.y - c.sy, L = Math.hypot(dx, dy) || 1;
+          const arc = Math.sin(t * Math.PI);
+          const x = c.sx + dx * ease + (-dy / L) * arc * c.perp;
+          const y = c.sy + dy * ease + (dx / L) * arc * c.perp - arc * 40;
+          const sz = Math.max(2.5, to.cell * 0.55);
+          ctx.globalAlpha = 0.25; ctx.fillStyle = '#ffd36a';
+          ctx.fillRect(x - sz * 3, y - sz * 3, sz * 6, sz * 6);
+          ctx.globalAlpha = 1;
+          drawCandy(ctx, x, y, sz, c.i, t * 9);
+          keep3.push(c);
+        }
+        candies = keep3;
+      }
+
       // === observation mode: one spore watched up close ===
       const obs = observedRef.current ? bodyById.get(observedRef.current) : null;
       if (obs) {
@@ -815,7 +882,8 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
           const mk = Math.min(3.4, (box - 44) / (Math.max(obs.spec.cols, obs.spec.rows) * obs.cell));
           const mcell = obs.cell * mk;
           const mw = obs.spec.cols * mcell, mh = obs.spec.rows * mcell;
-          drawMoshCreature(ctx, obs.spec, cxm - mw / 2, cym - mh / 2, mcell, obs.id, 0, dv, mblink);
+          const oc = costumeFor(obs.src);
+          drawMoshCreature(ctx, obs.spec, cxm - mw / 2, cym - mh / 2 + (oc ? mcell * 2 : 0), mcell, obs.id, 0, dv, mblink, oc, now / 1000);
         }
         ctx.restore();
       }
@@ -867,6 +935,11 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
       canvas.style.cursor = over ? 'grab' : 'default';
     };
     const onUp = (e: PointerEvent) => {
+      // trick or treat: a short, still tap on a costumed spore
+      if (pressBody && performance.now() - pressT < 350 && Math.hypot(e.clientX - pressX, e.clientY - pressY) < 8) {
+        const b = bodyById.get(pressBody);
+        if (b && costumeFor(b.src)) trickOrTreat(b, performance.now());
+      }
       // a short, still press = observe; dragging & flinging is untouched
       if (observableRef.current && onObserveRef.current) {
         const moved = Math.hypot(e.clientX - pressX, e.clientY - pressY);
@@ -893,7 +966,7 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
     // can park the cursor on a creature (only under ?debug)
     if (new URLSearchParams(window.location.search).has('debug')) {
       (window as unknown as Record<string, unknown>).__fieldBodies =
-        () => bodies.map((b) => ({ id: b.id, x: b.x, y: b.y, name: b.name }));
+        () => bodies.map((b) => ({ id: b.id, x: b.x, y: b.y, name: b.name, costume: costumeFor(b.src) }));
     }
 
     buildBackdrop();

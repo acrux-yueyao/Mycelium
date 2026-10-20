@@ -17,6 +17,73 @@ export const COSTUME_HEADROOM = 9;
 
 type G = CanvasRenderingContext2D;
 
+// ---- when the easter egg is on ------------------------------------------
+// Oct 24 – Nov 1 (local time), or forced with ?season=halloween / ?season=off.
+let activeMemo: boolean | null = null;
+export function halloweenActive(now = new Date()): boolean {
+  if (activeMemo != null) return activeMemo;
+  let on: boolean;
+  const q = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('season') : null;
+  if (q === 'halloween') on = true;
+  else if (q === 'off') on = false;
+  else {
+    const m = now.getMonth(), d = now.getDate();
+    on = (m === 9 && d >= 24) || (m === 10 && d <= 1);
+  }
+  activeMemo = on;
+  return on;
+}
+
+// ---- B · spells: a costume word in the whisper guarantees a costume -----
+const SPELLS: Array<[Costume, RegExp]> = [
+  ['pumpkin', /pumpkin|jack[- ]?o[- ]?lantern|halloween|trick or treat|南瓜|万圣/i],
+  ['ghost', /ghost|\bboo+\b|spook|haunt|鬼|幽灵|幽靈/i],
+  ['witch', /witch|wizard|spell|cauldron|巫|魔女|女巫/i],
+];
+/** The costume a whispered sentence asks for (only while the egg is on). */
+export function spellCostume(text: string | undefined | null): Costume | null {
+  if (!text || !halloweenActive()) return null;
+  for (const [c, re] of SPELLS) if (re.test(text)) return c;
+  return null;
+}
+
+function hash(id: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+/** Rare by design: a spell, or roughly 1 in 40 spores, fixed per id. */
+export const COSTUME_RARITY = 40;
+// ?hwrate=N previews a denser field (1 in N) without touching real data
+const rarity = (() => {
+  const n = typeof window !== 'undefined' ? Number(new URLSearchParams(window.location.search).get('hwrate')) : 0;
+  return n >= 1 ? Math.floor(n) : COSTUME_RARITY;
+})();
+export function costumeFor(c: { id: string; costume?: Costume | null }): Costume | null {
+  if (!halloweenActive()) return null;
+  if (c.costume) return c.costume;
+  const h = hash(c.id + ':hw');
+  return h % rarity === 0 ? COSTUMES[(h >>> 8) % COSTUMES.length] : null;
+}
+
+// ---- C · candy -------------------------------------------------------------
+const CANDY = ['#ef8526', '#7b4fd0', '#46a65a', '#e05a8a'];
+/** A tiny wrapped sweet centred at (x,y), `s` px per pixel. */
+export function drawCandy(g: G, x: number, y: number, s: number, i: number, spin: number) {
+  const col = CANDY[i % CANDY.length];
+  g.save();
+  g.translate(x, y);
+  g.rotate(spin);
+  g.fillStyle = col;
+  g.fillRect(-s, -s, s * 2, s * 2);                     // sweet
+  g.fillStyle = '#ffffff'; g.globalAlpha *= 0.85;
+  g.fillRect(-s, -s, s * 0.8, s * 0.8);                 // shine
+  g.globalAlpha /= 0.85; g.fillStyle = col;
+  g.fillRect(-s * 2.2, -s * 0.9, s, s * 1.8);           // twisted wrapper ends
+  g.fillRect(s * 1.2, -s * 0.9, s, s * 1.8);
+  g.restore();
+}
+
 interface Head {
   top: number;      // first row with any body cell
   left: number;     // widest cap extent (cols) between top and the eye row

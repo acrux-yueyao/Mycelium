@@ -9,6 +9,7 @@ import { ArchiveScene } from './components/ArchiveScene';
 import { FeedbackScene } from './components/FeedbackScene';
 import { SurveyScene } from './components/SurveyScene';
 import { CostumeSheet } from './components/CostumeSheet';
+import { spellCostume } from './core/halloween';
 import { SkyScene } from './components/SkyScene';
 import { MicroScene } from './components/MicroScene';
 import { KioskInvite } from './components/KioskInvite';
@@ -223,6 +224,7 @@ export default function App() {
       seed: {
         id: c.id, charId: c.charId, morphology: c.morphology, intensity: c.intensity,
         secondaryLabel: c.secondaryLabel, name: observed.name, bornAt: c.bornAt,
+        costume: c.costume ?? null,
       },
       info: { bonds: observed.bonds, stage: observed.stage, perm: observed.perm, dye: observed.dye },
       at: Date.now(),
@@ -948,6 +950,8 @@ export default function App() {
       rationale: result.reading.rationale,
       bornAt: entity.bornAt,
       text,
+      // Halloween spell: a costume word in the whisper dresses the spore
+      costume: spellCostume(text) ?? undefined,
     };
     // Don't commit to the colony/backend yet — the visitor meets the
     // creature on its specimen card first and can rename it there. It's

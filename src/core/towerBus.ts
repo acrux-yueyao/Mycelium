@@ -16,6 +16,7 @@
 import type { CharId } from '../data/characters';
 import type { Morphology } from './emotion';
 import type { DyeState } from './fieldRender';
+import type { Costume } from './halloween';
 
 const BUS = 'http://127.0.0.1:8765';
 
@@ -23,6 +24,8 @@ const BUS = 'http://127.0.0.1:8765';
 export interface TowerSeed {
   id: string; charId: CharId; morphology: Morphology; intensity: number;
   secondaryLabel?: string; name: string; bornAt?: number;
+  /** Halloween costume (spell) — so the micro dresses it the same way. */
+  costume?: Costume | null;
 }
 
 export interface TowerInfo {

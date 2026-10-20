@@ -14,6 +14,7 @@
  * renders identically on every machine and every frame.
  */
 import { xmur3, Rng } from './seed';
+import { drawCostume, type Costume } from './halloween';
 import { buildMosaic, dyedCellColor, type MosaicSpec, type MosaicPaletteSpec } from './mosaic';
 import type { CharId } from '../data/characters';
 import type { Morphology } from './emotion';
@@ -134,6 +135,8 @@ export interface CreatureSeed {
   morphology: Morphology;
   intensity: number;
   secondaryLabel?: string;
+  /** Halloween costume asked for by a spell in the whisper (see halloween.ts). */
+  costume?: Costume | null;
 }
 
 /** Build the deterministic pixel spec for a creature (memo upstream). */
@@ -216,7 +219,7 @@ export function agedSpec(c: CreatureSeed, bornAt?: number | null): MosaicSpec {
  * downward pixel-sort streaks behind, a horizontal glitch row, and a
  * few displaced flecks. Eyes stay crisp so it still reads as a creature.
  */
-export function drawMoshCreature(g: G, spec: MosaicSpec, ox: number, oy: number, cell: number, seed: string, gaze: number, dye?: DyeState | null, blink = false) {
+export function drawMoshCreature(g: G, spec: MosaicSpec, ox: number, oy: number, cell: number, seed: string, gaze: number, dye?: DyeState | null, blink = false, costume: Costume | null = null, t = 0) {
   g.imageSmoothingEnabled = false;
   // tile-swap: per-cell colour, dyed toward the partner palette by a
   // wavefront sweeping in from the contact side.
@@ -259,7 +262,9 @@ export function drawMoshCreature(g: G, spec: MosaicSpec, ox: number, oy: number,
   }
   g.globalAlpha = 1;
   // 2) body with one glitch-shifted row
-  const shiftRow = Math.floor(rng.next() * spec.rows);
+  let shiftRow = Math.floor(rng.next() * spec.rows);
+  // under a costume the head stays put: no glitch row or fleck pokes out
+  if (costume && shiftRow <= spec.eyes.row + 1) shiftRow = -1;
   const shiftAmt = rng.next() < 0.55 ? (1 + Math.floor(rng.next() * 3)) * cell : 0;
   for (const c of spec.cells) {
     g.globalAlpha = c.alpha;
@@ -272,10 +277,11 @@ export function drawMoshCreature(g: G, spec: MosaicSpec, ox: number, oy: number,
   const flecks = 2 + Math.floor(rng.next() * 6);
   for (let i = 0; i < flecks; i++) {
     const src = spec.cells[Math.floor(rng.next() * spec.cells.length)];
-    if (!src) continue;
+    const dx = 1 + Math.floor(rng.next() * 5);
+    if (!src || (costume && src.row <= spec.eyes.row + 1)) continue;
     g.globalAlpha = 0.6;
     g.fillStyle = cellColor(src);
-    g.fillRect(ox + src.col * cell + (1 + Math.floor(rng.next() * 5)) * cell, oy + src.row * cell, cell, cell);
+    g.fillRect(ox + src.col * cell + dx * cell, oy + src.row * cell, cell, cell);
   }
   g.globalAlpha = 1;
   // eyes (crisp)
@@ -293,4 +299,5 @@ export function drawMoshCreature(g: G, spec: MosaicSpec, ox: number, oy: number,
     g.fillStyle = '#111'; g.fillRect(x + (gz * 0.5 + 0.5) * cell, y, cell, cell);
   };
   eye(spec.eyes.L0); eye(spec.eyes.R0);
+  if (costume) drawCostume(g, spec, ox, oy, cell, costume, t);
 }

@@ -5,6 +5,7 @@
 import { useEffect, useRef } from 'react';
 import { agedSpec, drawMoshCreature, type CreatureSeed } from '../core/fieldRender';
 import { Rng, xmur3 } from '../core/seed';
+import { costumeFor } from '../core/halloween';
 
 interface Props {
   creature: CreatureSeed & { bornAt?: number };
@@ -21,8 +22,10 @@ export function CreatureThumb({ creature, cell = 6, height = 120 }: Props) {
     if (!cv) return;
     const spec = agedSpec(creature, creature.bornAt ?? null);
     const pad = 6; // cells of margin for streak tails
+    const costume = costumeFor(creature);
+    const top = (pad / 3 + (costume ? 5 : 0)) * cell;   // headroom for a hat
     const w = (spec.cols + pad) * cell;
-    const h = (spec.rows + pad) * cell;
+    const h = (spec.rows + pad) * cell + (costume ? 5 * cell : 0);
     const dpr = 2;
     cv.width = w * dpr; cv.height = h * dpr;
     const g = cv.getContext('2d');
@@ -30,7 +33,7 @@ export function CreatureThumb({ creature, cell = 6, height = 120 }: Props) {
     g.scale(dpr, dpr);
     g.clearRect(0, 0, w, h);
     const gz = (new Rng(xmur3(creature.id + ':rest')()).next() < 0.5 ? -1 : 1) * 0.85;
-    drawMoshCreature(g, spec, (pad / 2) * cell, (pad / 3) * cell, cell, creature.id, gz);
+    drawMoshCreature(g, spec, (pad / 2) * cell, top, cell, creature.id, gz, null, false, costume);
     const scale = height / h;
     cv.style.height = height + 'px';
     cv.style.width = w * scale + 'px';

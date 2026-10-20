@@ -8,6 +8,7 @@
 import type { FieldCreature } from '../components/DitherField';
 import type { Morphology } from './emotion';
 import type { CharId } from '../data/characters';
+import type { Costume } from './halloween';
 
 // URL-safe base64 over UTF-8 bytes (handles Chinese names / sentences).
 function b64urlEncode(str: string): string {
@@ -26,13 +27,13 @@ function b64urlDecode(s: string): string {
 // Short keys keep the token compact.
 interface Packed {
   i: string; c: number; m: Morphology; n: number; s?: string;
-  e: number; na?: string; p?: string; r?: string; b?: number; t?: string;
+  e: number; na?: string; p?: string; r?: string; b?: number; t?: string; k?: Costume;
 }
 
 export function encodeCreature(c: FieldCreature): string {
   const packed: Packed = {
     i: c.id, c: c.charId, m: c.morphology, n: c.intensity, s: c.secondaryLabel,
-    e: c.cell, na: c.name, p: c.primaryLabel, r: c.rationale, b: c.bornAt, t: c.text,
+    e: c.cell, na: c.name, p: c.primaryLabel, r: c.rationale, b: c.bornAt, t: c.text, k: c.costume ?? undefined,
   };
   return b64urlEncode(JSON.stringify(packed));
 }
@@ -57,6 +58,7 @@ export function decodeCreature(token: string): FieldCreature | null {
       rationale: p.r,
       bornAt: p.b,
       text: p.t,
+      costume: p.k === 'pumpkin' || p.k === 'witch' || p.k === 'ghost' ? p.k : undefined,
     };
   } catch {
     return null;
