@@ -18,20 +18,22 @@ export const COSTUME_HEADROOM = 9;
 type G = CanvasRenderingContext2D;
 
 // ---- when the easter egg is on ------------------------------------------
-// Oct 24 – Nov 1 (local time), or forced with ?season=halloween / ?season=off.
+// Half a month either side of Halloween: Oct 16 – Nov 15 (visitor's local
+// time), every year. Forced with ?season=halloween / ?season=off (testing).
+export const HALLOWEEN_SPAN_DAYS = 15;
+/** Pure date rule (no URL overrides) — exported for tests. */
+export function inHalloweenWindow(now: Date): boolean {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const eve = new Date(now.getFullYear(), 9, 31);
+  return Math.abs(Math.round((today.getTime() - eve.getTime()) / 86_400_000)) <= HALLOWEEN_SPAN_DAYS;
+}
 let activeMemo: boolean | null = null;
-export function halloweenActive(now = new Date()): boolean {
+/** Is the easter egg on for this page load? (memoised; URL overrides win) */
+export function halloweenActive(): boolean {
   if (activeMemo != null) return activeMemo;
-  let on: boolean;
   const q = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('season') : null;
-  if (q === 'halloween') on = true;
-  else if (q === 'off') on = false;
-  else {
-    const m = now.getMonth(), d = now.getDate();
-    on = (m === 9 && d >= 24) || (m === 10 && d <= 1);
-  }
-  activeMemo = on;
-  return on;
+  activeMemo = q === 'halloween' ? true : q === 'off' ? false : inHalloweenWindow(new Date());
+  return activeMemo;
 }
 
 // ---- B · spells: a costume word in the whisper guarantees a costume -----

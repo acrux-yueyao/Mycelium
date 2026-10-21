@@ -144,7 +144,7 @@ export async function renderShareCard(c: FieldCreature): Promise<string> {
     g.font = '700 30px "JetBrains Mono", monospace';
     g.fillText('HALLOWEEN', 0, -6);
     g.font = '600 24px "JetBrains Mono", monospace';
-    g.fillText('2026', 0, 28);
+    g.fillText(String(new Date().getFullYear()), 0, 28);
     g.restore();
   }
 
