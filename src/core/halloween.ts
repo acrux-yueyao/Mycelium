@@ -56,8 +56,8 @@ function hash(id: string): number {
   for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); }
   return h >>> 0;
 }
-/** Rare by design: a spell, or roughly 1 in 40 spores, fixed per id. */
-export const COSTUME_RARITY = 40;
+/** Rare by design: a spell, or roughly 1 in 10 spores, fixed per id. */
+export const COSTUME_RARITY = 10;
 // ?hwrate=N previews a denser field (1 in N) without touching real data
 const rarity = (() => {
   const n = typeof window !== 'undefined' ? Number(new URLSearchParams(window.location.search).get('hwrate')) : 0;
