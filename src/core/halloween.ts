@@ -9,8 +9,8 @@
  */
 import type { MosaicSpec } from './mosaic';
 
-export type Costume = 'pumpkin' | 'witch' | 'ghost' | 'mummy';
-export const COSTUMES: Costume[] = ['pumpkin', 'witch', 'ghost', 'mummy'];
+export type Costume = 'pumpkin' | 'witch' | 'ghost' | 'mummy' | 'zombie';
+export const COSTUMES: Costume[] = ['pumpkin', 'witch', 'ghost', 'mummy', 'zombie'];
 
 /** rows a costume may reach above the spore's own grid (witch hat tip). */
 export const COSTUME_HEADROOM = 9;
@@ -42,6 +42,7 @@ const SPELLS: Array<[Costume, RegExp]> = [
   ['ghost', /ghost|\bboo+\b|spook|haunt|鬼|幽灵|幽靈/i],
   ['witch', /witch|wizard|spell|cauldron|巫|魔女|女巫/i],
   ['mummy', /mumm(y|ies)|pharaoh|bandage|木乃伊|法老/i],
+  ['zombie', /zombie|undead|brains?\b|walking dead|僵尸|丧尸|殭屍|喪屍/i],
 ];
 /** The costume a whispered sentence asks for (only while the egg is on). */
 export function spellCostume(text: string | undefined | null): Costume | null {
@@ -248,6 +249,60 @@ export function drawCostume(g: G, spec: MosaicSpec, ox: number, oy: number, cell
     if (rx >= 0) {
       const wob = Math.round(Math.sin(t * 2.2));
       for (let k = 1; k <= 4; k++) px(rx + k, er + 2 + (k >> 1) + (k === 4 ? wob : 0), k % 2 ? '#efe7d2' : '#d8cdb0', 0.95 - k * 0.12);
+    }
+  } else if (kind === 'zombie') {
+    // undead: clean zombie-green skin (keeping the spore's own light and
+    // shade), a few scraps of its old colour like torn clothes, arms held
+    // out in front, one staring red eye, one droopy lid, a stitched scar
+    const m = (x: number, y: number) =>
+      x >= 0 && y >= 0 && x < spec.cols && y < spec.rows && spec.mask[y * spec.cols + x];
+    for (const c of spec.cells) {
+      if (isEye(spec, c.col, c.row)) continue;
+      if ((c.col * 5 + c.row * 11) % 9 === 0 && c.row > er) continue;   // torn-clothes scraps
+      const lm = /,\s*([\d.]+)%\s*\)/.exec(c.color);
+      const l = lm ? Number(lm[1]) : 55;
+      px(c.col, c.row, l > 66 ? '#a6cf72' : l > 48 ? '#7fb055' : '#5a8a3c', c.alpha);
+    }
+    // arms reaching forward from the widest row below the eyes
+    const ay = Math.min(spec.rows - 1, er + 2);
+    let al = spec.cols, ar = -1;
+    for (let c = 0; c < spec.cols; c++) if (m(c, ay)) { al = Math.min(al, c); ar = Math.max(ar, c); }
+    if (ar >= 0) {
+      for (let k = 1; k <= 3; k++) {
+        const dy = k === 3 ? 1 : 0;                                   // hands droop a little
+        px(al - k, ay + dy, k === 3 ? '#a6cf72' : '#6f9e48');
+        px(ar + k, ay + dy, k === 3 ? '#a6cf72' : '#6f9e48');
+      }
+      px(al - 1, ay + 1, '#5a8a3c', 0.8); px(ar + 1, ay + 1, '#5a8a3c', 0.8);   // sleeve shadow
+    }
+    // eyes: left stares (white, tiny red pupil); right is half shut
+    const L = spec.eyes.L0, R = spec.eyes.R0;
+    for (const x of [L - 1, L + 2, R - 1, R + 2]) if (m(x, er)) px(x, er, '#355a24');
+    for (let x = L; x <= R + 1; x++) if (m(x, er - 1)) px(x, er - 1, '#3f6a2a', 0.7);
+    px(L, er, '#f4f1e2'); px(L + 1, er, '#f4f1e2');
+    g.globalAlpha = 1; g.fillStyle = '#c0281e';
+    g.fillRect(ox + (L + 0.7) * cell, oy + (er + 0.3) * cell, cell * 0.5, cell * 0.5);
+    px(R, er, '#f4f1e2'); px(R + 1, er, '#f4f1e2');
+    g.globalAlpha = 1; g.fillStyle = '#3f6a2a';
+    g.fillRect(ox + R * cell, oy + er * cell, cell * 2, cell * 0.5);          // droopy lid
+    g.fillStyle = '#111';
+    g.fillRect(ox + (R + 0.6) * cell, oy + (er + 0.5) * cell, cell * 0.6, cell * 0.5);
+    // short diagonal scar with cross stitches on the cap
+    const sx = Math.round(h.mid + 1), sy = Math.max(h.top + 1, er - 3);
+    for (let k = 0; k < 3; k++) {
+      if (!m(sx + k, sy + k - 1) && !m(sx + k, sy + k)) continue;
+      px(sx + k, sy + k - 1, '#3a2626', 0.9);
+      if (k !== 1) { px(sx + k - 1, sy + k - 1, '#3a2626', 0.5); px(sx + k + 1, sy + k - 1, '#3a2626', 0.5); }
+    }
+    // little mouth with one tooth
+    const my = er + 2, mx = Math.round(h.mid) - 1;
+    if (m(mx, my)) {                                                  // a thin crooked line
+      g.globalAlpha = 1; g.fillStyle = '#2a3a1f';
+      const lw = Math.max(1, cell * 0.3);
+      g.fillRect(ox + mx * cell, oy + (my + 0.35) * cell, cell * 3, lw);
+      g.fillRect(ox + (mx + 2) * cell, oy + (my + 0.35) * cell - lw, cell, lw);
+      g.fillStyle = '#f4f1e2';
+      g.fillRect(ox + (mx + 1) * cell, oy + (my + 0.35) * cell + lw, cell * 0.4, lw);   // one tooth
     }
   }
   g.restore();

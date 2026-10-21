@@ -58,7 +58,7 @@ export function decodeCreature(token: string): FieldCreature | null {
       rationale: p.r,
       bornAt: p.b,
       text: p.t,
-      costume: p.k === 'pumpkin' || p.k === 'witch' || p.k === 'ghost' || p.k === 'mummy' ? p.k : undefined,
+      costume: p.k === 'pumpkin' || p.k === 'witch' || p.k === 'ghost' || p.k === 'mummy' || p.k === 'zombie' ? p.k : undefined,
     };
   } catch {
     return null;

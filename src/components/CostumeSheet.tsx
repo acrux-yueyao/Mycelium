@@ -13,7 +13,7 @@ import type { CharId } from '../data/characters';
 const FAMILY_HUE: Record<number, number> = { 0: 24, 1: 205, 2: 32, 3: 268, 4: 158, 5: 222 };
 const FAMILY_NAME = ['tender', 'calm', 'curious', 'dreamy', 'companion', 'lonely'];
 const LABEL: Record<Costume | 'plain', string> = {
-  plain: 'plain', pumpkin: 'pumpkin helmet', witch: 'witch hat', ghost: 'ghost sheet', mummy: 'mummy',
+  plain: 'plain', pumpkin: 'pumpkin helmet', witch: 'witch hat', ghost: 'ghost sheet', mummy: 'mummy', zombie: 'zombie',
 };
 
 function spec(id: string, charId: number, k: number) {
