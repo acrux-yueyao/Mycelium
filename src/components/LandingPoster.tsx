@@ -77,7 +77,7 @@ export function LandingPoster({ population, onEnter }: Props) {
         MYCELIUM FIELD
         <div className="landing-date">whisper a sentence<br />→ grow a specimen</div>
         {halloweenActive() && (
-          <div className="landing-date landing-hw">until mid-November, whisper a pumpkin,<br />a ghost or a witch…</div>
+          <div className="landing-date landing-hw">until mid-November, whisper a pumpkin,<br />a ghost, a witch or a zombie…</div>
         )}
       </motion.div>
 

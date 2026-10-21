@@ -9,8 +9,8 @@
  */
 import type { MosaicSpec } from './mosaic';
 
-export type Costume = 'pumpkin' | 'witch' | 'ghost';
-export const COSTUMES: Costume[] = ['pumpkin', 'witch', 'ghost'];
+export type Costume = 'pumpkin' | 'witch' | 'ghost' | 'zombie';
+export const COSTUMES: Costume[] = ['pumpkin', 'witch', 'ghost', 'zombie'];
 
 /** rows a costume may reach above the spore's own grid (witch hat tip). */
 export const COSTUME_HEADROOM = 9;
@@ -41,6 +41,7 @@ const SPELLS: Array<[Costume, RegExp]> = [
   ['pumpkin', /pumpkin|jack[- ]?o[- ]?lantern|halloween|trick or treat|南瓜|万圣/i],
   ['ghost', /ghost|\bboo+\b|spook|haunt|鬼|幽灵|幽靈/i],
   ['witch', /witch|wizard|spell|cauldron|巫|魔女|女巫/i],
+  ['zombie', /zombie|undead|brains?\b|walking dead|僵尸|丧尸|殭屍|喪屍/i],
 ];
 /** The costume a whispered sentence asks for (only while the egg is on). */
 export function spellCostume(text: string | undefined | null): Costume | null {
@@ -217,6 +218,46 @@ export function drawCostume(g: G, spec: MosaicSpec, ox: number, oy: number, cell
       px(e0 - 1, er, '#2c2d3e', 0.5); px(e0 + 2, er, '#2c2d3e', 0.5);
     }
     px(Math.round(cx), er + 2, '#2c2d3e', 0.55);                      // tiny "o" mouth
+  } else if (kind === 'zombie') {
+    // undead: sickly green skin, a stitched scar across the cap, one eye
+    // sewn shut, a stitched grin and a loose bandage across the body
+    for (const c of spec.cells) px(c.col, c.row, '#7f9b4e', 0.38 * c.alpha);
+    const sy = Math.min(er - 2, h.top + 2);
+    let sl = spec.cols, sr = -1;
+    for (let c = 0; c < spec.cols; c++) if (spec.mask[sy * spec.cols + c]) { sl = Math.min(sl, c); sr = Math.max(sr, c); }
+    for (let x = sl + 1; x < sr; x++) {
+      px(x, sy, '#3b2a2a', 0.85);                                   // scar
+      if ((x - sl) % 2 === 0) { px(x, sy - 1, '#3b2a2a', 0.6); px(x, sy + 1, '#3b2a2a', 0.6); }
+    }
+    // left eye sewn into an X, right eye bloodshot
+    const L = spec.eyes.L0;
+    px(L, er, '#cfd6b4'); px(L + 1, er, '#cfd6b4');
+    g.globalAlpha = 1; g.fillStyle = '#2b1f1f';
+    const ex = ox + L * cell, ey = oy + er * cell, lw = Math.max(1, cell * 0.28);
+    for (let i = 0; i < 2 * cell; i += lw) {
+      g.fillRect(ex + i, ey + (i / 2), lw, lw);
+      g.fillRect(ex + i, ey + cell - lw - (i / 2), lw, lw);
+    }
+    const R = spec.eyes.R0;
+    px(R, er, '#e9e6cf'); px(R + 1, er, '#e9e6cf');
+    g.globalAlpha = 1; g.fillStyle = '#b3261e';
+    g.fillRect(ox + (R + 0.55) * cell, oy + (er + 0.2) * cell, cell * 0.6, cell * 0.6);
+    // stitched grin
+    const my = er + 2;
+    if (my < spec.rows) {
+      for (let x = L; x <= R + 1; x++) {
+        if (!spec.mask[my * spec.cols + x]) continue;
+        px(x, my, '#2b1f1f', 0.8);
+        if ((x - L) % 2 === 1) { px(x, my - 1, '#2b1f1f', 0.55); px(x, my + 1, '#2b1f1f', 0.55); }
+      }
+    }
+    // a loose bandage wrapped diagonally across the lower body
+    for (let k = 0; k < spec.cols + 4; k++) {
+      const x = k - 1, y = er + 4 + Math.floor(k / 3);
+      if (y >= spec.rows) break;
+      if (!(spec.mask[y * spec.cols + x] || spec.mask[y * spec.cols + x - 1])) continue;
+      px(x, y, k % 3 === 1 ? '#d8cdb0' : '#efe7d2', 0.95);
+    }
   }
   g.restore();
 }
