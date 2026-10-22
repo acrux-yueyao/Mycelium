@@ -8,14 +8,14 @@ TWO pieces that close over the wire:
 
   T  touch cube   = LID (the touch face, 1.2 mm thin, copper foil stuck
                     inside) + BODY (6.6×6.6 cavity behind the lid; a
-                    1.0 mm channel from the cavity to the wire port)
+                    1.0 × 2.4 mm channel from the cavity to the wire port)
   L  wire cube    = two HALVES split across the middle; the lower half
-                    carries a 1.0 mm channel ring (3 mm in from the
+                    carries a 1.0 × 2.4 mm channel ring (3 mm in from the
                     edges, clear of every pocket) with spokes to each
-                    port face; ports on the split axis are Ø1.2 holes at
+                    port face; ports on the split axis are Ø1.4 holes at
                     the free corners (3,9)/(9,3)
 
-Wire: 0.3 mm enamelled copper (stiff, three fit one channel). Glue the
+Wire: 30 AWG wire-wrap (0.58 mm OD; four stack in one channel) or 0.25 mm enamelled copper. Glue the
 pieces with CA after laying the wire. Pockets, pins, dimples and the
 variant engraving are untouched, so the closed cube couples like the
 plain one it replaces and keeps its assembly number.
@@ -46,9 +46,10 @@ P = 12.0
 LID = 1.2            # touch wall (foil behind it)
 CAV = 6.6            # cavity width behind the lid: leaves 2.7 walls for the side pockets
 CAV_FLOOR = 2.9      # above the opposite face's pocket (2.1) + wall
-CH_W, CH_D = 1.0, 1.0
+CH_W, CH_D = 1.0, 2.4     # wire cubes: 1 mm wide, deep enough for 4 × 0.58 mm wire-wrap stacked
+CH_D_T = 1.2              # touch-cube port slot: one wire, stays clear of the side pocket
 RING = 3.0           # channel ring inset from the cube edges
-HOLE_R = 0.6
+HOLE_R = 0.7
 
 FACE_OF = {'up': (2, True), 'down': (2, False), 'left': (0, False), 'right': (0, True),
            'front': (1, True), 'back': (1, False)}
@@ -115,10 +116,10 @@ def touch_pieces(code, mask, face, ports):
             cuts.append(CYL(RING, P - RING, -1, CAV_FLOOR + 1, HOLE_R))
         elif ax == 0:                      # side port: channel on the split plane, face centre line
             x0, x1 = (P / 2, P + 1) if pos else (-1, P / 2)
-            cuts.append(B(x0, P / 2 - CH_W / 2, P - LID - CH_D, x1, P / 2 + CH_W / 2, P - LID + 1))
+            cuts.append(B(x0, P / 2 - CH_W / 2, P - LID - CH_D_T, x1, P / 2 + CH_W / 2, P - LID + 1))
         else:
             y0, y1 = (P / 2, P + 1) if pos else (-1, P / 2)
-            cuts.append(B(P / 2 - CH_W / 2, y0, P - LID - CH_D, P / 2 + CH_W / 2, y1, P - LID + 1))
+            cuts.append(B(P / 2 - CH_W / 2, y0, P - LID - CH_D_T, P / 2 + CH_W / 2, y1, P - LID + 1))
     lid_box = B(-1, -1, P - LID, P + 1, P + 1, P + 1)
     body_box = B(-1, -1, -1, P + 1, P + 1, P - LID)
     lid_box, body_box = tf([lid_box, body_box], T)
