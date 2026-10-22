@@ -46,10 +46,11 @@ P = 12.0
 LID = 1.2            # touch wall (foil behind it)
 CAV = 6.6            # cavity width behind the lid: leaves 2.7 walls for the side pockets
 CAV_FLOOR = 2.9      # above the opposite face's pocket (2.1) + wall
-CH_W, CH_D = 1.0, 2.4     # wire cubes: 1 mm wide, deep enough for 4 × 0.58 mm wire-wrap stacked
-CH_D_T = 1.2              # touch-cube port slot: one wire, stays clear of the side pocket
-RING = 3.0           # channel ring inset from the cube edges
-HOLE_R = 0.7
+CH_W, CH_D = 1.3, 1.3     # one 1.1 mm hook-up wire per channel (plan with --one-per-cube)
+CH_D_T = 1.3              # touch-cube port slot: one wire, stays clear of the side pocket
+RING = 3.6           # channel ring inset from the cube edges (clear of the 2.1 mm side pockets)
+HOLE_AT = 3.0        # split-axis wire holes stay at the original free corners (3,9)/(9,3)
+HOLE_R = 0.8
 
 FACE_OF = {'up': (2, True), 'down': (2, False), 'left': (0, False), 'right': (0, True),
            'front': (1, True), 'back': (1, False)}
@@ -113,7 +114,7 @@ def touch_pieces(code, mask, face, ports):
     for p in ports:
         ax, pos = to_canonical(p, T)
         if ax == 2:                        # opposite face: hole at a free corner
-            cuts.append(CYL(RING, P - RING, -1, CAV_FLOOR + 1, HOLE_R))
+            cuts.append(CYL(HOLE_AT, P - HOLE_AT, -1, CAV_FLOOR + 1, HOLE_R))
         elif ax == 0:                      # side port: channel on the split plane, face centre line
             x0, x1 = (P / 2, P + 1) if pos else (-1, P / 2)
             cuts.append(B(x0, P / 2 - CH_W / 2, P - LID - CH_D_T, x1, P / 2 + CH_W / 2, P - LID + 1))
@@ -152,7 +153,7 @@ def wire_pieces(code, mask, ports):
             cuts.append(B(RING - CH_W / 2, y0, h - CH_D, RING + CH_W / 2, y1, h + 0.01))
         else:
             z0, z1 = (h - 0.5, P + 1) if pos else (-1, h + 0.5)
-            holes.append(CYL(RING, P - RING, z0, z1, HOLE_R))
+            holes.append(CYL(HOLE_AT, P - HOLE_AT, z0, z1, HOLE_R))
     lo = B(-1, -1, -1, P + 1, P + 1, h); hi = B(-1, -1, h, P + 1, P + 1, P + 1)
     lo, hi = tf([lo, hi], T); cuts = tf(cuts, T); holes = tf(holes, T)
     A = trimesh.boolean.difference([trimesh.boolean.intersection([cube, lo])] + cuts + holes)

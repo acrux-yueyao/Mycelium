@@ -22,7 +22,8 @@ route runs through empty interior cells where it can and bores through
 hidden cubes where it must (fewest bores, never through an exposed face,
 an eye frame or a function cube). Every bored cube is listed.
 
-Usage: python3 hardware/touch_plan.py <base> <variants_dir> [points]
+Usage: python3 hardware/touch_plan.py <base> <variants_dir> [points] [--one-per-cube]
+       --one-per-cube: every bored cube carries a single wire (for 1.1 mm hook-up wire)
        points e.g. 1,2,3,4,5,6,8,9,10,11 (default)
 Writes <variants_dir>/touch_plan.json + touch_plan.png
 """
@@ -43,7 +44,7 @@ def add(a, b):
     return (a[0] + b[0], a[1] + b[1], a[2] + b[2])
 
 
-def plan(meta, man, points):
+def plan(meta, man, points, one_per_cube=False):
     K = {(c['x'], c['y'], c['z']): c for c in man['cells']}
     tx, ty = meta['zone']['tx'], meta['zone']['ty']
     a = meta['anchor']
@@ -117,6 +118,8 @@ def plan(meta, man, points):
                 if n in cav or inside(n):
                     c = d + 1
                 elif n in trunk:
+                    if one_per_cube:       # thick wire: a bored cube carries one wire only
+                        continue
                     c = d + 2
                 elif n in K and n not in special and n not in elec:
                     c = d + 20
@@ -201,10 +204,10 @@ def render(meta, man, res, ctx, out_png):
     plt.close(fig)
 
 
-def main(base, vdir, points=(1, 2, 3, 4, 5, 6, 8, 9, 10, 11)):
+def main(base, vdir, points=(1, 2, 3, 4, 5, 6, 8, 9, 10, 11), one_per_cube=False):
     meta = json.load(open(base + '.json'))
     man = json.load(open(f'{vdir}/kit_manifest.json'))
-    res, ctx = plan(meta, man, points)
+    res, ctx = plan(meta, man, points, one_per_cube)
     json.dump(res, open(f'{vdir}/touch_plan.json', 'w'), ensure_ascii=False, indent=1)
     render(meta, man, res, ctx, f'{vdir}/touch_plan.png')
     for r in res:
@@ -213,5 +216,6 @@ def main(base, vdir, points=(1, 2, 3, 4, 5, 6, 8, 9, 10, 11)):
 
 
 if __name__ == '__main__':
-    pts = tuple(int(v) for v in sys.argv[3].split(',')) if len(sys.argv) > 3 else (1, 2, 3, 4, 5, 6, 8, 9, 10, 11)
-    main(sys.argv[1], sys.argv[2], pts)
+    args = [a for a in sys.argv[1:] if not a.startswith('--')]
+    pts = tuple(int(v) for v in args[2].split(',')) if len(args) > 2 else (1, 2, 3, 4, 5, 6, 8, 9, 10, 11)
+    main(args[0], args[1], pts, '--one-per-cube' in sys.argv)
