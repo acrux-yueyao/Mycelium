@@ -1,0 +1,14 @@
+[Unit]
+Description=moony-listen — local speech-to-text + emotion reading for Moony
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/Mycelium/scripts/moony-listen
+ExecStart=/home/pi/Mycelium/scripts/moony-listen/.venv/bin/python moony_listen.py --port 8766 --model base
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

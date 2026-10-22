@@ -142,3 +142,11 @@ ToF 座 J1(右侧中下,竖排,从上到下):4 SCL0 · 3 SDA0 · 2 GND · 1 3V3 
 **屏模块的 VCC/GND 顺序有两种版本(VCC-GND-SCL-SDA 或 GND-VCC-SCL-SDA),接前看每块屏背面丝印。**
 
 接好后 bench-check 期望:总线 0 = 0x29 · 0x3C · 0x5A · 0x68;总线 1 = 0x3C。再把 TEST_SCREEN 改 1:左屏显示 L,右屏显示 R。
+
+## 10 · 2026-10-22 全部模块接通 + Moony 固件
+
+接通并验过:两块眼屏(EYES 座)· ToF(插头曾整体插反,已改为 红/黑/蓝/黄 = 3V3/GND/SDA/SCL;J1 4 号脚补焊)· 麦克风 J2(bench-audio 音量 1000–19000 随声音变)· MAX98357A + 喇叭(AMP 座:从左到右 VIN 红 · GND 黑 · BCLK 蓝 · LRC 黄 · DIN 绿)。
+
+新固件 `firmware/moony/`(编译要开 PSRAM=opi;设置在 `moony_config.h`)+ Pi 服务 `scripts/moony-listen/`。
+按住 E0 说话 → Pi 本地 whisper 转文字 → 口令(英文/中文)或 /api/emotion 读情绪 → Moony 用表情 + 家族旋律回应,不用人话回答。
+本固件只在云端用模拟头文件做过语法检查,**首次真编译请在本地做**,报错直接修。
