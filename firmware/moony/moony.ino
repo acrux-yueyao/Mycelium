@@ -406,6 +406,22 @@ uint16_t mprRead() {
   uint16_t lo = Wire.read(), hi = Wire.read();
   return (lo | (hi << 8)) & 0x0FFF;
 }
+// touch monitor ('t'): per-electrode signal = baseline − filtered (a finger raises it)
+bool touchMon = false;
+void mprPrintLevels(uint16_t t) {
+  uint8_t raw[24], base[12];
+  Wire.beginTransmission(MPR_ADDR); Wire.write(0x04);
+  if (Wire.endTransmission(false) != 0 || Wire.requestFrom((int)MPR_ADDR, 24) != 24) return;
+  for (int i = 0; i < 24; i++) raw[i] = Wire.read();
+  Wire.beginTransmission(MPR_ADDR); Wire.write(0x1E);
+  if (Wire.endTransmission(false) != 0 || Wire.requestFrom((int)MPR_ADDR, 12) != 12) return;
+  for (int i = 0; i < 12; i++) base[i] = Wire.read();
+  for (int i = 0; i < 12; i++) {
+    int filt = raw[i * 2] | ((raw[i * 2 + 1] & 0x03) << 8);
+    Serial.printf("E%d:%3d%c ", i, (base[i] << 2) - filt, (t >> i) & 1 ? '*' : ' ');
+  }
+  Serial.println();
+}
 
 float blinkAmt(uint32_t now) {
   if (blinkStart == 0 || now < blinkStart) return 1.0f;
@@ -588,6 +604,13 @@ void loop() {
   bool talkHeld = (touched & TALK_ELECTRODES) != 0;
   bool talkWas = (prevTouch & TALK_ELECTRODES) != 0;
   if (touched && !prevTouch) touchStart = now;
+  static uint32_t lastMon = 0;
+  if (touchMon && hasMpr && now - lastMon > 250) { lastMon = now; mprPrintLevels(touched); }
+  if (touchMon && touched != prevTouch && touched) {
+    Serial.print("摸到:");
+    for (int i = 0; i < 12; i++) if ((touched >> i) & 1) Serial.printf(" E%d", i);
+    Serial.println();
+  }
 
   // --- hold the head to talk ---
   if (talkHeld && !talkWas && act != A_THINK) touchStart = now;
@@ -622,6 +645,7 @@ void loop() {
       case 'n': mood = NEUTRAL; break; case 'h': mood = HAPPY; break;
       case 'z': mood = SLEEPY; break;  case 's': mood = SAD; break; case 'a': mood = ANGRY; break;
       case 'd': debugRange = !debugRange; break;
+      case 't': touchMon = !touchMon; Serial.println(touchMon ? "触摸监视 开(再按 t 关)" : "触摸监视 关"); break;
       case 'i': Serial.printf("Wi-Fi=%d Pi=%s 倾斜 x=%.2f z=%.2f 触摸=0x%03X 麦=%d act=%d\n", wifiOk,
                               piAddr.toString().c_str(), tiltX, tiltZ, touched, micLevel, act); break;
       case 'p': Serial.printf("Pi 解析 %s → %s\n", resolvePi() ? "ok" : "失败", piAddr.toString().c_str()); break;
