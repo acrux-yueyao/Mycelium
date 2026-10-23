@@ -1,10 +1,10 @@
-reprint set · 44 pieces · 两件式触摸/线槽块 + 改型块
+reprint set · 49 pieces · 两件式触摸/线槽块 + 改型块
 
-fix_09_serene-blue_1.stl  09号 宁静蓝 serene blue · 18 件: 96LA 96LB 123LA 123LB 124LA 124LB 137Tbody 137Tlid 138Tbody 138Tlid 143LA 143LB 154LA 154LB 180LA 180LB 184Tbody 184Tlid
-fix_06_deep-green_1.stl  06号 深绿色 deep green · 4 件: 296LA 296LB 308Tbody 308Tlid
+fix_09_serene-blue_1.stl  09号 宁静蓝 serene blue · 20 件: 96LA 96LB 123LA 123LB 124LA 124LB 134LA 134LB 137Tbody 137Tlid 138Tbody 138Tlid 143LA 143LB 154LA 154LB 180LA 180LB 184Tbody 184Tlid
+fix_06_deep-green_1.stl  06号 深绿色 deep green · 6 件: 236Tbody 236Tlid 296LA 296LB 308Tbody 308Tlid
 fix_12_lavender_1.stl  12号 薰衣草紫 lavender · 7 件: 47 48 57Tbody 57Tlid 60 61Tbody 61Tlid
 fix_13_purple_1.stl  13号 紫色 purple · 8 件: 15LA 15LB 55LA 55LB 62Tbody 62Tlid 97LA 97LB
-fix_11_rouge-snow_1.stl  11号 胭脂雪 rouge snow · 5 件: 54LA 54LB 56Tbody 56Tlid 70
+fix_11_rouge-snow_1.stl  11号 胭脂雪 rouge snow · 6 件: 54LA 54LB 56Tbody 56Tlid 70Tbody 70Tlid
 fix_white_1.stl  号 白色 white · 2 件: 7Tbody 7Tlid
 
 序号308 触摸点 1 (6,15,7) C-05  盖=触摸面+y/上  出线-y/下
@@ -13,9 +13,11 @@ fix_white_1.stl  号 白色 white · 2 件: 7Tbody 7Tlid
 序号 57 触摸点 4 (5,4,7) C-33  盖=触摸面+z/前  出线-z/后
 序号 61 触摸点 5 (9,4,7) C-33  盖=触摸面+z/前  出线-z/后
 序号184 触摸点 6 (6,9,7) C-17  盖=触摸面+z/前  出线-z/后
+序号 70 触摸点 7 (7,5,7) C-33  盖=触摸面+z/前  出线-z/后
 序号 56 触摸点 8 (4,4,7) C-27  盖=触摸面-x/左  出线-z/后
 序号 62 触摸点 9 (10,4,7) C-17  盖=触摸面+x/右  出线-z/后
 序号  7 触摸点11 (7,0,6) C-36  盖=触摸面-y/下  出线+y/上
+序号236 触摸点12 (7,11,4) C-30  盖=触摸面-z/后  出线+z/前
 序号123 线槽块 (1,8,6) C-1D  线进出-x/左/+x/右  剖面垂直于前轴
 序号 54 线槽块 (4,4,6) C-0F  线进出+x/右/+z/前  剖面垂直于上轴
 序号 96 线槽块 (4,7,6) C-15  线进出+x/右/+y/上  剖面垂直于前轴
@@ -23,11 +25,11 @@ fix_white_1.stl  号 白色 white · 2 件: 7Tbody 7Tlid
 序号180 线槽块 (6,9,6) C-1F  线进出+z/前/-y/下  剖面垂直于右轴
 序号296 线槽块 (6,14,7) C-3A  线进出-y/下/+y/上  剖面垂直于右轴
 序号 15 线槽块 (7,1,6) C-3D  线进出-y/下/+y/上  剖面垂直于右轴
+序号134 线槽块 (9,8,5) C-3C  线进出-y/下/+y/上  剖面垂直于右轴
 序号154 线槽块 (9,8,6) C-14  线进出-y/下/+y/上  剖面垂直于右轴
 序号 55 线槽块 (10,4,6) C-0F  线进出-x/左/+z/前  剖面垂直于上轴
 序号 97 线槽块 (10,7,6) C-25  线进出-x/左/+y/上  剖面垂直于前轴
 序号124 线槽块 (12,8,6) C-2F  线进出-x/左/+x/右  剖面垂直于前轴
 序号 47 改型 (6,3,7) M-33 → C-33
 序号 48 改型 (7,3,7) C-33 → W-33
-序号 70 改型 (7,5,7) W-33 → C-33
 序号 60 改型 (8,4,7) C-33 → M-33

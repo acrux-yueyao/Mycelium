@@ -11,10 +11,12 @@ rule set works for every shape the engine builds:
   4 左脸颊    skin cell core-relative (1,3)               (front)
   5 右脸颊    skin cell core-relative (5,3)               (front)
   6 额头      between the eyes, one row above the frames  (front)
+  7 鼻尖      front-centre, the row above the cheeks      (front)
   8 左侧身    left-most cube at core row 3                (left)
   9 右侧身    right-most cube at core row 3               (right)
  10 背后      copper foil on the MC02-P backplane (3 mm, no special cube)
  11 底座边缘  bottom row, front-centre                    (down)
+ 12 后脑勺    back of the cap, centre column, mid-height  (back)
 
 Each electrode cube becomes a touch cube (thin wall on the touch face,
 foil inside). Its wire must reach the core cavity without showing: the
@@ -24,7 +26,8 @@ an eye frame or a function cube). Every bored cube is listed.
 
 Usage: python3 hardware/touch_plan.py <base> <variants_dir> [points] [--one-per-cube]
        --one-per-cube: every bored cube carries a single wire (for 1.1 mm hook-up wire)
-       points e.g. 1,2,3,4,5,6,8,9,10,11 (default)
+       points e.g. 1,2,3,4,5,6,8,9,10,11,7,12 (default; 7 and 12 come last so
+       E0–E9 keep the original order and the two extras land on E10/E11)
 Writes <variants_dir>/touch_plan.json + touch_plan.png
 """
 import heapq
@@ -35,9 +38,9 @@ from collections import deque
 
 DIRS = [(1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1)]
 NAMES = {1: '头顶', 2: '伞盖左缘', 3: '伞盖右缘', 4: '左脸颊', 5: '右脸颊', 6: '额头',
-         8: '左侧身', 9: '右侧身', 10: '背后', 11: '底座边缘'}
+         7: '鼻尖', 8: '左侧身', 9: '右侧身', 10: '背后', 11: '底座边缘', 12: '后脑勺'}
 FACE = {'up': (0, 1, 0), 'down': (0, -1, 0), 'left': (-1, 0, 0), 'right': (1, 0, 0),
-        'front': (0, 0, 1)}
+        'front': (0, 0, 1), 'back': (0, 0, -1)}
 
 
 def add(a, b):
@@ -84,9 +87,13 @@ def plan(meta, man, points, one_per_cube=False):
                        key=lambda k: (k[0], -k[2], abs(k[1] - (ty + 9)))), 'left')
         pick[3] = (min((k for k in cap if exposed(k, FACE['right'])),
                        key=lambda k: (-k[0], -k[2], abs(k[1] - (ty + 9)))), 'right')
+        pick[12] = (min((k for k in cap if exposed(k, FACE['back']) and k not in special),
+                        key=lambda k: (abs(k[0] - (tx + 3)), abs(k[1] - (ty + 10)), k[2]), default=None), 'back')
     for n, rx in ((4, 1), (5, 5)):
         k = (tx + rx, ty + 3, SKIN)
         pick[n] = (k if k in K and exposed(k, FACE['front']) and k not in special else None, 'front')
+    k = (tx + 3, ty + 4, SKIN)
+    pick[7] = (k if k in K and exposed(k, FACE['front']) and k not in special else None, 'front')
     ecx = round((a['L0'] + 1 + a['R0']) / 2)
     pick[6] = (front_cell(ecx, ye + 2), 'front')
     row3 = [k for k in K if k[1] == ty + 3]
@@ -204,7 +211,7 @@ def render(meta, man, res, ctx, out_png):
     plt.close(fig)
 
 
-def main(base, vdir, points=(1, 2, 3, 4, 5, 6, 8, 9, 10, 11), one_per_cube=False):
+def main(base, vdir, points=(1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 7, 12), one_per_cube=False):
     meta = json.load(open(base + '.json'))
     man = json.load(open(f'{vdir}/kit_manifest.json'))
     res, ctx = plan(meta, man, points, one_per_cube)
@@ -217,5 +224,5 @@ def main(base, vdir, points=(1, 2, 3, 4, 5, 6, 8, 9, 10, 11), one_per_cube=False
 
 if __name__ == '__main__':
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
-    pts = tuple(int(v) for v in args[2].split(',')) if len(args) > 2 else (1, 2, 3, 4, 5, 6, 8, 9, 10, 11)
+    pts = tuple(int(v) for v in args[2].split(',')) if len(args) > 2 else (1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 7, 12)
     main(args[0], args[1], pts, '--one-per-cube' in sys.argv)
