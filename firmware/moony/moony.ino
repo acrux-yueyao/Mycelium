@@ -512,6 +512,7 @@ uint16_t mprRead() {
 }
 // touch monitor ('t'): per-electrode signal = baseline − filtered (a finger raises it)
 bool touchMon = false;
+int touchFocus = -1;                 // 'e' picks one pad to watch (-1 = all 12)
 void mprPrintLevels(uint16_t t) {
   uint8_t raw[24], base[12];
   Wire.beginTransmission(MPR_ADDR); Wire.write(0x04);
@@ -520,6 +521,14 @@ void mprPrintLevels(uint16_t t) {
   Wire.beginTransmission(MPR_ADDR); Wire.write(0x1E);
   if (Wire.endTransmission(false) != 0 || Wire.requestFrom((int)MPR_ADDR, 12) != 12) return;
   for (int i = 0; i < 12; i++) base[i] = Wire.read();
+  if (touchFocus >= 0) {             // one pad, with a bar so a weak touch is easy to see
+    int i = touchFocus, filt = raw[i * 2] | ((raw[i * 2 + 1] & 0x03) << 8), d = (base[i] << 2) - filt;
+    char bar[41]; int n = constrain(d, 0, 40);
+    for (int k = 0; k < 40; k++) bar[k] = k < n ? '#' : (k == TOUCH_TH - 1 ? '|' : '.');
+    bar[40] = 0;
+    Serial.printf("E%d 信号 %3d %s %s  (基线 %d 读数 %d)\n", i, d, bar, (t >> i) & 1 ? "摸到" : "    ", base[i] << 2, filt);
+    return;
+  }
   for (int i = 0; i < 12; i++) {
     int filt = raw[i * 2] | ((raw[i * 2 + 1] & 0x03) << 8);
     Serial.printf("E%d:%3d%c ", i, (base[i] << 2) - filt, (t >> i) & 1 ? '*' : ' ');
@@ -763,6 +772,10 @@ void loop() {
                                        tuneStartle, tuneGrumpy, tuneDizzy, tuneSleep, tuneWake, tuneReunion, tuneOffline, tuneDance};
         Serial.printf("声音 %d/16: %s\n", vi + 1, NAMES[vi]); FN[vi](); vi = (vi + 1) % 16; break;
       }
+      case 'e':
+        touchFocus = touchFocus >= 11 ? -1 : touchFocus + 1;
+        if (touchFocus < 0) Serial.println("触摸监视:看全部 12 路"); else Serial.printf("触摸监视:只看 E%d(再按 e 换下一路)\n", touchFocus);
+        touchMon = true; break;
       case 't': touchMon = !touchMon; Serial.println(touchMon ? "触摸监视 开(再按 t 关)" : "触摸监视 关"); break;
       case 'i': Serial.printf("Wi-Fi=%d Pi=%s 倾斜 x=%.2f z=%.2f 触摸=0x%03X 麦=%d act=%d\n", wifiOk,
                               piAddr.toString().c_str(), tiltX, tiltZ, touched, micLevel, act); break;
