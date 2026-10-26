@@ -72,7 +72,16 @@ constexpr int SR = 16000;
 constexpr i2s_port_t PORT_AMP = I2S_NUM_0;
 constexpr i2s_port_t PORT_MIC = I2S_NUM_1;
 
-struct Note { float hz; float hz2; uint16_t ms; float vol; };   // hz2 = harmony (0 = none); hz 0 = rest
+// One vocalisation. hz 0 = rest. The pitch glides hz → hzMid (at midAt) → hzEnd (0 = hold).
+// hz2 = a second voice in harmony. env 0 = swell (rise, hold, fade), 1 = pluck (snap, decay);
+// aMs/bMs override its attack and fade/decay (0 = from the voice). soft muffles the upper
+// harmonics; flutter/breath scale the voice's buzz and breath; warble wobbles the pitch.
+struct Note {
+  float hz; float hz2; uint16_t ms; float vol;
+  float hzMid = 0, hzEnd = 0, midAt = 0.5f;
+  uint8_t env = 0; uint16_t aMs = 0, bMs = 0;
+  float soft = 0, flutter = 1, breath = 1, warble = 0, flHz = 0;
+};
 constexpr int MAX_NOTES = 32;
 Note playList[MAX_NOTES];
 volatile int playLen = 0;
@@ -125,33 +134,86 @@ void setupMic() {
   i2s_set_pin(PORT_MIC, &pins);
 }
 
-/** Render one note with a soft attack/release so there are no clicks. */
+// ---------- Moony's voice ----------
+// A seeded creature voice (the idea follows Pollen Robotics' Microduck): 7 harmonics on a
+// gliding pitch, vibrato, a little jitter, a fast amplitude buzz ("flutter") and breath.
+// These are voice no. 4 (seed 19) from scripts/moony-voice/voice.py — audition there first.
+constexpr float V_PITCH = 426.7f, V_SPREAD = 1.056f, V_TILT = 1.801f, V_BRIGHT = 0.071f, V_NASAL = 0.317f;
+constexpr float V_VIB_HZ = 6.87f, V_VIB_ST = 0.40f, V_JIT_ST = 0.149f, V_BREATH = 0.070f;
+constexpr float V_FLUTTER = 0.654f, V_FL_HZ = 43.2f, V_ATTACK = 0.437f, V_SPEED = 0.991f;
+constexpr int V_HARM = 7;
+float vHarm[V_HARM];
+uint32_t aRng = 0x1234567u;          // audio task's own noise source
+float aRand() { aRng = aRng * 1664525u + 1013904223u; return (aRng >> 8) * (2.0f / 16777216.0f) - 1.0f; }
+
+void voiceInit() {
+  for (int k = 1; k <= V_HARM; k++) {
+    float w = 1.0f / powf(k, V_TILT) + V_BRIGHT * powf((float)k / V_HARM, 1.5f) + ((k == 2 || k == 3) ? V_NASAL * 0.5f : 0);
+    vHarm[k - 1] = w;
+  }
+  if (vHarm[0] < 0.7f) vHarm[0] = 0.7f;
+}
+
+/** Sum of harmonics at phase x via the sine recurrence; skips any above ~7 kHz (no aliasing). */
+inline float harmSum(float x, float f, const float *w) {
+  float s1 = sinf(x), c2 = 2.0f * cosf(x), prev = 0, cur = s1, out = 0;
+  for (int k = 0; k < V_HARM; k++) {
+    if ((k + 1) * f > 7000.0f) break;
+    out += w[k] * cur;
+    float nxt = c2 * cur - prev; prev = cur; cur = nxt;
+  }
+  return out;
+}
+
 void renderNote(const Note &n) {
   const int N = 256;
   int16_t buf[N];
   size_t wrote;
-  int total = SR * n.ms / 1000;
-  int att = SR / 100, rel = total * 2 / 5;           // 10 ms in, 40 % out
-  static float ph1 = 0, ph2 = 0;
-  float s1 = 2.0f * PI * n.hz / SR, s2 = 2.0f * PI * n.hz2 / SR;
-  float amp = 26000.0f * VOLUME * n.vol;
-  playingHz = n.hz;
+  float dur = n.ms / 1000.0f / V_SPEED;
+  int total = (int)(dur * SR);
+  if (n.hz <= 0) {                                  // rest
+    playingHz = 0;
+    memset(buf, 0, sizeof(buf));
+    for (int done = 0; done < total; done += N) i2s_write(PORT_AMP, buf, min(N, total - done) * sizeof(int16_t), &wrote, portMAX_DELAY);
+    return;
+  }
+  float w[V_HARM], wsum = 0;
+  for (int k = 0; k < V_HARM; k++) { w[k] = vHarm[k] / (1.0f + n.soft * k * k * 0.3f); wsum += w[k]; }
+  float a = n.aMs ? n.aMs / 1000.0f : (0.03f - 0.025f * V_ATTACK) * dur;
+  float b = n.bMs ? n.bMs / 1000.0f : 0.5f * dur;
+  float flD = V_FLUTTER * n.flutter, flHz = n.flHz > 0 ? n.flHz : V_FL_HZ, br = V_BREATH * n.breath;
+  float amp = 26000.0f * VOLUME * n.vol * 1.3f / wsum;
+  float mid = n.hzMid > 0 ? n.hzMid : 0, end = n.hzEnd > 0 ? n.hzEnd : (mid > 0 ? mid : n.hz);
+  float ratio2 = n.hz2 > 0 ? n.hz2 / n.hz : 0;
+  float vibPh = (aRand() + 1) * PI;
+  static float ph = 0, ph2 = 0, jit = 0, nb = 0;
   for (int done = 0; done < total;) {
     int k = min(N, total - done);
+    float f = n.hz;
     for (int i = 0; i < k; i++, done++) {
-      float env = done < att ? done / (float)att
-                : (done > total - rel ? (total - done) / (float)rel : 1.0f);
-      float v = 0;
-      if (n.hz > 0) {
-        v = sinf(ph1) + 0.18f * sinf(2 * ph1);          // a little body, not a pure beep
-        ph1 += s1; if (ph1 > TWO_PI) ph1 -= TWO_PI;
+      float t = done / (float)SR, x = t / dur;
+      // pitch contour
+      if (mid > 0) f = x < n.midAt ? n.hz + (mid - n.hz) * x / n.midAt
+                                   : mid + (end - mid) * (x - n.midAt) / (1.0f - n.midAt);
+      else f = n.hz + (end - n.hz) * x;
+      jit = jit * 0.95f + 0.05f * aRand();
+      float semis = V_VIB_ST * sinf(TWO_PI * V_VIB_HZ * t + vibPh) + V_JIT_ST * jit * 5.0f;
+      if (n.warble > 0) semis += n.warble * sinf(TWO_PI * 11.0f * t);
+      f *= exp2f(semis / 12.0f);
+      ph += TWO_PI * f / SR; if (ph > TWO_PI) ph -= TWO_PI;
+      float v = harmSum(ph, f, w);
+      if (ratio2 > 0) {
+        ph2 += TWO_PI * f * ratio2 / SR; if (ph2 > TWO_PI) ph2 -= TWO_PI;
+        v = v * 0.62f + 0.48f * harmSum(ph2, f * ratio2, w);
       }
-      if (n.hz2 > 0) {
-        v = v * 0.62f + 0.48f * sinf(ph2);
-        ph2 += s2; if (ph2 > TWO_PI) ph2 -= TWO_PI;
-      }
-      buf[i] = (int16_t)clampf(v * env * amp, -32000, 32000);
+      if (flD > 0.01f) v *= 1.0f - flD * (0.5f + 0.5f * sinf(TWO_PI * flHz * t));
+      if (br > 0) { nb = 0.97f * nb + aRand(); v += br * nb * 0.2f * wsum; }
+      float e;
+      if (n.env == 1) e = (t < a ? t / a : 1.0f) * expf(-fmaxf(t - a, 0) / b);
+      else e = t < a ? t / a : (t > dur - b ? fmaxf((dur - t) / b, 0) : 1.0f);
+      buf[i] = (int16_t)clampf(v * e * amp, -32000, 32000);
     }
+    playingHz = f;
     i2s_write(PORT_AMP, buf, k * sizeof(int16_t), &wrote, portMAX_DELAY);
   }
 }
@@ -214,6 +276,9 @@ int familyMelody(int fam, float inten, float agit, float glow, int hue, Note *ou
   static const int SC_MAJ[]  = {0, 4, 7, 12, 16, 19, 24, 28};
   static const int SC_MIN[]  = {0, 3, 5, 7, 10, 12, 15, 17};
   const int *sc; float root; int baseMs; bool harmony = false, echo = false;
+  static const float SOFT[] = {0.8f, 1.5f, 0.0f, 1.0f, 0.0f, 1.2f};     // voice colour per family
+  static const float FLUT[] = {0.3f, 0.1f, 1.0f, 1.0f, 0.6f, 1.0f};
+  static const float BRTH[] = {1.0f, 1.0f, 1.0f, 1.8f, 1.0f, 1.5f};
   switch (fam) {
     case 0: sc = SC_PENT;  root = 523.25f; baseMs = 300; break;              // tender: warm, unhurried
     case 1: sc = SC_PENT;  root = 392.00f; baseMs = 460; break;              // calm: low, long
@@ -239,26 +304,54 @@ int familyMelody(int fam, float inten, float agit, float glow, int hue, Note *ou
     if (i == notes - 1 && fam != 3 && fam != 5) deg = (deg >= 4) ? 5 : 0;  // settle home
     float hz = semis(root, sc[deg]);
     uint16_t ms = (uint16_t)(baseMs * msScale * (i == notes - 1 ? 1.8f : (rnd() % 4 == 0 ? 1.5f : 1.0f)));
-    out[k++] = {hz, harmony ? semis(hz, -(rnd() % 2 ? 3 : 4)) : 0.0f, ms, 0.9f};
-    if (echo && rnd() % 2) out[k++] = {hz * 2, 0, (uint16_t)(ms / 2), 0.28f};
+    Note nt = {hz * 0.98f, harmony ? semis(hz, -(rnd() % 2 ? 3 : 4)) : 0.0f, ms, 0.9f};
+    nt.hzMid = hz; nt.midAt = 0.2f; nt.hzEnd = i == notes - 1 ? hz * 0.97f : hz;   // slide into each note
+    nt.soft = SOFT[fam]; nt.flutter = FLUT[fam]; nt.breath = BRTH[fam];
+    out[k++] = nt;
+    if (echo && rnd() % 2) { Note e = {hz * 2, 0, (uint16_t)(ms / 2), 0.28f}; e.soft = 2.0f; e.flutter = 0.2f; out[k++] = e; }
     if (fam == 2) out[k++] = {0, 0, (uint16_t)(ms / 3), 0};   // staccato gaps
   }
   return k;
 }
 
-void tunePat()      { Note n[] = {{1046.5f, 0, 70, 0.6f}, {1318.5f, 0, 110, 0.5f}}; playNotes(n, 2); }
-void tuneReunion()  { Note n[] = {{659.25f, 0, 160, 0.7f}, {783.99f, 0, 160, 0.7f}, {1046.5f, 659.25f, 420, 0.75f}}; playNotes(n, 3); }
-void tuneHello()    { Note n[] = {{523.25f, 0, 120, 0.8f}, {659.25f, 0, 120, 0.8f}, {783.99f, 0, 120, 0.8f}, {1046.5f, 0, 300, 0.8f}}; playNotes(n, 4); }
-void tuneSleep()    { Note n[] = {{392.0f, 0, 420, 0.6f}, {329.63f, 0, 420, 0.5f}, {261.63f, 0, 900, 0.4f}}; playNotes(n, 3); }
-void tuneWake()     { Note n[] = {{523.25f, 0, 70, 0.7f}, {1046.5f, 0, 160, 0.8f}}; playNotes(n, 2); }
-void tuneLook()     { Note n[] = {{783.99f, 0, 140, 0.6f}, {783.99f, 0, 260, 0.6f}}; playNotes(n, 2); }
-void tuneHm()       { Note n[] = {{440.0f, 0, 160, 0.6f}, {523.25f, 0, 260, 0.6f}}; playNotes(n, 2); }
-void tuneOffline()  { Note n[] = {{440.0f, 0, 180, 0.5f}, {392.0f, 0, 360, 0.45f}}; playNotes(n, 2); }
+// Event sounds, ported from scripts/moony-voice/voice.py (pitches are multiples of the voice's centre).
+Note vc(uint16_t ms, float m0, float m2, float m1 = 0, float midAt = 0.5f, uint8_t env = 0,
+        uint16_t aMs = 0, uint16_t bMs = 0, float soft = 0, float flutter = 1, float breath = 1) {
+  Note n = {m0 * V_PITCH, 0, ms, 0.9f};
+  n.hzEnd = m2 * V_PITCH; n.hzMid = m1 * V_PITCH; n.midAt = midAt; n.env = env;
+  n.aMs = aMs; n.bMs = bMs; n.soft = soft; n.flutter = flutter; n.breath = breath;
+  return n;
+}
+Note rest(uint16_t ms) { return {0, 0, ms, 0}; }
+#define PLAY(...) do { Note _n[] = {__VA_ARGS__}; playNotes(_n, sizeof(_n) / sizeof(_n[0])); } while (0)
+
+void tuneHello()   { PLAY(vc(140, 0.9f, 1.2f, 0, .5f, 1, 0, 100), rest(50), vc(300, 1.1f, 1.4f, 1.55f, .4f)); }
+void tunePat()     { PLAY(vc(380, 0.85f, 0.72f, 0.95f, .35f, 0, 40, 220, 1.0f, 0.25f, 1.6f)); }
+void tuneListen()  { PLAY(vc(360, 0.72f, 1.0f, 0, .5f, 0, 50, 120, 2.5f, 0.0f)); }
+void tuneThink()   { PLAY(vc(110, 0.9f, 0.93f, 0, .5f, 0, 20, 50, 2.0f, 0.2f), rest(90),
+                          vc(110, 1.05f, 1.08f, 0, .5f, 0, 20, 50, 2.0f, 0.2f), rest(90),
+                          vc(110, 0.95f, 0.98f, 0, .5f, 0, 20, 50, 2.0f, 0.2f)); }
+void tuneHm()      { PLAY(vc(220, 0.9f, 1.15f, 0, .5f, 0, 30, 80, 1.5f, 0.1f)); }
+void tuneLook()    { PLAY(vc(150, 1.0f, 1.5f, 0, .5f, 1, 0, 120), rest(120), vc(180, 1.15f, 1.85f, 0, .5f, 1, 0, 140)); }
+void tuneHappy()   { PLAY(vc(90, 1.0f, 1.04f, 0, .5f, 1, 0, 70), rest(30), vc(90, 1.26f, 1.31f, 0, .5f, 1, 0, 70), rest(30),
+                          vc(90, 1.12f, 1.16f, 0, .5f, 1, 0, 70), rest(30), vc(90, 1.5f, 1.56f, 0, .5f, 1, 0, 70)); }
+void tuneSad()     { PLAY(vc(950, 1.05f, 0.6f, 1.1f, .25f, 0, 80, 400, 0, 0.4f, 1.4f)); }
+void tuneStartle() { const float s = 1 + 0.3f * V_SPREAD;
+                     PLAY(vc(260, 1.3f * s, 1.0f * s, 1.6f * s, .06f, 1, 3, 110, 0, 0.6f)); }
+void tuneGrumpy()  { Note n = vc(500, 0.66f, 0.58f, 0.62f, .5f, 0, 20, 150, 0, 0.9f / V_FLUTTER); n.flHz = 24; PLAY(n); }
+void tuneDizzy()   { Note n = vc(900, 1.2f, 1.1f, 0.9f, .5f, 0, 50, 300, 0, 0.3f); n.warble = 1.6f; PLAY(n); }
+void tuneSleep()   { PLAY(vc(1300, 0.95f, 0.55f, 1.35f, .25f, 0, 120, 600, 1.2f, 0.15f, 2.5f)); }
+void tuneWake()    { PLAY(vc(550, 0.65f, 1.35f, 1.45f, .7f, 0, 60, 150, 0, 1, 1.5f)); }
+void tuneReunion() { PLAY(vc(130, 1.0f, 1.05f, 0, .5f, 1, 0, 100), rest(60), vc(130, 1.26f, 1.3f, 0, .5f, 1, 0, 100), rest(60),
+                          vc(340, 1.5f, 1.5f, 1.62f, .5f)); }
+void tuneOffline() { PLAY(vc(220, 0.9f, 1.0f, 0, .5f, 0, 30, 80, 1.5f, 0.1f), rest(60),
+                          vc(350, 0.95f, 0.7f, 0, .5f, 0, 30, 200, 1.2f)); }
 void tuneDance() {
-  Note n[16];
-  const float m[] = {523.25f, 659.25f, 783.99f, 659.25f};
-  for (int i = 0; i < 16; i++) n[i] = {i % 2 ? 0.0f : m[(i / 2) % 4], 0, (uint16_t)(i % 2 ? 60 : 170), 0.8f};
-  playNotes(n, 16);
+  Note n[24]; int k = 0;
+  const float m[] = {1.0f, 1.26f, 1.12f, 1.5f};
+  for (int r = 0; r < 3; r++)
+    for (int i = 0; i < 4; i++) { n[k++] = vc(110, m[i], m[i] * 1.04f, 0, .5f, 1, 0, 80); n[k++] = rest(r == 2 && i == 3 ? 0 : 60); }
+  playNotes(n, k);
 }
 
 // =====================================================================
@@ -548,6 +641,7 @@ void setup() {
     recBuf = (int16_t *)malloc(recCap * sizeof(int16_t));
     Serial.println("PSRAM 没开(Tools → PSRAM: OPI PSRAM),录音缩到 3 秒");
   }
+  voiceInit();
   setupAmp();
   setupMic();
   xTaskCreatePinnedToCore(audioTask, "audio", 8192, NULL, 3, NULL, 0);
@@ -597,6 +691,10 @@ void loop() {
   bool upsideDown = hasMpu && tiltZ < -0.4f;
   if (hasMpu && shake > 1.2f) shookAt = now;
   bool jolted = (now - shookAt) < 700 && shookAt != 0;
+  static bool wasJolted = false, wasUpside = false;      // say so once, on the way in
+  if (jolted && !wasJolted && act != A_LISTEN) tuneGrumpy();
+  if (upsideDown && !wasUpside && act != A_LISTEN) tuneDizzy();
+  wasJolted = jolted; wasUpside = upsideDown;
 
   static uint32_t lastTouchPoll = 0;
   uint16_t prevTouch = touched;
@@ -617,12 +715,13 @@ void loop() {
   if (talkHeld && act != A_LISTEN && act != A_THINK && now - touchStart > TALK_HOLD_MS) {
     recLen = 0; recording = true;
     startAct(A_LISTEN, now, LISTEN_MAX_MS);
+    tuneListen();
     Serial.println("→ 在听…");
   }
   bool listenDone = act == A_LISTEN && (!talkHeld || now > actUntil || recLen >= recCap);
   if (listenDone) {
     recording = false;
-    if (recLen > SR / 2) { reply = R_PENDING; sendReq = true; startAct(A_THINK, now, 30000); }
+    if (recLen > SR / 2) { reply = R_PENDING; sendReq = true; startAct(A_THINK, now, 30000); tuneThink(); }
     else startAct(A_IDLE, now, 0);
   }
   // a pat: short touch anywhere, released before it became listening
@@ -630,7 +729,7 @@ void loop() {
 
   // clap → startle (only when quiet ourselves)
   static uint32_t clapAt = 0;
-  if (act == A_IDLE && !playing && micLevel > CLAP_LEVEL && now - clapAt > 1500) { clapAt = now; noticedAt = now; }
+  if (act == A_IDLE && !playing && micLevel > CLAP_LEVEL && now - clapAt > 1500) { clapAt = now; noticedAt = now; tuneStartle(); }
   bool clapped = now - clapAt < 600 && clapAt != 0;
 
   handleReply(now);
@@ -645,6 +744,14 @@ void loop() {
       case 'n': mood = NEUTRAL; break; case 'h': mood = HAPPY; break;
       case 'z': mood = SLEEPY; break;  case 's': mood = SAD; break; case 'a': mood = ANGRY; break;
       case 'd': debugRange = !debugRange; break;
+      case 'v': {                                         // audition every event sound in turn
+        static int vi = 0;
+        static const char *NAMES[] = {"hello", "pat", "listen", "think", "hm", "look", "happy", "sad",
+                                      "startle", "grumpy", "dizzy", "sleep", "wake", "reunion", "offline", "dance"};
+        static void (*const FN[])() = {tuneHello, tunePat, tuneListen, tuneThink, tuneHm, tuneLook, tuneHappy, tuneSad,
+                                       tuneStartle, tuneGrumpy, tuneDizzy, tuneSleep, tuneWake, tuneReunion, tuneOffline, tuneDance};
+        Serial.printf("声音 %d/16: %s\n", vi + 1, NAMES[vi]); FN[vi](); vi = (vi + 1) % 16; break;
+      }
       case 't': touchMon = !touchMon; Serial.println(touchMon ? "触摸监视 开(再按 t 关)" : "触摸监视 关"); break;
       case 'i': Serial.printf("Wi-Fi=%d Pi=%s 倾斜 x=%.2f z=%.2f 触摸=0x%03X 麦=%d act=%d\n", wifiOk,
                               piAddr.toString().c_str(), tiltX, tiltZ, touched, micLevel, act); break;
