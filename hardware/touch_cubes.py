@@ -106,21 +106,35 @@ def tf(meshes, T):
     return out
 
 
+def touch_port_cut(T, p):
+    """The touch body's wire port toward face p, in its canonical frame (touch face = +z)."""
+    ax, pos = to_canonical(p, T)
+    if ax == 2:                            # opposite face: hole at a free corner
+        return CYL(HOLE_AT, P - HOLE_AT, -1, CAV_FLOOR + 1, HOLE_R)
+    if ax == 0:                            # side port: slot just under the lid, face centre line
+        x0, x1 = (P / 2, P + 1) if pos else (-1, P / 2)
+        return B(x0, P / 2 - CH_W / 2, P - LID - CH_D_T, x1, P / 2 + CH_W / 2, P - LID + 1)
+    y0, y1 = (P / 2, P + 1) if pos else (-1, P / 2)
+    return B(P / 2 - CH_W / 2, y0, P - LID - CH_D_T, P / 2 + CH_W / 2, y1, P - LID + 1)
+
+
+def touch_opening(face, p):
+    """Where a touch body's port toward face p opens on that face, in cube (mesh) coordinates:
+    {axis: (lo, hi)} for the two in-plane axes."""
+    m = trimesh.boolean.intersection([touch_port_cut(frame_to(face), p),
+                                      B(-1, -1, -1, P + 1, P + 1, P - LID)])     # the part inside the body
+    m.apply_transform(frame_to(face))
+    lo, hi = m.bounds
+    return {i: (max(lo[i], 0.0), min(hi[i], P)) for i in range(3) if i != p[0]}
+
+
 def touch_pieces(code, mask, face, ports):
     """→ [('lid', mesh), ('body', mesh)]; canonical: touch face = +z."""
     cube = variant_mesh(code, mask)
     T = frame_to(face)
     cuts = [B(P / 2 - CAV / 2, P / 2 - CAV / 2, CAV_FLOOR, P / 2 + CAV / 2, P / 2 + CAV / 2, P - LID + 1)]
     for p in ports:
-        ax, pos = to_canonical(p, T)
-        if ax == 2:                        # opposite face: hole at a free corner
-            cuts.append(CYL(HOLE_AT, P - HOLE_AT, -1, CAV_FLOOR + 1, HOLE_R))
-        elif ax == 0:                      # side port: channel on the split plane, face centre line
-            x0, x1 = (P / 2, P + 1) if pos else (-1, P / 2)
-            cuts.append(B(x0, P / 2 - CH_W / 2, P - LID - CH_D_T, x1, P / 2 + CH_W / 2, P - LID + 1))
-        else:
-            y0, y1 = (P / 2, P + 1) if pos else (-1, P / 2)
-            cuts.append(B(P / 2 - CH_W / 2, y0, P - LID - CH_D_T, P / 2 + CH_W / 2, y1, P - LID + 1))
+        cuts.append(touch_port_cut(T, p))
     lid_box = B(-1, -1, P - LID, P + 1, P + 1, P + 1)
     body_box = B(-1, -1, -1, P + 1, P + 1, P - LID)
     lid_box, body_box = tf([lid_box, body_box], T)
@@ -130,9 +144,12 @@ def touch_pieces(code, mask, face, ports):
     return [('lid', lid), ('body', body)]
 
 
-def wire_pieces(code, mask, ports):
+def wire_pieces(code, mask, ports, targets=None):
     """→ [('A', lower half), ('B', upper half)] split across an axis that
-    carries no port where possible."""
+    carries no port where possible. targets: {port: opening on that face (see
+    touch_opening)} — a port facing a touch cube runs to exactly where that
+    cube's own port opens, or the wire meets a blank wall at the joint."""
+    targets = targets or {}
     axes = [p[0] for p in ports]
     k = min(range(3), key=lambda a: (axes.count(a), a))
     T = frame_to((k, True))                 # canonical +z = (k, True)
@@ -142,9 +159,31 @@ def wire_pieces(code, mask, ports):
             B(RING - CH_W / 2, P - RING - CH_W / 2, h - CH_D, P - RING + CH_W / 2, P - RING + CH_W / 2, h + 0.01),
             B(RING - CH_W / 2, RING - CH_W / 2, h - CH_D, RING + CH_W / 2, P - RING + CH_W / 2, h + 0.01),
             B(P - RING - CH_W / 2, RING - CH_W / 2, h - CH_D, P - RING + CH_W / 2, P - RING + CH_W / 2, h + 0.01)]
-    holes = []
+    holes, cuts_b = [], []
+    Ti = np.linalg.inv(T)
     for p in ports:
         ax, pos = to_canonical(p, T)
+        if p in targets and ax != 2:
+            # target box in canonical coords: in-plane u (the other split-plane axis) and n (split normal)
+            corners = np.array([[a, b, c, 1] for a in targets[p].get(0, (0, P)) for b in targets[p].get(1, (0, P))
+                                for c in targets[p].get(2, (0, P))])
+            cc = (Ti @ corners.T).T[:, :3]
+            u = 1 - ax
+            u0, u1 = cc[:, u].min(), cc[:, u].max(); n0, n1 = cc[:, 2].min(), cc[:, 2].max()
+            uc, wu = (u0 + u1) / 2, min(max((u1 - u0) / 2, CH_W / 2), HOLE_R)
+            s = P - RING if pos else RING
+            a0, a1 = (s - CH_W / 2, P + 1) if pos else (-1, s + CH_W / 2)
+            def box(ar, ur, nr):
+                lo3, hi3 = [0, 0, 0], [0, 0, 0]
+                lo3[ax], hi3[ax] = ar; lo3[u], hi3[u] = ur; lo3[2], hi3[2] = nr
+                return B(*lo3, *hi3)
+            cl = min(max(uc, RING), P - RING)            # along the ring side to the target column
+            cuts.append(box((s - CH_W / 2, s + CH_W / 2), (min(cl, uc) - CH_W / 2, max(cl, uc) + CH_W / 2), (h - CH_D, h + 0.01)))
+            lo_n, hi_n = min(n0, h - CH_D), max(n1, h)
+            cuts.append(box((a0, a1), (uc - wu, uc + wu), (lo_n, h + 0.01)))     # spoke (lower half)
+            if hi_n > h:
+                cuts_b.append(box((a0, a1), (uc - wu, uc + wu), (h - 0.01, hi_n)))  # notch in the upper half
+            continue
         if ax == 0:
             x0, x1 = (P - RING, P + 1) if pos else (-1, RING)
             cuts.append(B(x0, RING - CH_W / 2, h - CH_D, x1, RING + CH_W / 2, h + 0.01))
@@ -155,9 +194,9 @@ def wire_pieces(code, mask, ports):
             z0, z1 = (h - 0.5, P + 1) if pos else (-1, h + 0.5)
             holes.append(CYL(HOLE_AT, P - HOLE_AT, z0, z1, HOLE_R))
     lo = B(-1, -1, -1, P + 1, P + 1, h); hi = B(-1, -1, h, P + 1, P + 1, P + 1)
-    lo, hi = tf([lo, hi], T); cuts = tf(cuts, T); holes = tf(holes, T)
+    lo, hi = tf([lo, hi], T); cuts = tf(cuts, T); holes = tf(holes, T); cuts_b = tf(cuts_b, T)
     A = trimesh.boolean.difference([trimesh.boolean.intersection([cube, lo])] + cuts + holes)
-    Bm = trimesh.boolean.difference([trimesh.boolean.intersection([cube, hi])] + holes) if holes else \
+    Bm = trimesh.boolean.difference([trimesh.boolean.intersection([cube, hi])] + holes + cuts_b) if holes or cuts_b else \
         trimesh.boolean.intersection([cube, hi])
     return [('A', A), ('B', Bm)], k
 
@@ -208,7 +247,13 @@ def main(base, vdir, out, prev=None):
             continue
         c = K[cell]; mask = [tuple(m) for m in c['mask']]
         pts = sorted(ports[cell])
-        (pa, pb), k = wire_pieces(c['code'], mask, pts)
+        targets = {}
+        for p in pts:                                   # neighbour across p is a touch cube → meet its port
+            d = [0, 0, 0]; d[{0: 0, 1: 2, 2: 1}[p[0]]] = 1 if p[1] else -1
+            nb = (cell[0] + d[0], cell[1] + d[1], cell[2] + d[2])
+            if nb in touch:
+                targets[p] = touch_opening(touch[nb][1], (p[0], not p[1]))
+        (pa, pb), k = wire_pieces(c['code'], mask, pts, targets)
         for kind, m in (pa, pb):
             bed = (k, kind == 'A')                    # split face down: A shows +k up... bed = split normal
             shown = {f for f in mask if f != (k, kind == 'A')}
