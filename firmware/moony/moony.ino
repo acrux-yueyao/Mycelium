@@ -137,10 +137,10 @@ void setupMic() {
 // ---------- Moony's voice ----------
 // A seeded creature voice (the idea follows Pollen Robotics' Microduck): 7 harmonics on a
 // gliding pitch, vibrato, a little jitter, a fast amplitude buzz ("flutter") and breath.
-// These are voice no. 4 (seed 19) from scripts/moony-voice/voice.py — audition there first.
-constexpr float V_PITCH = 426.7f, V_SPREAD = 1.056f, V_TILT = 1.801f, V_BRIGHT = 0.071f, V_NASAL = 0.317f;
-constexpr float V_VIB_HZ = 6.87f, V_VIB_ST = 0.40f, V_JIT_ST = 0.149f, V_BREATH = 0.070f;
-constexpr float V_FLUTTER = 0.654f, V_FL_HZ = 43.2f, V_ATTACK = 0.437f, V_SPEED = 0.991f;
+// These are voice no. 1 (seed 3) from scripts/moony-voice/voice.py — audition there first.
+constexpr float V_PITCH = 349.7f, V_SPREAD = 0.642f, V_TILT = 2.381f, V_BRIGHT = 0.254f, V_NASAL = 0.166f;
+constexpr float V_VIB_HZ = 5.73f, V_VIB_ST = 0.266f, V_JIT_ST = 0.065f, V_BREATH = 0.138f;
+constexpr float V_FLUTTER = 0.213f, V_FL_HZ = 29.8f, V_ATTACK = 0.517f, V_SPEED = 0.996f;
 constexpr int V_HARM = 7;
 float vHarm[V_HARM];
 uint32_t aRng = 0x1234567u;          // audio task's own noise source
