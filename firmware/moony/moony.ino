@@ -729,8 +729,8 @@ void loop() {
     touched = 0;                     // ignore touch until then
     if (now > 6000) { settled = true; mprRestart(); Serial.println("触摸基线已重新校准"); }
   }
-  if (hasMpr && touched && prevTouch && now - touchStart > 20000 && act != A_LISTEN) {
-    mprRestart(); touched = 0; touchStart = now; Serial.println("触摸卡住 20 秒,基线重新校准");
+  if (hasMpr && touched && prevTouch && now - touchStart > 10000 && act != A_LISTEN) {
+    mprRestart(); touched = 0; touchStart = now; Serial.println("触摸卡住 10 秒,基线重新校准");
   }
   bool talkHeld = (touched & TALK_ELECTRODES) != 0;
   bool talkWas = (prevTouch & TALK_ELECTRODES) != 0;
