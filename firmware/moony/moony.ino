@@ -497,14 +497,14 @@ bool mprBegin() {
   // falling (finger approaching) baseline filter: slow. With the usual NHD 5 / NCL 1 the
   // baseline chases a weak touch through the lid within a few ms and it never registers.
   mprWrite(0x2F, 0x01); mprWrite(0x30, 0x01); mprWrite(0x31, 0x10); mprWrite(0x32, 0x04);
-  mprWrite(0x5B, 0x00); mprWrite(0x5C, 0x10); mprWrite(0x5D, 0x20);
-  // auto-config once at power-up: charge current/time per electrode for 3.3 V (USL 200, target
-  // 180, LSL 100). Auto-RECONFIG stays off: the long leads read ~480–520, under a 130 LSL, and
-  // reconfiguring reset the baseline every time a finger came near (seen on E3, 2026-10-26).
-  mprWrite(0x7D, 200); mprWrite(0x7E, 180); mprWrite(0x7F, 100); mprWrite(0x7B, 0x09);
-  mprWrite(0x5E, 0x8F);
+  // fixed charge 16 µA / 0.5 µs, 2-sample debounce. No auto-config: on the long leads it fails
+  // (ACFF, every pad OOR) and a pad marked OOR never reports a touch (bench, E3, 2026-10-26).
+  mprWrite(0x5B, 0x22); mprWrite(0x5C, 0x10); mprWrite(0x5D, 0x20);
+  mprWrite(0x5E, 0xCF);              // 12 pads, baseline loaded from the full 10-bit reading
   return true;
 }
+/** Re-take every baseline from the current reading (nobody should be touching). */
+void mprRestart() { mprWrite(0x5E, 0x00); mprWrite(0x5E, 0xCF); }
 uint16_t mprRead() {
   Wire.beginTransmission(MPR_ADDR); Wire.write(0x00);
   if (Wire.endTransmission(false) != 0) return 0;
@@ -721,6 +721,17 @@ void loop() {
   static uint32_t lastTouchPoll = 0;
   uint16_t prevTouch = touched;
   if (hasMpr && now - lastTouchPoll > 40) { lastTouchPoll = now; touched = mprRead(); }
+  // the leads' reading sinks ~40–50 counts in the first seconds after power-up, which looks like a
+  // touch and freezes the baseline: re-take baselines once it has settled, and whenever a pad has
+  // been "held" far longer than anyone really holds Moony
+  static bool settled = false;
+  if (hasMpr && !settled) {
+    touched = 0;                     // ignore touch until then
+    if (now > 6000) { settled = true; mprRestart(); Serial.println("触摸基线已重新校准"); }
+  }
+  if (hasMpr && touched && prevTouch && now - touchStart > 20000 && act != A_LISTEN) {
+    mprRestart(); touched = 0; touchStart = now; Serial.println("触摸卡住 20 秒,基线重新校准");
+  }
   bool talkHeld = (touched & TALK_ELECTRODES) != 0;
   bool talkWas = (prevTouch & TALK_ELECTRODES) != 0;
   if (touched && !prevTouch) touchStart = now;
