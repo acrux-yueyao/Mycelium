@@ -498,8 +498,10 @@ bool mprBegin() {
   // baseline chases a weak touch through the lid within a few ms and it never registers.
   mprWrite(0x2F, 0x01); mprWrite(0x30, 0x01); mprWrite(0x31, 0x10); mprWrite(0x32, 0x04);
   mprWrite(0x5B, 0x00); mprWrite(0x5C, 0x10); mprWrite(0x5D, 0x20);
-  // auto-config: charge current/time chosen per electrode for 3.3 V (USL 200, target 180, LSL 130)
-  mprWrite(0x7D, 200); mprWrite(0x7E, 180); mprWrite(0x7F, 130); mprWrite(0x7B, 0x0B);
+  // auto-config once at power-up: charge current/time per electrode for 3.3 V (USL 200, target
+  // 180, LSL 100). Auto-RECONFIG stays off: the long leads read ~480–520, under a 130 LSL, and
+  // reconfiguring reset the baseline every time a finger came near (seen on E3, 2026-10-26).
+  mprWrite(0x7D, 200); mprWrite(0x7E, 180); mprWrite(0x7F, 100); mprWrite(0x7B, 0x09);
   mprWrite(0x5E, 0x8F);
   return true;
 }
