@@ -475,6 +475,11 @@ void mpuUpdate() {
 }
 
 // MPR121
+// Touch sensitivity: the signal (shown per pad by the 't' monitor) must rise this much to count
+// as a touch. Triggers on its own → raise it; no response through the lid → lower it (min 3).
+#ifndef TOUCH_TH
+#define TOUCH_TH 6
+#endif
 constexpr uint8_t MPR_ADDR = 0x5A;
 bool hasMpr = false;
 uint16_t touched = 0;
@@ -485,10 +490,14 @@ bool mprBegin() {
   if (Wire.endTransmission() != 0) return false;
   mprWrite(0x80, 0x63); delay(10);
   mprWrite(0x5E, 0x00);
-  for (uint8_t i = 0; i < 12; i++) { mprWrite(0x41 + i * 2, 12); mprWrite(0x42 + i * 2, 6); }
+  // electrodes sit behind 1.2 mm of PLA at the end of 15–30 cm leads: a finger moves the
+  // signal only ~5–15 counts, so trigger at TOUCH_TH and let auto-config tune each pad
+  for (uint8_t i = 0; i < 12; i++) { mprWrite(0x41 + i * 2, TOUCH_TH); mprWrite(0x42 + i * 2, TOUCH_TH / 2); }
   mprWrite(0x2B, 0x01); mprWrite(0x2C, 0x01); mprWrite(0x2D, 0x0E); mprWrite(0x2E, 0x00);
   mprWrite(0x2F, 0x01); mprWrite(0x30, 0x05); mprWrite(0x31, 0x01); mprWrite(0x32, 0x00);
   mprWrite(0x5B, 0x00); mprWrite(0x5C, 0x10); mprWrite(0x5D, 0x20);
+  // auto-config: charge current/time chosen per electrode for 3.3 V (USL 200, target 180, LSL 130)
+  mprWrite(0x7D, 200); mprWrite(0x7E, 180); mprWrite(0x7F, 130); mprWrite(0x7B, 0x0B);
   mprWrite(0x5E, 0x8F);
   return true;
 }
