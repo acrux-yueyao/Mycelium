@@ -494,7 +494,9 @@ bool mprBegin() {
   // signal only ~5–15 counts, so trigger at TOUCH_TH and let auto-config tune each pad
   for (uint8_t i = 0; i < 12; i++) { mprWrite(0x41 + i * 2, TOUCH_TH); mprWrite(0x42 + i * 2, TOUCH_TH / 2); }
   mprWrite(0x2B, 0x01); mprWrite(0x2C, 0x01); mprWrite(0x2D, 0x0E); mprWrite(0x2E, 0x00);
-  mprWrite(0x2F, 0x01); mprWrite(0x30, 0x05); mprWrite(0x31, 0x01); mprWrite(0x32, 0x00);
+  // falling (finger approaching) baseline filter: slow. With the usual NHD 5 / NCL 1 the
+  // baseline chases a weak touch through the lid within a few ms and it never registers.
+  mprWrite(0x2F, 0x01); mprWrite(0x30, 0x01); mprWrite(0x31, 0x10); mprWrite(0x32, 0x04);
   mprWrite(0x5B, 0x00); mprWrite(0x5C, 0x10); mprWrite(0x5D, 0x20);
   // auto-config: charge current/time chosen per electrode for 3.3 V (USL 200, target 180, LSL 130)
   mprWrite(0x7D, 200); mprWrite(0x7E, 180); mprWrite(0x7F, 130); mprWrite(0x7B, 0x0B);
