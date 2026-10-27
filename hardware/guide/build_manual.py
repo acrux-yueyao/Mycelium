@@ -10,6 +10,7 @@ import json
 import os
 import sys
 import textwrap
+from collections import defaultdict
 
 import matplotlib
 matplotlib.use('Agg')
@@ -84,7 +85,7 @@ def main(vdir, plan_p, out):
         '【方向规则 · 每一页都一样】',
         '· 站在机器人背后拼。页面上方 = 机器人正面(离你远),左右 = 你的左右手。',
         '· 磁铁:刻 S 的面朝 右手 / 远处 / 上;刻 N 的面朝 左手 / 近处 / 下。方块吸不住、往外推 = 转错了。',
-        '· 每颗方块上的数字 = 拼装序号,按从小到大放。灰色虚线 = 下面一层的轮廓,用来对齐。',
+        '· 每格的大字 = 方块上刻的两个字符(刻字),小字 #数字 = 拼装序号。颜色 + 刻字对上就是这一颗,同颜色同刻字的可以互换。灰色虚线 = 下面一层的轮廓。',
         '',
         '【线的画法】',
         '· 粗彩线 = 这一层里走的线(颜色 = 线的颜色);彩色粗框 = 这条线的方块;↑↓ = 线在这里竖着去上 / 下一层。',
@@ -133,15 +134,16 @@ def main(vdir, plan_p, out):
                 if key in mask:
                     ax.add_patch(Rectangle((mx - 0.09, mz - 0.09), 0.18, 0.18, fc=NC if pole == 'N' else SC, ec='#1c1c1a', lw=0.3))
                     ax.text(mx, mz, pole, ha='center', va='center', fontsize=5.5, color='w', weight='bold')
-            if (2, True) in mask:
-                ax.add_patch(Circle((x0 + 0.5, z0 + 0.45), 0.2, fc=SC, ec='#1c1c1a', lw=0.3))
-                ax.text(x0 + 0.5, z0 + 0.45, str(c['seq']), ha='center', va='center', fontsize=8, weight='bold', color='w')
-            else:
-                ax.text(x0 + 0.5, z0 + 0.45, str(c['seq']), ha='center', va='center', fontsize=9.5, weight='bold', color=tc)
-            if (2, False) in mask:
-                ax.text(x0 + 0.24, z0 + 0.3, '底N', ha='center', va='center', fontsize=5, color=NC, weight='bold')
             tag = c['code'][0] if c['code'][0] in 'WMUG' else ''
-            ax.text(x0 + 0.5, z0 + 0.72, (tag + ' ' if tag else '') + c['code'][2:], ha='center', va='center', fontsize=5.5, color=tc)
+            # the engraving is what you can read on a loose cube: big; the assembly number small below
+            ax.text(x0 + 0.5, z0 + 0.52, c['code'][2:], ha='center', va='center', fontsize=12 if len(c['code']) <= 4 else 9.5,
+                    weight='bold', color=tc, family='DejaVu Sans Mono')
+            ax.text(x0 + 0.5, z0 + 0.2, f"#{c['seq']}" + (f' {tag}' if tag else ''), ha='center', va='center', fontsize=5.5, color=tc)
+            if (2, True) in mask:                                   # magnet on top: S up
+                ax.add_patch(Circle((x0 + 0.22, z0 + 0.8), 0.1, fc=SC, ec='#1c1c1a', lw=0.3))
+                ax.text(x0 + 0.22, z0 + 0.8, '上', ha='center', va='center', fontsize=4.5, color='w')
+            if (2, False) in mask:
+                ax.text(x0 + 0.78, z0 + 0.8, '底N', ha='center', va='center', fontsize=4.5, color=NC, weight='bold')
             if k in wire_of:
                 wc = HEX[WIRES[wire_of[k]][3]] if WIRES[wire_of[k]][3] != '白' else '#b9b4a6'
                 ax.add_patch(Rectangle((x0 + 0.03, z0 + 0.03), 0.94, 0.94, fill=False, ec=wc, lw=3.4, zorder=6))
@@ -198,7 +200,15 @@ def main(vdir, plan_p, out):
                  + ' · '.join(f'{nos[ci]}号{names[ci].split(" ")[0] if names[ci] else ""}' for ci in cols_here),
                  fontsize=12, color='#55524a')
         # step panel
-        lines = [f'① 按序号 {this[0]["seq"]} → {this[-1]["seq"]} 依次放,每颗对准下面一层,磁铁吸住、面贴平。']
+        pick = defaultdict(lambda: defaultdict(int))
+        for c in this:
+            if (c['x'], c['y'], c['z']) not in wire_of:
+                pick[c['ci']][c['code'][2:] + {'W': '(ToF窗)', 'M': '(麦克风孔)', 'U': '(充电槽)', 'G': '(喇叭网)'}.get(c['code'][0], '')] += 1
+        picks = [f"{names[ci].split(' ')[0]}:" + '  '.join(f'{cd}×{n}' if n > 1 else cd for cd, n in sorted(d.items()))
+                 for ci, d in sorted(pick.items())]
+        lines = ['【这一层要拿的方块(颜色:刻字×数量)】'] + picks + ['',
+                 f'① 每格大字 = 方块上的刻字,小字 #序号。按序号从小到大放(#{this[0]["seq"]} → #{this[-1]["seq"]}),'
+                 '颜色和刻字对上就行,同颜色同刻字的可以互换。每颗对准下面一层,磁铁吸住、面贴平。']
         n = 2
         for s in steps_w:
             lines.append(f'{"②③④⑤⑥⑦⑧⑨⑩"[min(n - 2, 8)]} {s}'); n += 1
