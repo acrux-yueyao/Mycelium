@@ -346,6 +346,13 @@ void tuneReunion() { PLAY(vc(130, 1.0f, 1.05f, 0, .5f, 1, 0, 100), rest(60), vc(
                           vc(340, 1.5f, 1.5f, 1.62f, .5f)); }
 void tuneOffline() { PLAY(vc(220, 0.9f, 1.0f, 0, .5f, 0, 30, 80, 1.5f, 0.1f), rest(60),
                           vc(350, 0.95f, 0.7f, 0, .5f, 0, 30, 200, 1.2f)); }
+void tuneShy()     { PLAY(vc(160, 0.95f, 1.15f, 0, .5f, 0, 20, 90, 1.2f, 0.2f, 1.3f), rest(40),
+                          vc(260, 1.05f, 0.9f, 1.2f, .3f, 0, 30, 160, 1.4f, 0.15f, 1.6f)); }       // a bashful little "oo"
+void tunePurr()    { Note n = vc(1100, 0.78f, 0.74f, 0.82f, .5f, 0, 120, 500, 1.6f, 0.6f / 0.213f, 1.8f);
+                     n.flHz = 22; PLAY(n); }                                                        // long low buzzy coo
+void tuneBoop()    { PLAY(vc(70, 1.4f, 1.8f, 0, .5f, 1, 2, 50), rest(30), vc(180, 1.3f, 1.6f, 1.9f, .3f, 1, 0, 120)); } // boop! hee
+void tuneChirp()   { PLAY(vc(90, 1.2f, 1.5f, 0, .5f, 1, 0, 70)); }                                  // tiny chirp
+
 void tuneDance() {
   Note n[24]; int k = 0;
   const float m[] = {1.0f, 1.26f, 1.12f, 1.5f};
@@ -594,7 +601,7 @@ void calibrate() {
 // =====================================================================
 //  STATES — what Moony is doing besides just being alive
 // =====================================================================
-enum Act { A_IDLE, A_LISTEN, A_THINK, A_REPLY, A_SLEEP, A_LOOK, A_DANCE, A_HM };
+enum Act { A_IDLE, A_LISTEN, A_THINK, A_REPLY, A_SLEEP, A_LOOK, A_DANCE, A_HM, A_TOUCH };
 Act act = A_IDLE;
 uint32_t actUntil = 0, actStart = 0;
 Mood replyMood = NEUTRAL;
@@ -604,6 +611,105 @@ Mood familyMood(int fam) {
 }
 
 void startAct(Act a, uint32_t now, uint32_t ms) { act = a; actStart = now; actUntil = now + ms; }
+
+// =====================================================================
+//  TOUCH REACTIONS — each of the 12 pads (J7 E0–E11) is a place on Moony's body
+// =====================================================================
+enum Pad { P_TOP, P_CAP_L, P_CAP_R, P_CHEEK_L, P_CHEEK_R, P_FOREHEAD, P_SIDE_L, P_SIDE_R, P_BACK, P_BASE, P_NOSE, P_NAPE };
+// Eyes look toward the touched side. If they look away from it instead, flip this to -1.
+#ifndef TOUCH_GAZE_SIDE
+#define TOUCH_GAZE_SIDE 1
+#endif
+Mood touchMood = HAPPY;
+float touchTx = 0, touchTy = 0, touchOpen = 1.0f;
+bool touchLookAround = false;
+uint32_t padDown[12] = {0};
+bool padHoldFired[12] = {false};
+
+void touchReact(const char *what, uint32_t now, uint32_t ms, Mood m, float gx, float gy, float open_ = 1.0f,
+                bool around = false) {
+  touchMood = m; touchTx = gx; touchTy = gy; touchOpen = open_; touchLookAround = around;
+  startAct(A_TOUCH, now, ms);
+  Serial.printf("互动: %s\n", what);
+}
+
+/** Per-pad gestures: a press, a short tap (released < 600 ms), a hold, tickles and hugs. */
+void handleTouch(uint16_t cur, uint16_t prev, uint32_t now) {
+  const float L = -0.8f * TOUCH_GAZE_SIDE, R = 0.8f * TOUCH_GAZE_SIDE;     // robot's own left / right
+  static uint32_t lastReact = 0, tickleAt = 0, capLAt = 0, capRAt = 0;
+  static int tickles = 0;
+  bool free_ = act == A_IDLE || act == A_TOUCH;
+  int held = 0;
+  for (int i = 0; i < 12; i++) held += (cur >> i) & 1;
+  // a hug: three or more places at once
+  if (held >= 3 && free_ && now - lastReact > 1500) {
+    lastReact = now; tuneReunion();
+    touchReact("抱住(好几处一起)", now, 2500, HAPPY, 0, 0.1f, 0.8f); return;
+  }
+  for (int i = 0; i < 12; i++) {
+    bool on = (cur >> i) & 1, was = (prev >> i) & 1;
+    if (on && !was) { padDown[i] = now; padHoldFired[i] = false; }
+    uint32_t dur = now - padDown[i];
+    if (!free_ || now - lastReact < 450) continue;
+    // ---- on press
+    if (on && !was) {
+      switch (i) {
+        case P_CAP_L: case P_CAP_R: {
+          uint32_t &mine = i == P_CAP_L ? capLAt : capRAt, other = i == P_CAP_L ? capRAt : capLAt;
+          mine = now;
+          if (other && now - other < 1500) {                     // stroked across the cap
+            capLAt = capRAt = 0; lastReact = now; tunePurr();
+            touchReact("顺着伞盖摸(呼噜)", now, 2600, HAPPY, 0, -0.2f, 0.55f);
+          } else {
+            lastReact = now; tuneChirp();
+            touchReact(i == P_CAP_L ? "摸伞盖左边" : "摸伞盖右边", now, 1400, NEUTRAL, i == P_CAP_L ? L : R, -0.5f, 1.1f);
+          }
+          break;
+        }
+        case P_CHEEK_L: case P_CHEEK_R:                           // shy: looks down and away
+          lastReact = now; tuneShy();
+          touchReact(i == P_CHEEK_L ? "摸左脸" : "摸右脸", now, 1800, HAPPY, i == P_CHEEK_L ? R * 0.7f : L * 0.7f, 0.55f, 0.7f);
+          break;
+        case P_NOSE:
+          lastReact = now; tuneBoop();
+          touchReact("点鼻尖", now, 1200, HAPPY, 0, 0.45f, 1.25f);
+          break;
+        case P_SIDE_L: case P_SIDE_R:                             // tickle: three pokes in 2.5 s → giggles
+          tickles = (now - tickleAt < 2500) ? tickles + 1 : 1; tickleAt = now; lastReact = now;
+          if (tickles >= 3) { tickles = 0; tuneDance(); startAct(A_DANCE, now, 3000); Serial.println("互动: 挠痒痒(咯咯笑)"); }
+          else { tuneChirp(); touchReact(i == P_SIDE_L ? "戳左边" : "戳右边", now, 900, HAPPY, i == P_SIDE_L ? L : R, 0.2f, 1.1f); }
+          break;
+        case P_BASE:
+          lastReact = now; tuneHm();
+          touchReact("碰底座", now, 1400, NEUTRAL, 0, 0.75f);
+          break;
+        case P_NAPE:                                              // behind its head: who's there?
+          lastReact = now; tuneStartle();
+          touchReact("摸后脑勺(谁在后面?)", now, 1800, NEUTRAL, 0, -0.6f, 1.2f, true);
+          break;
+      }
+    }
+    // ---- holds
+    if (on && !padHoldFired[i]) {
+      if (i == P_FOREHEAD && dur > 2500) {                       // stroke the forehead and it drifts off
+        padHoldFired[i] = true; lastReact = now; tuneSleep(); startAct(A_SLEEP, now, 30000);
+        Serial.println("互动: 按住额头(睡着了)");
+      } else if (i == P_BACK && dur > 1500) {                    // a hand on its back: calm
+        padHoldFired[i] = true; lastReact = now;
+        Note m[MAX_NOTES]; int n = familyMelody(1, 0.4f, 0.1f, 0.3f, 200, m); playNotes(m, n);
+        touchReact("手放在背上(安心)", now, 4000, HAPPY, 0, 0.2f, 0.6f);
+      }
+    }
+    // ---- short taps, on release
+    if (!on && was && dur < 600 && !padHoldFired[i]) {
+      if (i == P_TOP) { lastReact = now; tunePat(); touchReact("拍拍头", now, 1200, HAPPY, 0, -0.2f, 0.75f); }
+      else if (i == P_FOREHEAD) { lastReact = now; tuneHm(); blinkStart = now; doubleBlink = true;
+                                  touchReact("点额头", now, 1000, NEUTRAL, 0, -0.7f); }
+      else if (i == P_BACK) { lastReact = now; tunePat(); touchReact("拍拍背", now, 1200, HAPPY, 0, 0.1f, 0.8f); }
+    }
+  }
+}
+
 
 void handleReply(uint32_t now) {
   Reply r = reply;
@@ -757,8 +863,8 @@ void loop() {
     if (recLen > SR / 2) { reply = R_PENDING; sendReq = true; startAct(A_THINK, now, 30000); tuneThink(); }
     else startAct(A_IDLE, now, 0);
   }
-  // a pat: short touch anywhere, released before it became listening
-  if (!touched && prevTouch && act == A_IDLE && now - touchStart < TALK_HOLD_MS && !playing) tunePat();
+  // touch reactions per place on the body (the head-top hold above is still "talk")
+  if (act != A_LISTEN && act != A_THINK && act != A_SLEEP) handleTouch(touched & ~(talkHeld && now - touchStart > TALK_HOLD_MS ? TALK_ELECTRODES : 0), prevTouch, now);
 
   // clap → startle (only when quiet ourselves)
   static uint32_t clapAt = 0;
@@ -768,7 +874,7 @@ void loop() {
   handleReply(now);
   if (act != A_IDLE && act != A_LISTEN && now > actUntil) act = A_IDLE;
   // asleep: only a touch (or "wake up") wakes it — visitors walking past shouldn't
-  if (act == A_SLEEP && touched && !prevTouch) { tuneWake(); act = A_IDLE; noticedAt = now; }
+  if (act == A_SLEEP && touched && !prevTouch && now - actStart > 1500) { tuneWake(); act = A_IDLE; noticedAt = now; }
 
   // --- serial ---
   while (Serial.available()) {
@@ -780,10 +886,11 @@ void loop() {
       case 'v': {                                         // audition every event sound in turn
         static int vi = 0;
         static const char *NAMES[] = {"hello", "pat", "listen", "think", "hm", "look", "happy", "sad",
-                                      "startle", "grumpy", "dizzy", "sleep", "wake", "reunion", "offline", "dance"};
+                                      "startle", "grumpy", "dizzy", "sleep", "wake", "reunion", "offline", "dance", "shy", "purr", "boop", "chirp"};
         static void (*const FN[])() = {tuneHello, tunePat, tuneListen, tuneThink, tuneHm, tuneLook, tuneHappy, tuneSad,
-                                       tuneStartle, tuneGrumpy, tuneDizzy, tuneSleep, tuneWake, tuneReunion, tuneOffline, tuneDance};
-        Serial.printf("声音 %d/16: %s\n", vi + 1, NAMES[vi]); FN[vi](); vi = (vi + 1) % 16; break;
+                                       tuneStartle, tuneGrumpy, tuneDizzy, tuneSleep, tuneWake, tuneReunion, tuneOffline, tuneDance,
+                                       tuneShy, tunePurr, tuneBoop, tuneChirp};
+        Serial.printf("声音 %d/20: %s\n", vi + 1, NAMES[vi]); FN[vi](); vi = (vi + 1) % 20; break;
       }
       case 'e':
         touchFocus = touchFocus >= 11 ? -1 : touchFocus + 1;
@@ -811,6 +918,7 @@ void loop() {
   else if (act == A_REPLY) mood = replyMood;
   else if (act == A_SLEEP) mood = SLEEPY;
   else if (act == A_DANCE) mood = HAPPY;
+  else if (act == A_TOUCH) mood = touchMood;
   else if (upsideDown)        { mood = DIZZY; moodFromPresence = true; }
   else if (jolted)            { mood = ANGRY; moodFromPresence = true; }
   else if (touched)           { mood = HAPPY; moodFromPresence = true; }
@@ -827,6 +935,7 @@ void loop() {
   else if (act == A_LOOK) { tx = 0; ty = 0.1f; }
   else if (act == A_DANCE) { tx = sinf(t * 9) > 0 ? 0.8f : -0.8f; ty = 0.2f * cosf(t * 9); }
   else if (act == A_HM) { tx = -0.6f; ty = -0.5f; }
+  else if (act == A_TOUCH) { tx = touchLookAround ? 0.7f * sinf(t * 7) : touchTx; ty = touchTy; }
   else if (someoneNear) { tx = 0; ty = 0.15f; nextSaccade = now + 600; }
   else if (justLeft) { tx = 0; ty = -0.45f; nextSaccade = now + 1000; }
   else if (now > nextSaccade) {
@@ -835,7 +944,7 @@ void loop() {
     nextSaccade = now + 1500 + random(2500);
   }
   float gazeX = (hasMpu && act == A_IDLE) ? clampf(tx + tiltX * 0.9f, -1, 1) : tx;
-  float ease = (startled || jolted || clapped || act == A_DANCE) ? 0.45f : 0.18f;
+  float ease = (startled || jolted || clapped || act == A_DANCE || (act == A_TOUCH && now - actStart < 300)) ? 0.45f : 0.18f;
   px += (gazeX - px) * ease;
   py += (ty - py) * ease;
 
@@ -849,6 +958,7 @@ void loop() {
   if (act == A_SLEEP) open_ = 0.05f;
   else if (mood == SLEEPY) open_ *= 0.72f;
   if (act == A_LISTEN || act == A_LOOK) open_ *= 1.12f;
+  if (act == A_TOUCH) open_ *= touchOpen;
   if (startled || jolted || clapped) open_ *= 1.18f;
   if (justLeft) open_ *= 0.80f;
 
