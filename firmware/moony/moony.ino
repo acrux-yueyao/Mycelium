@@ -104,6 +104,8 @@ void setupAmp() {
   cfg.communication_format = I2S_COMM_FORMAT_STAND_I2S;
   cfg.dma_buf_count = 8;
   cfg.dma_buf_len = 256;
+  cfg.tx_desc_auto_clear = true;     // underrun → silence. Without it the DMA keeps looping the last
+                                     // ~130 ms of the previous sound: a "da-da-da" ticking after every tune
   i2s_pin_config_t pins = {};
   pins.mck_io_num = I2S_PIN_NO_CHANGE;
   pins.bck_io_num = AMP_BCLK;
@@ -228,7 +230,8 @@ void audioTask(void *) {
       playing = true;
       int n = playLen;
       for (int i = 0; i < n && !playReq; i++) renderNote(playList[i]);
-      i2s_write(PORT_AMP, zero, sizeof(zero), &wrote, portMAX_DELAY);
+      for (int b = 0; b < 9; b++) i2s_write(PORT_AMP, zero, sizeof(zero), &wrote, portMAX_DELAY);  // flush all 8 DMA buffers
+      i2s_zero_dma_buffer(PORT_AMP);
       playingHz = 0;
       playing = false;
       i2s_zero_dma_buffer(PORT_MIC);        // drop what the mic heard of our own song
