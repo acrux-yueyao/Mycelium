@@ -623,8 +623,28 @@ enum Pad { P_TOP, P_CAP_L, P_CAP_R, P_CHEEK_L, P_CHEEK_R, P_FOREHEAD, P_SIDE_L, 
 Mood touchMood = HAPPY;
 float touchTx = 0, touchTy = 0, touchOpen = 1.0f;
 bool touchLookAround = false;
-uint32_t padDown[12] = {0};
+uint32_t padDown[12] = {0}, padUp[12] = {0}, padMutedUntil[12] = {0}, padFlipAt[12] = {0};
+uint8_t padFlips[12] = {0};
 bool padHoldFired[12] = {false};
+
+/** A pad that keeps flickering on/off by itself (a lead sitting right at the threshold) is muted
+ *  for a minute instead of chirping every half second. Returns the pads that may react. */
+uint16_t steadyPads(uint16_t cur, uint16_t prev, uint32_t now) {
+  uint16_t ok = 0;
+  for (int i = 0; i < 12; i++) {
+    bool on = (cur >> i) & 1, was = (prev >> i) & 1;
+    if (on != was) {
+      if (now - padFlipAt[i] > 4000) padFlips[i] = 0;
+      if (padFlips[i]++ == 0) padFlipAt[i] = now;
+      if (padFlips[i] > 10) {                                    // >5 presses in 4 s, nobody pokes like that
+        padMutedUntil[i] = now + 60000; padFlips[i] = 0;
+        Serial.printf("E%d 一直自己跳(线或铜箔信号不稳),先静音 60 秒\n", i);
+      }
+    }
+    if (now >= padMutedUntil[i]) ok |= 1u << i;
+  }
+  return ok;
+}
 
 void touchReact(const char *what, uint32_t now, uint32_t ms, Mood m, float gx, float gy, float open_ = 1.0f,
                 bool around = false) {
@@ -635,6 +655,8 @@ void touchReact(const char *what, uint32_t now, uint32_t ms, Mood m, float gx, f
 
 /** Per-pad gestures: a press, a short tap (released < 600 ms), a hold, tickles and hugs. */
 void handleTouch(uint16_t cur, uint16_t prev, uint32_t now) {
+  uint16_t ok = steadyPads(cur, prev, now);
+  cur &= ok; prev &= ok;
   const float L = -0.8f * TOUCH_GAZE_SIDE, R = 0.8f * TOUCH_GAZE_SIDE;     // robot's own left / right
   static uint32_t lastReact = 0, tickleAt = 0, capLAt = 0, capRAt = 0;
   static int tickles = 0;
@@ -648,7 +670,11 @@ void handleTouch(uint16_t cur, uint16_t prev, uint32_t now) {
   }
   for (int i = 0; i < 12; i++) {
     bool on = (cur >> i) & 1, was = (prev >> i) & 1;
-    if (on && !was) { padDown[i] = now; padHoldFired[i] = false; }
+    if (!on && was) padUp[i] = now;
+    if (on && !was) {
+      if (now - padUp[i] < 250 && padUp[i]) { continue; }             // chatter, not a new press
+      padDown[i] = now; padHoldFired[i] = false;
+    }
     uint32_t dur = now - padDown[i];
     if (!free_ || now - lastReact < 450) continue;
     // ---- on press
