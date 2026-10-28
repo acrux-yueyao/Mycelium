@@ -549,6 +549,7 @@ void mprPrintLevels(uint16_t t) {
   Serial.println();
 }
 
+
 float blinkAmt(uint32_t now) {
   if (blinkStart == 0 || now < blinkStart) return 1.0f;
   float t = (now - blinkStart) / 1000.0f, dur = 0.22f;
@@ -789,6 +790,88 @@ void handleTouch(uint16_t cur, uint16_t prev, uint32_t now) {
 }
 
 
+// =====================================================================
+//  INNER LIFE — when nobody is playing with it, Moony keeps itself company
+// =====================================================================
+// Three slow inner states drift with time and pick what it does next:
+//   energy    falls while awake (~30 min to tired), refills while dozing
+//   boredom   rises while alone, any touch / voice / clap resets it
+//   curiosity wanders on its own
+// Every 25–70 s of quiet it does one small thing — hums, babbles to itself, looks around,
+// daydreams, sighs, sneezes, recalls the last thing someone told it, or dozes off — quietly.
+float energy = 1.0f, boredom = 0.0f, curiosity = 0.5f;
+int lastFam = -1;
+uint32_t lastFamAt = 0, nextLife = 30000, lastLifeTick = 0;
+
+float frand() { return (esp_random() & 0xFFFF) / 65535.0f; }
+
+void playQuiet(Note *n, int k, float vol) {
+  for (int i = 0; i < k; i++) n[i].vol *= vol;
+  playNotes(n, k);
+}
+
+/** Spore-talk: a run of 3–7 murmured syllables, each a little rise or fall, like thinking aloud. */
+void babble(float mood_) {
+  Note n[16]; int k = 0, syl = 3 + int(frand() * 5);
+  float base = 0.85f + 0.25f * mood_;
+  for (int i = 0; i < syl && k < 14; i++) {
+    float a = base * (0.85f + 0.3f * frand()), b = a * (frand() < 0.5f ? 0.85f : 1.2f);
+    n[k++] = vc(70 + int(frand() * 130), a, b, 0, .5f, frand() < 0.5f ? 1 : 0, 0, 0, 1.2f, 0.4f, 1.3f);
+    if (frand() < 0.35f) n[k++] = rest(60 + int(frand() * 160));
+  }
+  playQuiet(n, k, 0.55f);
+}
+
+void tuneSneeze() { PLAY(vc(120, 0.9f, 1.15f, 0, .5f, 0, 30, 60, 1.0f, 0.2f, 1.8f), rest(60),
+                         vc(140, 1.0f, 1.35f, 0, .5f, 0, 30, 60, 1.0f, 0.2f, 2.0f), rest(140),
+                         vc(150, 1.9f, 0.9f, 0, .5f, 1, 2, 60, 0, 1.6f, 2.6f)); }      // a-a-chu!
+
+void innerLife(uint32_t now, bool someoneNear, bool interacted) {
+  float dt = (now - lastLifeTick) / 1000.0f; lastLifeTick = now;
+  if (dt > 1) dt = 1;
+  if (act == A_SLEEP) energy = fminf(1, energy + dt / 180.0f);
+  else energy = fmaxf(0, energy - dt / 1800.0f);
+  if (interacted) { boredom = 0; energy = fminf(1, energy + 0.02f); }
+  else if (!someoneNear) boredom = fminf(1, boredom + dt / 300.0f);
+  curiosity = clampf(curiosity + (frand() - 0.5f) * 0.02f, 0, 1);
+  if (act != A_IDLE || playing || now < nextLife) return;
+  nextLife = now + 25000 + uint32_t(frand() * 45000) + (someoneNear ? 20000 : 0);   // quieter with company
+
+  // tired and alone: yawn and nap (wakes on its own after a few minutes, or when touched)
+  if (energy < 0.25f && !someoneNear) {
+    tuneSleep(); startAct(A_SLEEP, now, 120000 + uint32_t(frand() * 120000));
+    Serial.println("自己: 困了,睡一会儿"); return;
+  }
+  // otherwise pick by weight
+  float w[7] = {
+    0.8f + 0.6f * (1 - boredom),                 // 0 hum a little tune to itself
+    0.6f + 0.8f * curiosity,                     // 1 babble / talk to itself
+    0.5f + 1.0f * curiosity,                     // 2 look around
+    0.4f + 0.6f * (1 - energy),                  // 3 daydream
+    0.2f + 1.2f * boredom,                       // 4 sigh (lonely)
+    0.15f,                                       // 5 sneeze
+    (lastFam >= 0 && now - lastFamAt < 600000) ? 1.2f : 0,   // 6 remember what someone said
+  };
+  float tot = 0; for (float v : w) tot += v;
+  float r = frand() * tot; int pick = 0;
+  while (pick < 6 && r > w[pick]) r -= w[pick++];
+  Note m[MAX_NOTES]; int n;
+  switch (pick) {
+    case 0: n = familyMelody(int(frand() * 2) ? 0 : 1, 0.25f, 0.1f, 0.3f, int(frand() * 360), m); playQuiet(m, min(n, 6), 0.45f);
+            touchReact("自己: 哼小调", now, 2600, HAPPY, 0, -0.3f, 0.7f); break;
+    case 1: babble(1 - boredom); touchReact("自己: 自言自语", now, 2600, NEUTRAL, (frand() - 0.5f) * 0.8f, 0.3f, 0.95f); break;
+    case 2: tuneChirp(); touchReact("自己: 东张西望", now, 2400, NEUTRAL, 0, -0.2f, 1.1f, true); break;
+    case 3: n = familyMelody(3, 0.3f, 0.05f, 0.6f, int(frand() * 360), m); playQuiet(m, min(n, 5), 0.35f);
+            touchReact("自己: 发呆做白日梦", now, 4000, SLEEPY, -0.6f, -0.7f, 0.8f); break;
+    case 4: { Note s1 = vc(700, 0.95f, 0.65f, 1.0f, .2f, 0, 60, 380, 1.2f, 0.3f, 2.0f); playQuiet(&s1, 1, 0.5f); }
+            touchReact("自己: 叹气(好无聊)", now, 2400, SAD, 0, 0.5f, 0.75f); break;
+    case 5: tuneSneeze(); touchReact("自己: 打喷嚏", now, 1400, NEUTRAL, 0, 0.2f, 0.15f); break;
+    case 6: n = familyMelody(lastFam, 0.4f, 0.2f, 0.4f, 200, m); playQuiet(m, min(n, 6), 0.4f);
+            touchReact("自己: 想起刚才有人说的话", now, 3000, familyMood(lastFam), 0.5f, -0.5f, 0.85f); break;
+  }
+}
+
+
 void handleReply(uint32_t now) {
   Reply r = reply;
   if (r == R_NONE || r == R_PENDING) return;
@@ -812,7 +895,7 @@ void handleReply(uint32_t now) {
     Note m[MAX_NOTES];
     int n = familyMelody(rFam, rInt, rAgit, rGlow, rHue, m);
     playNotes(m, n);
-    replyMood = familyMood(rFam);
+    replyMood = familyMood(rFam); lastFam = rFam; lastFamAt = now;
     uint32_t len = 0;
     for (int i = 0; i < n; i++) len += m[i].ms;
     startAct(A_REPLY, now, len + 1800);
@@ -1000,7 +1083,9 @@ void loop() {
   }
 
   handleReply(now);
+  if (act == A_SLEEP && now > actUntil) { tuneWake(); energy = 1; Serial.println("自己: 睡醒了"); }   // woke up by itself
   if (act != A_IDLE && act != A_LISTEN && now > actUntil) act = A_IDLE;
+  innerLife(now, someoneNear, touched || act == A_LISTEN || claps > 0);
   // asleep: only a touch (or "wake up") wakes it — visitors walking past shouldn't
   if (act == A_SLEEP && touched && !prevTouch && now - actStart > 1500) { tuneWake(); act = A_IDLE; noticedAt = now; }
 
