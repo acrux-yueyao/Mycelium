@@ -1,0 +1,43 @@
+{
+ "size_mm": [
+  222.0,
+  137.4,
+  98.7
+ ],
+ "grams_pla": 316,
+ "plate": {
+  "x": [
+   54.0,
+   126.0
+  ],
+  "back": 44.0,
+  "front": 59.7,
+  "top": 95.7
+ },
+ "board": {
+  "wire_side": 57.7,
+  "component_gap_mm": 11.4,
+  "holes": [
+   [
+    70.0,
+    37.0
+   ],
+   [
+    110.0,
+    37.0
+   ],
+   [
+    70.0,
+    92.0
+   ],
+   [
+    110.0,
+    92.0
+   ]
+  ]
+ },
+ "overlap_with_robot_mm3": 0.0,
+ "drop_in_overlap_mm3": 0.0,
+ "board_overlap_mm3": 0.0,
+ "usb_gap_under_cap_free": true
+}
