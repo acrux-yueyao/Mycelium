@@ -38,7 +38,11 @@ INLAY_D = 0.5
 BOARD_FRONT_GAP = 4.5 + 0.8     # XIAO USB-C height + board thickness (board bottom this far behind the skin)
 # extra room in front of the board, shortening the standoffs by as much: the modules on the board front
 # (ToF, mic, PH sockets with their leads) stand taller than the XIAO's USB-C (argv[4], mm)
-POST_TRIM = float(sys.argv[4]) if len(sys.argv) > 4 else 0.0
+# 'flush': the board sits right on the door's rim — the standoffs end inside the door box and the
+# screws come in from the OUTER face (counterbored, hidden under a mosaic tile, nut on the board front)
+FLUSH = len(sys.argv) > 4 and sys.argv[4] == 'flush'
+POST_TRIM = 0.0 if FLUSH or len(sys.argv) <= 4 else float(sys.argv[4])
+SCREW_R, HEAD_R = 1.1, 2.15        # M2 clearance hole, pan-head counterbore
 
 
 def B(x0, y0, z0, x1, y1, z1):
@@ -83,10 +87,14 @@ def main(base, vdir, out):
             hexc = man['colors'][col['ci']] if col else man['colors'][0]
             tiles[(x, y)] = snap(hexc)['id']
     dom = max(set(tiles.values()), key=list(tiles.values()).count)
+    cxm, czm = (tx + 3.5) * P, (ty + 4) * P
+    HOLES = ((cxm - 20, czm - 23), (cxm + 20, czm - 23), (cxm - 20, czm + 32), (cxm + 20, czm + 32))
+    cover = {(int((hx + dx) // P), int((hz + dz) // P)) for hx, hz in HOLES       # every tile a screw head touches
+             for dx in (-HEAD_R, HEAD_R) for dz in (-HEAD_R, HEAD_R)} if FLUSH else set()
     for (x, y), fid in tiles.items():
         cx0, cx1 = x * P + TILE_GAP / 2, (x + 1) * P - TILE_GAP / 2
         cz0, cz1 = y * P + TILE_GAP / 2, (y + 1) * P - TILE_GAP / 2
-        if fid != dom:
+        if fid != dom or (x, y) in cover:
             cuts.append(B(cx0 - 0.08, y0 - 1, cz0 - 0.08, cx1 + 0.08, y0 + INLAY_D, cz1 + 0.08))   # pocket
     # grooves between tiles (both directions) on the outer face
     for x in range(tx + 1, tx + 7):
@@ -124,19 +132,22 @@ def main(base, vdir, out):
             pocket_h = (zw, zw - sgn * MAG_D)
             cuts.append(cyl(2, (cx, ym), MAG_R, min(pocket_h) - (1 if sgn < 0 else 0), max(pocket_h) + (1 if sgn > 0 else 0)))
     # ---- board standoffs: board holes are 40×55 about the cavity centre
-    cxm, czm = (tx + 3.5) * P, (ty + 4) * P
     skin_rear = SKIN * P
-    board_bottom = skin_rear - BOARD_FRONT_GAP - POST_TRIM
-    for hx, hz in ((cxm - 20, czm - 23), (cxm + 20, czm - 23), (cxm - 20, czm + 32), (cxm + 20, czm + 32)):
+    board_bottom = y1 if FLUSH else skin_rear - BOARD_FRONT_GAP - POST_TRIM
+    for hx, hz in HOLES:
         adds.append(cyl(1, (hx, hz), 3.0, y0 + BACK - 0.01, board_bottom))
-        cuts.append(cyl(1, (hx, hz), 0.85, board_bottom - 6, board_bottom + 1))
+        if FLUSH:                                   # through hole, head sunk below the tile pocket
+            cuts.append(cyl(1, (hx, hz), SCREW_R, y0 - 1, board_bottom + 1))
+            cuts.append(cyl(1, (hx, hz), HEAD_R, y0 - 1, y0 + INLAY_D + 1.5))
+        else:
+            cuts.append(cyl(1, (hx, hz), 0.85, board_bottom - 6, board_bottom + 1))
     door = trimesh.boolean.union([body] + adds)
     door = trimesh.boolean.difference([door] + cuts)
     assert door.is_watertight
     # inlay tiles per colour (flush: thickness = pocket depth)
     tile_meshes = {}
     for (x, y), fid in tiles.items():
-        if fid == dom:
+        if fid == dom and (x, y) not in cover:
             continue
         cx0, cx1 = x * P + TILE_GAP / 2, (x + 1) * P - TILE_GAP / 2
         cz0, cz1 = y * P + TILE_GAP / 2, (y + 1) * P - TILE_GAP / 2
