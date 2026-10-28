@@ -40,7 +40,10 @@ BOARD_FRONT_GAP = 4.5 + 0.8     # XIAO USB-C height + board thickness (board bot
 # (ToF, mic, PH sockets with their leads) stand taller than the XIAO's USB-C (argv[4], mm)
 # 'flush': the board sits right on the door's rim — the standoffs end inside the door box and the
 # screws come in from the OUTER face (counterbored, hidden under a mosaic tile, nut on the board front)
-FLUSH = len(sys.argv) > 4 and sys.argv[4] == 'flush'
+# 'holes': no standoffs at all — four M2 through-holes in the back (a 2 mm ring inside so the sunk head
+# keeps some wall); the board hangs on the screws themselves (nuts set its height)
+FLUSH = len(sys.argv) > 4 and sys.argv[4] in ('flush', 'holes')
+NOPOST = len(sys.argv) > 4 and sys.argv[4] == 'holes'
 POST_TRIM = 0.0 if FLUSH or len(sys.argv) <= 4 else float(sys.argv[4])
 SCREW_R, HEAD_R = 1.1, 2.15        # M2 clearance hole, pan-head counterbore
 
@@ -135,9 +138,9 @@ def main(base, vdir, out):
     skin_rear = SKIN * P
     board_bottom = y1 if FLUSH else skin_rear - BOARD_FRONT_GAP - POST_TRIM
     for hx, hz in HOLES:
-        adds.append(cyl(1, (hx, hz), 3.0, y0 + BACK - 0.01, board_bottom))
+        adds.append(cyl(1, (hx, hz), 3.0, y0 + BACK - 0.01, y0 + BACK + 2.0 if NOPOST else board_bottom))
         if FLUSH:                                   # through hole, head sunk below the tile pocket
-            cuts.append(cyl(1, (hx, hz), SCREW_R, y0 - 1, board_bottom + 1))
+            cuts.append(cyl(1, (hx, hz), SCREW_R, y0 - 1, y1 + 1))
             cuts.append(cyl(1, (hx, hz), HEAD_R, y0 - 1, y0 + INLAY_D + 1.5))
         else:
             cuts.append(cyl(1, (hx, hz), 0.85, board_bottom - 6, board_bottom + 1))
@@ -162,7 +165,7 @@ def main(base, vdir, out):
         t.apply_transform(TM(-t.bounds[0])); t.export(f'{out}/door_tiles_{fid}.stl')
     spec = {'outer_mm': [round(x1 - x0, 1), round(z1 - z0, 1), round(y1 - y0, 1)], 'dominant': dom,
             'tiles': {f'{x},{y}': fid for (x, y), fid in tiles.items()}, 'anchors': len(anchors),
-            'standoff_mm': round(board_bottom - (y0 + BACK), 1)}
+            'standoff_mm': 0 if NOPOST else round(board_bottom - (y0 + BACK), 1)}
     json.dump(spec, open(f'{out}/door_spec.json', 'w'), indent=1)
     print(f"door {spec['outer_mm']} mm · body {dom} · inlays {dict((f, len(m)) for f, m in tile_meshes.items())} · "
           f"anchors {len(anchors)} · standoffs {spec['standoff_mm']} mm · {door.volume/1000*1.24:.0f} g")
