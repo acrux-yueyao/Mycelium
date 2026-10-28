@@ -559,6 +559,44 @@ float blinkAmt(uint32_t now) {
   return ph < 0.45f ? 1.0f - ph / 0.45f : (ph - 0.45f) / 0.55f;
 }
 
+// Each eye shows through a window two mosaic cells wide and one tall (the frame's two open cells),
+// so the screen is split at EYE_SPLIT_X into a left and a right cell. EYE_MOSAIC 0 = the old round eyes.
+#ifndef EYE_MOSAIC
+#define EYE_MOSAIC 1
+#endif
+#ifndef EYE_SPLIT_X
+#define EYE_SPLIT_X 64          // screen column under the line between the two cells
+#endif
+#if EYE_MOSAIC
+// Same eye as the spores on the website (fieldRender.ts): two white cells, and a black pupil exactly one
+// cell big that slides between them with the gaze — fully in the left cell looking left, fully in the
+// right cell looking right. Lids cut straight across (mosaic, no curves).
+void drawEye(Adafruit_SSD1306 &d, int sign, float breath, float open_) {
+  d.clearDisplay();
+  const int CW = EYE_SPLIT_X;                                            // one cell, in screen pixels
+  int h = int(64 * open_ * (0.97f + 0.03f * breath));
+  if (h > 64) h = 64;
+  int cy = 32;
+  if (h < 6) {                                                           // closed: a short bar across both cells
+    d.fillRect(0, cy - 2, 2 * CW, 4, SSD1306_WHITE); d.display(); return;
+  }
+  int top = cy - h / 2;
+  d.fillRect(0, top, 2 * CW, h, SSD1306_WHITE);                          // the two white cells
+  float gz = mood == DIZZY ? sinf(millis() / 120.0f) : clampf(px, -1, 1);
+  int x = int((gz * 0.5f + 0.5f) * CW);
+  d.fillRect(x, top, CW, h, SSD1306_BLACK);                              // pupil: one whole cell
+  if (mood == HAPPY)  d.fillRect(0, cy + h / 6, 128, 64, SSD1306_BLACK);            // cheeks push up
+  if (mood == SLEEPY) d.fillRect(0, 0, 128, top + int(h * 0.45f), SSD1306_BLACK);   // heavy lids
+  if (mood == SAD || mood == ANGRY) {                                    // slanted lid, one step per cell
+    bool outerHigh = (mood == SAD) == (sign > 0);
+    for (int c = 0; c < 2; c++) {
+      bool high = (c == 1) == outerHigh;
+      d.fillRect(c * CW, 0, CW, top + (high ? h / 5 : h / 2), SSD1306_BLACK);
+    }
+  }
+  d.display();
+}
+#else
 void drawEye(Adafruit_SSD1306 &d, int sign, float breath, float open_) {
   d.clearDisplay();
   int w = int(96 * breath), h = int(52 * breath * open_);
@@ -582,6 +620,8 @@ void drawEye(Adafruit_SSD1306 &d, int sign, float breath, float open_) {
   }
   d.display();
 }
+
+#endif
 
 #if USE_TOF
 void calibrate() {
