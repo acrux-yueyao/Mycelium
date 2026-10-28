@@ -28,13 +28,13 @@ from trimesh.transformations import translation_matrix as TM
 P = 12.0
 CLR = 0.3            # robot-to-station clearance
 SLAB = 3.0           # solid floor under everything (z -SLAB .. 0)
-GROUND = 3.0         # tile top in the robot zone; the floor cubes sit in a GROUND-deep pocket
+GROUND = 12.0 - 0.3  # base top under the body: the whole floor layer (8 cubes) sinks into its pockets
 GAP = 0.8            # mosaic groove width
 MARGIN = 2           # cubes of forest on every side of the robot
-PLATE_BACK = 44.0    # back face of the plate (the free layer behind the body is 48..60; 44 still clears the cap)
-POCKET_FLOOR = 1.5   # plate skin behind the board pocket
+PLATE_BACK = 48.0    # back plate = exactly the one free cube layer behind the body (48..60)
+POCKET_FLOOR = 1.2   # plate skin behind the board pocket
 BOARD_T = 0.8
-BOARD_SINK = 2.0     # board's wire side this far behind the plate front (solder joints don't scrape the body)
+BOARD_SINK = 1.0     # board's wire side this far behind the plate front (solder joints don't scrape the body)
 PILOT_R = 0.85       # M2 self-tapping pilot
 BOSS_R = 2.6
 
@@ -105,13 +105,22 @@ def main(base_p, vdir, out):
                 continue
             inside = bx0 <= x <= bx1 and bz0 <= z <= bz1
             d = max(bx0 - x, x - bx1, bz0 - z, z - bz1, 0)
-            h = GROUND if inside else GROUND + 1.5 * d + 1.5 * int(hash01(x, z) * 3)
+            h = GROUND if inside else GROUND + 3 * d + 3 * int(hash01(x, z) * 3)     # forest rises round the dip
             if (x, z) in lowest:
                 h = min(h, lowest[(x, z)] * P - CLR)
             heights[(x, z)] = h
             parts.append(B(x * P + GAP / 2, z * P + GAP / 2, -0.01, (x + 1) * P - GAP / 2, (z + 1) * P - GAP / 2, h))
-    # ---- back plate (fills the grooves under it) with the board pocket and M2 bosses
-    parts.append(B(px0, PLATE_BACK, -0.01, px1, front, top))
+    # ---- back plate (fills the grooves under it): full height behind the door hole, stepping down
+    # cube by cube to the sides like a little pixel hill; mosaic grooves on its back face
+    steps = {}
+    for x in range(tx - 3, tx + 10):
+        h = top if tx + 1 <= x <= tx + 5 else top - P * (2 * max(tx + 1 - x, x - tx - 5)) + P
+        if h < GROUND + P or any((x, y, z) in K for z in (zb - 1,) for y in range(int(h // P) + 1)):
+            continue
+        steps[x] = h
+        parts.append(B(x * P, PLATE_BACK, -0.01, (x + 1) * P, front, h))
+    groove = [B(x * P - GAP / 2, PLATE_BACK - 1, GROUND, x * P + GAP / 2, PLATE_BACK + 0.6, top + 1) for x in range(tx - 2, tx + 10)]
+    groove += [B((tx - 3) * P, PLATE_BACK - 1, y * P - GAP / 2, (tx + 10) * P, PLATE_BACK + 0.6, y * P + GAP / 2) for y in range(2, ty + 8)]
     cxm, czm = (tx + 3.5) * P, (ty + 4) * P
     holes = ((cxm - 20, czm - 23), (cxm + 20, czm - 23), (cxm - 20, czm + 32), (cxm + 20, czm + 32))
     pk_back = PLATE_BACK + POCKET_FLOOR
@@ -119,7 +128,7 @@ def main(base_p, vdir, out):
     board_comp = board_wire - BOARD_T                       # component side (faces the pocket floor)
     # pocket, open at top + front: 2 mm wider than the door hole per side and 2 mm below it, so the JST
     # cables (eyes, ToF, amp, LED) can come round the board edges into the cavity
-    cuts = [B(hx0 - 2, pk_back, (ty + 1) * P - 2, hx1 + 2, front + 1, top + 1)]
+    cuts = groove + [B(hx0 - 2, pk_back, (ty + 1) * P - 2, hx1 + 2, front + 1, top + 1)]
     bosses = []
     for hx, hz in holes:
         bosses.append(cyl(1, (hx, hz), BOSS_R, pk_back - 0.01, board_comp))
@@ -132,6 +141,9 @@ def main(base_p, vdir, out):
     for (x, z), s, tall in spots:
         cx, cy = (x + 0.5) * P, (z + 0.5) * P
         deco += mushroom(cx, cy, heights[(x, z)], s, tall)
+    for x, h in steps.items():                               # small mushrooms on the plate's lower steps
+        if h < top - 1:
+            deco += mushroom((x + 0.5) * P, (PLATE_BACK + front) / 2, h, 2.0, 2 + (x % 2))
     for x in range(bx0 - MARGIN, bx1 + 1 + MARGIN):
         for z in range(bz0 - MARGIN, bz1 + 1 + MARGIN):
             if (x, z) in heights and not (bx0 <= x <= bx1 and bz0 <= z <= bz1) and hash01(z, x, 7) < 0.35 \
@@ -144,8 +156,10 @@ def main(base_p, vdir, out):
     # floor pocket (tiles already skip the floor cells; this squares the walls with clearance)
     for (x, z) in floor:
         cuts.append(B(x * P - CLR, z * P - CLR, 0, (x + 1) * P + CLR, (z + 1) * P + CLR, GROUND + 5))
-    for (x, z) in grille:
-        cuts.append(cyl(2, ((x + 0.5) * P, (z + 0.5) * P), 4.5, -SLAB - 1, 1))
+    for (x, z) in grille:                                    # speaker: hole down, then a channel out the side
+        cx, cy = (x + 0.5) * P, (z + 0.5) * P
+        cuts.append(cyl(2, (cx, cy), 4.5, -SLAB - 1, 1))
+        cuts.append(B((bx0 - MARGIN) * P - 1, cy - 4, -SLAB - 1, cx, cy + 4, -SLAB + 2.5))
     st = trimesh.boolean.difference([st] + cuts + cuts_after, engine='manifold')
     assert st.is_watertight
     # ---- fit check: nothing of the station inside any cube of the robot
@@ -159,13 +173,14 @@ def main(base_p, vdir, out):
     sw = trimesh.boolean.intersection([st, sweep], engine='manifold')
     sw_v = sw.volume if len(sw.faces) else 0.0
     # board (56 × 68, top edge 3 mm above the top holes — hardware/pcb/facebrd_gen.py) + 9 mm of parts behind it
-    brd = B(cxm - 28 + 0.05, board_comp - 9 + 0.05, czm - 33 + 0.05, cxm + 28 - 0.05, board_wire - 0.05, czm + 35 - 0.05)
+    brd = B(cxm - 28 + 0.05, board_comp - 8.5 + 0.05, czm - 33 + 0.05, cxm + 28 - 0.05, board_wire - 0.05, czm + 35 - 0.05)
     bh = trimesh.boolean.intersection([st, brd], engine='manifold')
     board_hit = round(bh.volume if len(bh.faces) else 0.0, 2)
     usb = (7, 8, 4) not in K and (7, 9, 4) not in K and (7, 8, 3) not in K
     os.makedirs(out, exist_ok=True)
+    st.export(f'{out}/station_meshframe.stl')
     pr = st.copy(); pr.apply_translation(-pr.bounds[0]); pr.export(f'{out}/station.stl')
-    spec = {'size_mm': [round(v, 1) for v in pr.extents], 'grams_pla': round(st.volume / 1000 * 1.24),
+    spec = {'size_mm': [round(v, 1) for v in pr.extents], 'solid_grams': round(st.volume / 1000 * 1.24),
             'plate': {'x': [px0, px1], 'back': PLATE_BACK, 'front': front, 'top': top},
             'board': {'wire_side': board_wire, 'component_gap_mm': round(board_comp - pk_back, 1), 'holes': holes},
             'overlap_with_robot_mm3': round(hit_v, 2), 'drop_in_overlap_mm3': round(sw_v, 2),
@@ -229,7 +244,7 @@ def preview(st, K, man, path):
         robot.append((B(x * P + 0.3, z * P + 0.3, y * P + 0.3, (x + 1) * P - 0.3, (z + 1) * P - 0.3, (y + 1) * P - 0.3),
                       matplotlib.colors.to_rgb(man['colors'][c['ci']]), 1.0))
     views = (('休息站 · 从背后左上看(背板凹槽装主板)', [(st, pearl, 1)], 35, 215),
-             ('休息站 · 从前面看(底部凹位卡住 8 颗白色底块)', [(st, pearl, 1)], 40, 25),
+             ('休息站 · 从前面看(中间下凹,挖出 8 颗白色底块的坑)', [(st, pearl, 1)], 40, 25),
              ('放上 Moony · 从背后看', [(st, pearl, 1)] + robot, 20, 200))
     fig, ax = plt.subplots(1, 3, figsize=(21, 7), facecolor='#f6f5f0')
     for a, (title, ms, el, az) in zip(ax, views):
