@@ -452,6 +452,7 @@ constexpr uint32_t HOLD_MS = 700, LONELY_MS = 20000;
 constexpr uint32_t REUNION_AFTER_MS = 60000;      // alone this long → chime when someone comes back
 constexpr int CLAP_LEVEL = 24000;
 int rangeMM = 9999, bgMM = 9999, nearGate = NEAR_MM;
+bool peekCovered = false;            // something right over the ToF window (peekaboo)
 uint32_t lastRangePoll = 0, lastPresence = 0, noticedAt = 0, leftAt = 0, lastReunion = 0;
 bool wasNear = false, moodFromPresence = false, debugRange = false;
 uint32_t lastDbg = 0;
@@ -771,7 +772,15 @@ void handleTouch(uint16_t cur, uint16_t prev, uint32_t now) {
     }
     // ---- short taps, on release
     if (!on && was && dur < 600 && !padHoldFired[i]) {
-      if (i == P_TOP) { lastReact = now; tunePat(); touchReact("拍拍头", now, 1200, HAPPY, 0, -0.2f, 0.75f); }
+      if (i == P_TOP) {
+        static uint32_t pats[5] = {0};
+        for (int j = 4; j > 0; j--) pats[j] = pats[j - 1];
+        pats[0] = now; lastReact = now;
+        if (pats[4] && now - pats[4] < 15000) {                    // fifth pat in 15 s: melts
+          memset(pats, 0, sizeof(pats)); tuneReunion();
+          touchReact("被摸了好多下(好开心)", now, 3000, HAPPY, 0, -0.1f, 0.55f);
+        } else { tunePat(); touchReact("拍拍头", now, 1200, HAPPY, 0, -0.2f, 0.75f); }
+      }
       else if (i == P_FOREHEAD) { lastReact = now; tuneHm(); blinkStart = now; doubleBlink = true;
                                   touchReact("点额头", now, 1000, NEUTRAL, 0, -0.7f); }
       else if (i == P_BACK) { lastReact = now; tunePat(); touchReact("拍拍背", now, 1200, HAPPY, 0, 0.1f, 0.8f); }
@@ -936,9 +945,59 @@ void loop() {
   if (act != A_LISTEN && act != A_THINK && act != A_SLEEP) handleTouch(touched & ~(talkHeld && now - touchStart > TALK_HOLD_MS ? TALK_ELECTRODES : 0), prevTouch, now);
 
   // clap → startle (only when quiet ourselves)
-  static uint32_t clapAt = 0;
-  if (act == A_IDLE && !playing && micLevel > CLAP_LEVEL && now - clapAt > 1500) { clapAt = now; noticedAt = now; tuneStartle(); }
+  // claps: one clap startles it; clap 2–4 times and it chirps back the same number
+  static uint32_t clapAt = 0, clapPeakAt = 0;
+  static int claps = 0;
+  static bool clapHigh = false;
+  bool loud = micLevel > CLAP_LEVEL;
+  if (act == A_IDLE && !playing && loud && !clapHigh && now - clapPeakAt > 150) {
+    if (!claps) noticedAt = now;                                  // eyes pop open at the first one
+    claps++; clapPeakAt = now;
+  }
+  clapHigh = loud;
+  if (claps && now - clapPeakAt > 900) {
+    if (claps == 1) { clapAt = now; tuneStartle(); }
+    else {
+      Note sq[8]; int k = 0, n = min(claps, 4);
+      for (int i = 0; i < n; i++) { sq[k++] = vc(90, 1.2f + 0.12f * i, 1.5f + 0.12f * i, 0, .5f, 1, 0, 70); sq[k++] = rest(170); }
+      playNotes(sq, k);
+      touchReact("拍手 → 跟着叫回去", now, 400 + 260 * n, HAPPY, 0, -0.35f, 1.15f);
+    }
+    claps = 0;
+  }
   bool clapped = now - clapAt < 600 && clapAt != 0;
+  static uint32_t lastTouchAny = 0;
+  if (touched) lastTouchAny = now;
+#if USE_TOF
+  // peekaboo: cover its "eye" (the ToF window) for a moment, then take your hand away
+  static uint32_t coverStart = 0;
+  if (hasTof) {
+    bool veryClose = rangeMM < 60;
+    if (veryClose && !peekCovered) { peekCovered = true; coverStart = now; }
+    if (!veryClose && peekCovered) {
+      peekCovered = false;
+      uint32_t held = now - coverStart;
+      if (held > 700 && held < 8000 && (act == A_IDLE || act == A_TOUCH)) { tuneBoop(); touchReact("躲猫猫,找到你了!", now, 1600, HAPPY, 0, 0, 1.3f); }
+    }
+  }
+#endif
+  // someone has been standing there a while without touching it: it says hello first
+  static uint32_t nearSince = 0, lastAsk = 0;
+  if (!someoneNear) nearSince = 0; else if (!nearSince) nearSince = now;
+  if (nearSince && now - nearSince > 25000 && now - lastTouchAny > 25000 && now - lastAsk > 60000 && act == A_IDLE && !playing) {
+    lastAsk = now; tuneHello(); touchReact("一直看着我 → 先打招呼", now, 2200, HAPPY, 0, 0.1f, 1.1f);
+  }
+  // rocked gently side to side (not shaken): it enjoys the ride
+  static int rockSide = 0, rocks = 0;
+  static uint32_t rockAt = 0;
+  if (hasMpu && !jolted && !upsideDown) {
+    int side = tiltX > 0.3f ? 1 : (tiltX < -0.3f ? -1 : 0);
+    if (side && side != rockSide) {
+      if (rockSide) { rocks = (now - rockAt < 1300) ? rocks + 1 : 1; rockAt = now; }
+      rockSide = side;
+    }
+    if (rocks >= 3 && act == A_IDLE && !playing) { rocks = 0; tuneHappy(); touchReact("左右摇一摇(好玩)", now, 1500, HAPPY, 0, 0.2f, 0.8f); }
+  }
 
   handleReply(now);
   if (act != A_IDLE && act != A_LISTEN && now > actUntil) act = A_IDLE;
@@ -1028,6 +1087,7 @@ void loop() {
   else if (mood == SLEEPY) open_ *= 0.72f;
   if (act == A_LISTEN || act == A_LOOK) open_ *= 1.12f;
   if (act == A_TOUCH) open_ *= touchOpen;
+  if (peekCovered && act == A_IDLE) open_ *= 0.08f;                  // hiding behind your hand too
   if (startled || jolted || clapped) open_ *= 1.18f;
   if (justLeft) open_ *= 0.80f;
 
