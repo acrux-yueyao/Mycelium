@@ -42,9 +42,16 @@ BOARD_FRONT_GAP = 4.5 + 0.8     # XIAO USB-C height + board thickness (board bot
 # screws come in from the OUTER face (counterbored, hidden under a mosaic tile, nut on the board front)
 # 'holes': no standoffs at all — four M2 through-holes in the back (a 2 mm ring inside so the sunk head
 # keeps some wall); the board hangs on the screws themselves (nuts set its height)
+# 'pod': a deeper back pod instead of a flat door — the ring part is the same, behind it the box grows
+# POD_EXT mm outward and down to the base, so the board sits lower (room for a USB-C plug above the
+# XIAO) with its cable leaving through a slot in the back. The board hangs on short posts.
+POD = len(sys.argv) > 4 and sys.argv[4] == 'pod'
+POD_EXT, POD_BOTTOM = 24.0, 2.7          # extra depth behind the ring; pod floor height (base top 2.5)
+POD_BOARD_BACK = 14.0                    # board back this far in front of the pod's back face
+POD_DROP = 12.0                          # board sits this much lower than in the cavity
 FLUSH = len(sys.argv) > 4 and sys.argv[4] in ('flush', 'holes')
 NOPOST = len(sys.argv) > 4 and sys.argv[4] == 'holes'
-POST_TRIM = 0.0 if FLUSH or len(sys.argv) <= 4 else float(sys.argv[4])
+POST_TRIM = 0.0 if FLUSH or POD or len(sys.argv) <= 4 else float(sys.argv[4])
 SCREW_R, HEAD_R = 1.1, 2.15        # M2 clearance hole, pan-head counterbore
 
 
@@ -76,8 +83,14 @@ def main(base, vdir, out):
     x0, x1 = (tx + 1) * P + CLR, (tx + 6) * P - CLR
     z0, z1 = (ty + 1) * P + CLR, (ty + 7) * P - CLR
     y0, y1 = zb * P, (zb + 1) * P                       # back face at y0, open toward +y
-    body = B(x0, y0, z0, x1, y1, z1)
-    body = trimesh.boolean.difference([body, B(x0 + WALL, y0 + BACK, z0 + WALL, x1 - WALL, y1 + 1, z1 - WALL)])
+    yo = y0 - POD_EXT if POD else y0                    # outer (back) face
+    if POD:
+        body = trimesh.boolean.union([B(x0, y0, z0, x1, y1, z1), B(x0, yo, POD_BOTTOM, x1, y0 + 0.01, z1)])
+        body = trimesh.boolean.difference([body, B(x0 + WALL, y0 - 1, z0 + WALL, x1 - WALL, y1 + 1, z1 - WALL),
+                                           B(x0 + WALL, yo + BACK, POD_BOTTOM + WALL, x1 - WALL, y0 + 0.5, z1 - WALL)])
+    else:
+        body = B(x0, y0, z0, x1, y1, z1)
+        body = trimesh.boolean.difference([body, B(x0 + WALL, y0 + BACK, z0 + WALL, x1 - WALL, y1 + 1, z1 - WALL)])
     cuts, adds = [], []
     # ---- tiles on the outer face (y0): grooves + colour inlays
     fil = load_filaments(); flab = np.array([_lab(f['hex']) for f in fil])
@@ -98,15 +111,17 @@ def main(base, vdir, out):
         cx0, cx1 = x * P + TILE_GAP / 2, (x + 1) * P - TILE_GAP / 2
         cz0, cz1 = y * P + TILE_GAP / 2, (y + 1) * P - TILE_GAP / 2
         if fid != dom or (x, y) in cover:
-            cuts.append(B(cx0 - 0.08, y0 - 1, cz0 - 0.08, cx1 + 0.08, y0 + INLAY_D, cz1 + 0.08))   # pocket
+            cuts.append(B(cx0 - 0.08, yo - 1, cz0 - 0.08, cx1 + 0.08, yo + INLAY_D, cz1 + 0.08))   # pocket
     # grooves between tiles (both directions) on the outer face
+    zb0 = POD_BOTTOM if POD else z0
     for x in range(tx + 1, tx + 7):
-        cuts.append(B(x * P - TILE_GAP / 2, y0 - 1, z0 - 1, x * P + TILE_GAP / 2, y0 + GROOVE, z1 + 1))
-    for y in range(ty + 1, ty + 8):
-        cuts.append(B(x0 - 1, y0 - 1, y * P - TILE_GAP / 2, x1 + 1, y0 + GROOVE, y * P + TILE_GAP / 2))
+        cuts.append(B(x * P - TILE_GAP / 2, yo - 1, zb0 - 1, x * P + TILE_GAP / 2, yo + GROOVE, z1 + 1))
+    for y in range(int(zb0 // P) + 1 if POD else ty + 1, ty + 8):
+        cuts.append(B(x0 - 1, yo - 1, y * P - TILE_GAP / 2, x1 + 1, yo + GROOVE, y * P + TILE_GAP / 2))
     # finger notch, bottom edge centre of the outer face
     mx = (x0 + x1) / 2
-    cuts.append(B(mx - 7, y0 - 1, z0 - 1, mx + 7, y0 + 3.0, z0 + 2.5))
+    if not POD:
+        cuts.append(B(mx - 7, y0 - 1, z0 - 1, mx + 7, y0 + 3.0, z0 + 2.5))
     # ---- door anchors: pocket + pins/dimples on the side walls toward the ring cubes
     anchors = [c for c in man['cells'] if c.get('tag') == 'door']
     from seq_plates import build_order
@@ -137,8 +152,13 @@ def main(base, vdir, out):
     # ---- board standoffs: board holes are 40×55 about the cavity centre
     skin_rear = SKIN * P
     board_bottom = y1 if FLUSH else skin_rear - BOARD_FRONT_GAP - POST_TRIM
+    if POD:
+        board_bottom = yo + POD_BOARD_BACK
+        HOLES = tuple((hx, hz - POD_DROP) for hx, hz in HOLES)
+        # cable slot high in the back: the plug turns back above the board and leaves straight out
+        cuts.append(B(mx - 8, yo - 1, z1 - WALL - 11, mx + 8, yo + BACK + 1, z1 - WALL - 1))
     for hx, hz in HOLES:
-        adds.append(cyl(1, (hx, hz), 3.0, y0 + BACK - 0.01, y0 + BACK + 2.0 if NOPOST else board_bottom))
+        adds.append(cyl(1, (hx, hz), 3.0, yo + BACK - 0.01, yo + BACK + 2.0 if NOPOST else board_bottom))
         if FLUSH:                                   # through hole, head sunk below the tile pocket
             cuts.append(cyl(1, (hx, hz), SCREW_R, y0 - 1, y1 + 1))
             cuts.append(cyl(1, (hx, hz), HEAD_R, y0 - 1, y0 + INLAY_D + 1.5))
@@ -165,7 +185,7 @@ def main(base, vdir, out):
         t.apply_transform(TM(-t.bounds[0])); t.export(f'{out}/door_tiles_{fid}.stl')
     spec = {'outer_mm': [round(x1 - x0, 1), round(z1 - z0, 1), round(y1 - y0, 1)], 'dominant': dom,
             'tiles': {f'{x},{y}': fid for (x, y), fid in tiles.items()}, 'anchors': len(anchors),
-            'standoff_mm': 0 if NOPOST else round(board_bottom - (y0 + BACK), 1)}
+            'standoff_mm': 0 if NOPOST else round(board_bottom - (yo + BACK), 1)}
     json.dump(spec, open(f'{out}/door_spec.json', 'w'), indent=1)
     print(f"door {spec['outer_mm']} mm · body {dom} · inlays {dict((f, len(m)) for f, m in tile_meshes.items())} · "
           f"anchors {len(anchors)} · standoffs {spec['standoff_mm']} mm · {door.volume/1000*1.24:.0f} g")
