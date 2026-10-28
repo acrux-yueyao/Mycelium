@@ -45,8 +45,12 @@ BOARD_FRONT_GAP = 4.5 + 0.8     # XIAO USB-C height + board thickness (board bot
 # 'pod': a deeper back pod instead of a flat door — the ring part is the same, behind it the box grows
 # POD_EXT mm outward and down to the base, so the board sits lower (room for a USB-C plug above the
 # XIAO) with its cable leaving through a slot in the back. The board hangs on short posts.
-POD = len(sys.argv) > 4 and sys.argv[4] == 'pod'
-POD_EXT, POD_BOTTOM = 24.0, 2.7          # extra depth behind the ring; pod floor height (base top 2.5)
+POD = len(sys.argv) > 4 and sys.argv[4] in ('pod', 'podbase')
+# 'podbase': pod and base in one print — the pod reaches the floor and a flat plate runs forward under
+# the body (no recess: the body slides back onto it as the pod goes into the ring), with side rails
+PODBASE = len(sys.argv) > 4 and sys.argv[4] == 'podbase'
+POD_EXT, POD_BOTTOM = 24.0, (0.0 if PODBASE else 2.7)   # extra depth behind the ring; pod floor height
+PLATE_T, RAIL_H, RAIL_W = 3.0, 3.0, 2.0
 POD_BOARD_BACK = 14.0                    # board back this far in front of the pod's back face
 POD_DROP = 12.0                          # board sits this much lower than in the cavity
 FLUSH = len(sys.argv) > 4 and sys.argv[4] in ('flush', 'holes')
@@ -157,6 +161,16 @@ def main(base, vdir, out):
         HOLES = tuple((hx, hz - POD_DROP) for hx, hz in HOLES)
         # cable slot high in the back: the plug turns back above the board and leaves straight out
         cuts.append(B(mx - 8, yo - 1, z1 - WALL - 11, mx + 8, yo + BACK + 1, z1 - WALL - 1))
+    if PODBASE:
+        foot = [(c['x'], c['z']) for c in man['cells'] if c['y'] == 0]
+        fx0, fx1 = min(x for x, _ in foot) * P, (max(x for x, _ in foot) + 1) * P
+        fz1 = (max(z for _, z in foot) + 1) * P
+        adds.append(B(min(x0, fx0 - RAIL_W) - 0.01, yo, -PLATE_T, max(x1, fx1 + RAIL_W), fz1 + 4, 0.01))   # plate
+        for xa, xb in ((fx0 - 0.3 - RAIL_W, fx0 - 0.3), (fx1 + 0.3, fx1 + 0.3 + RAIL_W)):                # rails
+            adds.append(B(xa, zb * P - 0.01, -0.01, xb, fz1 + 4, RAIL_H))
+        for c in man['cells']:                                                    # under the speaker grille
+            if c['y'] == 0 and c['code'][0] == 'G':
+                cuts.append(cyl(2, ((c['x'] + 0.5) * P, (c['z'] + 0.5) * P), 4.5, -PLATE_T - 1, 1))
     for hx, hz in HOLES:
         adds.append(cyl(1, (hx, hz), 3.0, yo + BACK - 0.01, yo + BACK + 2.0 if NOPOST else board_bottom))
         if FLUSH:                                   # through hole, head sunk below the tile pocket
