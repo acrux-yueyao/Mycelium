@@ -13,7 +13,7 @@ skin. Held by 8 magnets (no pins: it slides in from the back) on the 8 door-anch
 Built in the cube mesh frame (x, front, up) so it prints and mirrors
 exactly like the cubes. Prints outer face DOWN, no supports.
 
-Usage: python3 hardware/door_gen.py <base.json> <variants_dir> <out_dir>
+Usage: python3 hardware/door_gen.py <base.json> <variants_dir> <out_dir> [post_trim_mm]
 Writes door_body_<colour>.stl, door_tiles_<colour>.stl, door_preview.png
 """
 import json
@@ -36,6 +36,9 @@ BOSS = 1.6           # local thickening behind each magnet pocket
 TILE_GAP, GROOVE = 0.6, 0.4
 INLAY_D = 0.5
 BOARD_FRONT_GAP = 4.5 + 0.8     # XIAO USB-C height + board thickness (board bottom this far behind the skin)
+# extra room in front of the board, shortening the standoffs by as much: the modules on the board front
+# (ToF, mic, PH sockets with their leads) stand taller than the XIAO's USB-C (argv[4], mm)
+POST_TRIM = float(sys.argv[4]) if len(sys.argv) > 4 else 0.0
 
 
 def B(x0, y0, z0, x1, y1, z1):
@@ -123,7 +126,7 @@ def main(base, vdir, out):
     # ---- board standoffs: board holes are 40×55 about the cavity centre
     cxm, czm = (tx + 3.5) * P, (ty + 4) * P
     skin_rear = SKIN * P
-    board_bottom = skin_rear - BOARD_FRONT_GAP
+    board_bottom = skin_rear - BOARD_FRONT_GAP - POST_TRIM
     for hx, hz in ((cxm - 20, czm - 23), (cxm + 20, czm - 23), (cxm - 20, czm + 32), (cxm + 20, czm + 32)):
         adds.append(cyl(1, (hx, hz), 3.0, y0 + BACK - 0.01, board_bottom))
         cuts.append(cyl(1, (hx, hz), 0.85, board_bottom - 6, board_bottom + 1))
