@@ -8,12 +8,12 @@ board, charging through the gap under the cap.
     bottom can no longer wobble or slide. Round the dip, whole cubes stacked 0-2 high with a few
     smaller cubes on top — cubes only. The pit is open right through: the floor cubes stand on the
     table (speaker grille included), the base is exactly one cube tall around them.
-  · back U: one cube thick, in the free layer behind the body (creature z = 4, under the cap): two posts
-    either side of the door hole up to just under the cap (96 mm, the old cavity height) and a bar
-    along the bottom, open in the middle. Its front is flush with the body's back plane, so the robot
-    drops in from above. The board hangs on 4 thin tabs with M2 bosses, parts side facing back into
-    the opening, wire side facing the door hole; USB-C goes straight up into the free cell under the
-    cap (x = 7) and the cable leaves backward.
+  · back U (seen from above): one extra cube layer behind the body, closed at the back, up to just
+    under the cap (96 mm, the old cavity height), with one-cube arms running forward along both sides
+    of the body. The board hides inside that layer: a pocket open only toward the door hole (and at
+    the top), M2 bosses from the pocket floor, parts side facing the closed back, wire side facing the
+    body. USB-C goes straight up into the free cell under the cap (x = 7); the cable leaves backward.
+    The robot drops in from above.
 
 Built in the cube mesh frame (x, front, up); the body's floor is z = 0.
 Usage: python3 hardware/station_gen.py <base.json> <variants_dir> <out_dir>
@@ -42,7 +42,7 @@ BOARD_SINK = 1.0     # board's wire side this far behind the plate front (solder
 PILOT_R = 0.85       # M2 self-tapping pilot
 BOSS_R = 2.6
 ARM_LEN = 2          # U arms run this many cubes forward from the back wall
-TAB_CLEAR = 3.6     # gap between the board's parts side and the mounting tabs (JST-SH bodies are 2.9)
+POCKET_FLOOR = 1.2   # closed back skin behind the board pocket
 STACK_STEP = 0.5     # each stacked cube this much narrower per side than the one below
 
 
@@ -139,18 +139,16 @@ def main(base_p, vdir, out):
             e = GAP / 2 + STACK_STEP * k
             ox = x * P + e + hash01(x, z, 9) * (P - 2 * e - a); oy = z * P + e + hash01(z, x, 9) * (P - 2 * e - a)
             deco.append(B(ox, oy, heights[(x, z)] - 0.01, ox + a, oy + a, heights[(x, z)] + a))
-    # ---- back U: one cube thick, two posts either side of the door hole up to just under the cap and a
-    # bar along the bottom; open in the middle. The board hangs on 4 thin tabs with M2 bosses, its parts
-    # facing back into the opening, wires facing the door hole; USB-C straight up under the cap.
+    # ---- back U: one extra cube layer behind the body, closed at the back, up to just under the cap,
+    # with the board hidden inside it: a pocket open only toward the body (and at the top for the USB-C
+    # plug), parts side facing the closed back, wire side facing the door hole; M2 bosses from the pocket floor.
     cxm, czm = (tx + 3.5) * P, (ty + 4) * P
     holes = ((cxm - 20, czm - 23), (cxm + 20, czm - 23), (cxm - 20, czm + 32), (cxm + 20, czm + 32))
     board_wire = front - BOARD_SINK                         # wire side of the board
     board_comp = board_wire - BOARD_T                       # component side (faces back)
-    tab_front = board_comp - TAB_CLEAR                      # tabs stay this far behind the board: low parts pass over them
     board_bot = czm - 33
-    parts.append(B(px0, PLATE_BACK, -0.01, hx0, front, top))                 # back wall, left of the hole
-    parts.append(B(hx1, PLATE_BACK, -0.01, px1, front, top))                 # back wall, right of the hole
-    parts.append(B(px0, PLATE_BACK, -0.01, px1, front, board_bot - 2))       # low bar under the board
+    parts.append(B(px0, PLATE_BACK, -0.01, px1, front, top))                 # back wall, closed
+    pk_back = PLATE_BACK + POCKET_FLOOR
     # arms of the U (seen from above): one cube wide, running forward along both sides of the body
     # from the back wall, as high as the body lets them (under the arms / cap) — they hug the body
     arm_h = {}
@@ -160,14 +158,14 @@ def main(base_p, vdir, out):
         x0_, x1_ = (ax_ * P, inner) if inner > ax_ * P + 6 else (inner, (ax_ + 1) * P)
         parts.append(B(x0_, front - 0.01, -0.01, x1_, (zb + ARM_LEN) * P, h))
         arm_h[ax_] = h
-    bosses = []
-    for hx, hz in holes:
-        side0, side1 = (hx0 - 0.01, hx + BOSS_R + 0.5) if hx < cxm else (hx - BOSS_R - 0.5, hx1 + 0.01)
-        bosses.append(B(side0, PLATE_BACK, hz - 3.5, side1, tab_front, hz + 3.5))
-        bosses.append(cyl(1, (hx, hz), BOSS_R, tab_front - 0.01, board_comp))
+    # board pocket: 2 mm wider than the door hole per side and 2 mm below the board, so the JST cables
+    # (eyes, ToF, amp, LED) come round the board edges into the body; open at the top for the plug
+    st = trimesh.boolean.union(parts + deco, engine='manifold')
+    st = trimesh.boolean.difference([st, B(hx0 - 2, pk_back, board_bot - 2, hx1 + 2, front + 1, top + 1)], engine='manifold')
+    bosses = [cyl(1, (hx, hz), BOSS_R, pk_back - 0.01, board_comp) for hx, hz in holes]
     cuts = []
-    cuts_after = [cyl(1, (hx, hz), PILOT_R, PLATE_BACK - 1, board_comp + 1) for hx, hz in holes]
-    st = trimesh.boolean.union(parts + bosses + deco, engine='manifold')
+    cuts_after = [cyl(1, (hx, hz), PILOT_R, pk_back - 0.6, board_comp + 1) for hx, hz in holes]   # blind: back stays closed
+    st = trimesh.boolean.union([st] + bosses, engine='manifold')
     # the 8 floor cubes: cut right through, snug
     for (x, z) in floor:
         cuts.append(B(x * P - FIT, z * P - FIT, -1, (x + 1) * P + FIT, (z + 1) * P + FIT, GROUND + 5))
@@ -183,9 +181,9 @@ def main(base_p, vdir, out):
                                    for (x, y, z) in K], engine='manifold')
     sw = trimesh.boolean.intersection([st, sweep], engine='manifold')
     sw_v = sw.volume if len(sw.faces) else 0.0
-    # board (56 × 68, top edge 3 mm above the top holes — hardware/pcb/facebrd_gen.py) + parts up to TAB_CLEAR
-    # behind it everywhere except on the screw bosses (taller parts sit in the open middle of the U)
-    brd = B(cxm - 28 + 0.05, board_comp - TAB_CLEAR + 0.05, czm - 33 + 0.05, cxm + 28 - 0.05, board_wire - 0.05, czm + 35 - 0.05)
+    # board (56 × 68, top edge 3 mm above the top holes — hardware/pcb/facebrd_gen.py) + parts filling the
+    # pocket depth behind it everywhere except on the screw bosses
+    brd = B(cxm - 28 + 0.05, pk_back + 0.05, czm - 33 + 0.05, cxm + 28 - 0.05, board_wire - 0.05, czm + 35 - 0.05)
     brd = trimesh.boolean.difference([brd] + [cyl(1, (hx, hz), BOSS_R + 0.1, board_comp - 10, board_comp + 0.01) for hx, hz in holes],
                                      engine='manifold')
     bh = trimesh.boolean.intersection([st, brd], engine='manifold')
@@ -217,7 +215,7 @@ def main(base_p, vdir, out):
     pr = st.copy(); pr.apply_translation(-pr.bounds[0]); pr.export(f'{out}/station.stl')
     spec = {'size_mm': [round(v, 1) for v in pr.extents], 'solid_grams': round(st.volume / 1000 * 1.24),
             'plate': {'x': [px0, px1], 'back': PLATE_BACK, 'front': front, 'top': top, 'arm_heights': {str(k): round(v, 1) for k, v in arm_h.items()}, 'arm_front': (zb + ARM_LEN) * P},
-            'board': {'wire_side': board_wire, 'parts_clear_over_tabs_mm': TAB_CLEAR, 'holes': holes},
+            'board': {'wire_side': board_wire, 'parts_height_room_mm': round(board_comp - pk_back, 1), 'holes': holes},
             'overlap_with_robot_mm3': round(hit_v, 2), 'drop_in_overlap_mm3': round(sw_v, 2),
             'board_overlap_mm3': board_hit, 'usb_gap_under_cap_free': usb, 'fit': fit}
     json.dump(spec, open(f'{out}/station_spec.json', 'w'), indent=1)
@@ -278,7 +276,7 @@ def preview(st, K, man, path):
     for (x, y, z), c in K.items():
         robot.append((B(x * P + 0.3, z * P + 0.3, y * P + 0.3, (x + 1) * P - 0.3, (z + 1) * P - 0.3, (y + 1) * P - 0.3),
                       matplotlib.colors.to_rgb(man['colors'][c['ci']]), 1.0))
-    views = (('休息站 · 从背后左上看(俯视 U 形背板兜住身体,中间镂空装主板)', [(st, pearl, 1)], 35, 215),
+    views = (('休息站 · 从背后左上看(背后封闭,主板藏在这一层里)', [(st, pearl, 1)], 35, 215),
              ('休息站 · 从前面看(中间下凹,8 颗白块的位置镂空)', [(st, pearl, 1)], 40, 25),
              ('放上 Moony · 从背后看', [(st, pearl, 1)] + robot, 20, 200))
     fig, ax = plt.subplots(1, 3, figsize=(21, 7), facecolor='#f6f5f0')

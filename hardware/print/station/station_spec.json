@@ -21,7 +21,7 @@
  },
  "board": {
   "wire_side": 58.7,
-  "parts_clear_over_tabs_mm": 3.6,
+  "parts_height_room_mm": 8.7,
   "holes": [
    [
     70.0,
