@@ -677,6 +677,14 @@ bool touchLookAround = false;
 uint32_t padDown[12] = {0}, padUp[12] = {0}, padMutedUntil[12] = {0}, padFlipAt[12] = {0};
 uint8_t padFlips[12] = {0};
 bool padHoldFired[12] = {false};
+uint8_t padRepeats[12] = {0};             // presses of the same place in a row (within 6 s)
+uint32_t padLastPress[12] = {0};
+// affection: every bit of play raises it, it fades over a few minutes. While it is high Moony
+// idles with happy eyes and hums more; when play stops it notices and calls after you once.
+float affection = 0;
+uint32_t lastPlayAt = 0;
+void tuneSneeze();
+void liked(uint32_t now, float amt = 0.12f) { affection = fminf(1, affection + amt); lastPlayAt = now; }
 
 /** A pad that keeps flickering on/off by itself (a lead sitting right at the threshold) is muted
  *  for a minute instead of chirping every half second. Returns the pads that may react. */
@@ -699,6 +707,7 @@ uint16_t steadyPads(uint16_t cur, uint16_t prev, uint32_t now) {
 
 void touchReact(const char *what, uint32_t now, uint32_t ms, Mood m, float gx, float gy, float open_ = 1.0f,
                 bool around = false) {
+  if (strncmp(what, "自己", 6) != 0) liked(now, 0.06f);      // its own little acts don't count as play
   touchMood = m; touchTx = gx; touchTy = gy; touchOpen = open_; touchLookAround = around;
   startAct(A_TOUCH, now, ms);
   Serial.printf("互动: %s\n", what);
@@ -725,6 +734,8 @@ void handleTouch(uint16_t cur, uint16_t prev, uint32_t now) {
     if (on && !was) {
       if (now - padUp[i] < 250 && padUp[i]) { continue; }             // chatter, not a new press
       padDown[i] = now; padHoldFired[i] = false;
+      padRepeats[i] = (padLastPress[i] && now - padLastPress[i] < 6000) ? padRepeats[i] + 1 : 1;
+      padLastPress[i] = now;
     }
     uint32_t dur = now - padDown[i];
     if (!free_ || now - lastReact < 450) continue;
@@ -744,10 +755,18 @@ void handleTouch(uint16_t cur, uint16_t prev, uint32_t now) {
           break;
         }
         case P_CHEEK_L: case P_CHEEK_R:                           // shy: looks down and away
+          if (padRepeats[i] >= 3) {                               // again and again: hides its eyes
+            padRepeats[i] = 0; lastReact = now; tuneShy(); liked(now);
+            touchReact("一直摸脸(害羞得不敢看)", now, 2600, HAPPY, 0, 0.8f, 0.2f); break;
+          }
           lastReact = now; tuneShy();
           touchReact(i == P_CHEEK_L ? "摸左脸" : "摸右脸", now, 1800, HAPPY, i == P_CHEEK_L ? R * 0.7f : L * 0.7f, 0.55f, 0.7f);
           break;
         case P_NOSE:
+          if (padRepeats[i] >= 3) {                               // third boop in a row tickles: a-a-chu!
+            padRepeats[i] = 0; lastReact = now; tuneSneeze(); liked(now);
+            touchReact("连点鼻尖(打喷嚏)", now, 1600, NEUTRAL, 0, 0.2f, 0.15f); break;
+          }
           lastReact = now; tuneBoop();
           touchReact("点鼻尖", now, 1200, HAPPY, 0, 0.45f, 1.25f);
           break;
@@ -771,6 +790,9 @@ void handleTouch(uint16_t cur, uint16_t prev, uint32_t now) {
       if (i == P_FOREHEAD && dur > 2500) {                       // stroke the forehead and it drifts off
         padHoldFired[i] = true; lastReact = now; tuneSleep(); startAct(A_SLEEP, now, 30000);
         Serial.println("互动: 按住额头(睡着了)");
+      } else if (i == P_TOP && dur > 1200 && WiFi.status() != WL_CONNECTED) {   // no tower to talk to:
+        padHoldFired[i] = true; lastReact = now; tunePurr(); liked(now, 0.2f);   // a hand on its head is just nice
+        touchReact("手放在头顶(好舒服)", now, 3000, HAPPY, 0, -0.1f, 0.4f);
       } else if (i == P_BACK && dur > 1500) {                    // a hand on its back: calm
         padHoldFired[i] = true; lastReact = now;
         Note m[MAX_NOTES]; int n = familyMelody(1, 0.4f, 0.1f, 0.3f, 200, m); playNotes(m, n);
@@ -788,6 +810,9 @@ void handleTouch(uint16_t cur, uint16_t prev, uint32_t now) {
           touchReact("被摸了好多下(好开心)", now, 3000, HAPPY, 0, -0.1f, 0.55f);
         } else { tunePat(); touchReact("拍拍头", now, 1200, HAPPY, 0, -0.2f, 0.75f); }
       }
+      else if (i == P_FOREHEAD && padRepeats[i] >= 4) {         // keeps poking the forehead: a little cross
+        padRepeats[i] = 0; lastReact = now; tuneGrumpy();
+        touchReact("一直戳额头(别戳啦)", now, 1500, ANGRY, 0, -0.5f, 0.85f); }
       else if (i == P_FOREHEAD) { lastReact = now; tuneHm(); blinkStart = now; doubleBlink = true;
                                   touchReact("点额头", now, 1000, NEUTRAL, 0, -0.7f); }
       else if (i == P_BACK) { lastReact = now; tunePat(); touchReact("拍拍背", now, 1200, HAPPY, 0, 0.1f, 0.8f); }
@@ -850,7 +875,7 @@ void innerLife(uint32_t now, bool someoneNear, bool interacted) {
   }
   // otherwise pick by weight
   float w[7] = {
-    0.8f + 0.6f * (1 - boredom),                 // 0 hum a little tune to itself
+    0.8f + 0.6f * (1 - boredom) + 1.2f * affection,   // 0 hum a little tune to itself (more after play)
     0.6f + 0.8f * curiosity,                     // 1 babble / talk to itself
     0.5f + 1.0f * curiosity,                     // 2 look around
     0.4f + 0.6f * (1 - energy),                  // 3 daydream
@@ -972,7 +997,9 @@ void loop() {
 #endif
   bool someoneNear = (now - lastPresence) < HOLD_MS && lastPresence != 0;
   bool someoneClose = someoneNear && rangeMM < CLOSE_MM;
-  bool lonely = (now - lastPresence) > LONELY_MS;
+  bool canSee = hasTof && !tofBlind;
+  bool lonely = canSee ? (now - lastPresence) > LONELY_MS
+                       : (lastPlayAt == 0 ? now > 180000 : now - lastPlayAt > 180000);   // nobody played for 3 min
   if (someoneNear && !wasNear) {
     noticedAt = now;
     bool wasAlone = leftAt == 0 || now - leftAt > REUNION_AFTER_MS;
@@ -1008,8 +1035,10 @@ void loop() {
   if (hasMpr && touched && prevTouch && now - touchStart > 10000 && act != A_LISTEN) {
     mprRestart(); touched = 0; touchStart = now; Serial.println("触摸卡住 10 秒,基线重新校准");
   }
-  bool talkHeld = (touched & TALK_ELECTRODES) != 0;
-  bool talkWas = (prevTouch & TALK_ELECTRODES) != 0;
+  // hold-to-talk only when the tower is reachable; without Wi-Fi the head-top is just another place to touch
+  bool canTalk = wifiOk;
+  bool talkHeld = canTalk && (touched & TALK_ELECTRODES) != 0;
+  bool talkWas = canTalk && (prevTouch & TALK_ELECTRODES) != 0;
   if (touched && !prevTouch) touchStart = now;
   static uint32_t lastMon = 0;
   if (touchMon && hasMpr && now - lastMon > 250) { lastMon = now; mprPrintLevels(touched); }
@@ -1041,14 +1070,18 @@ void loop() {
   static uint32_t clapAt = 0, clapPeakAt = 0;
   static int claps = 0;
   static bool clapHigh = false;
-  bool loud = micLevel > CLAP_LEVEL;
+  // the room's own noise floor (slow, ignores the spikes): in a busy room a clap has to stand out from it
+  static float micFloor = 2000;
+  if (!playing && micLevel < micFloor * 3) micFloor += (micLevel - micFloor) * 0.002f;
+  int clapGate = max(CLAP_LEVEL, int(micFloor * 5));
+  bool loud = micLevel > clapGate;
   if (act == A_IDLE && !playing && loud && !clapHigh && now - clapPeakAt > 150) {
     if (!claps) noticedAt = now;                                  // eyes pop open at the first one
     claps++; clapPeakAt = now;
   }
   clapHigh = loud;
   if (claps && now - clapPeakAt > 900) {
-    if (claps == 1) { clapAt = now; tuneStartle(); }
+    if (claps == 1) { clapAt = now; tuneStartle(); liked(now, 0.05f); }
     else {
       Note sq[8]; int k = 0, n = min(claps, 4);
       for (int i = 0; i < n; i++) { sq[k++] = vc(90, 1.2f + 0.12f * i, 1.5f + 0.12f * i, 0, .5f, 1, 0, 70); sq[k++] = rest(170); }
@@ -1097,6 +1130,13 @@ void loop() {
   handleReply(now);
   if (act == A_SLEEP && now > actUntil) { tuneWake(); energy = 1; Serial.println("自己: 睡醒了"); }   // woke up by itself
   if (act != A_IDLE && act != A_LISTEN && now > actUntil) act = A_IDLE;
+  // affection fades over ~4 min; if play stops while it was having fun, it looks for you once
+  static uint32_t lastAff = 0; static bool calledAfter = true;
+  affection = fmaxf(0, affection - (now - lastAff) / 240000.0f); lastAff = now;
+  if (now - lastPlayAt < 2000) calledAfter = false;
+  if (!calledAfter && affection > 0.4f && now - lastPlayAt > 45000 && act == A_IDLE && !playing) {
+    calledAfter = true; tuneLook(); touchReact("自己: 不玩了吗?(找你)", now, 2600, NEUTRAL, 0, 0.1f, 1.1f, true);
+  }
   innerLife(now, someoneNear, touched || act == A_LISTEN || claps > 0);
   // asleep: only a touch (or "wake up") wakes it — visitors walking past shouldn't
   if (act == A_SLEEP && touched && !prevTouch && now - actStart > 1500) { tuneWake(); act = A_IDLE; noticedAt = now; }
@@ -1148,9 +1188,10 @@ void loop() {
   else if (jolted)            { mood = ANGRY; moodFromPresence = true; }
   else if (touched)           { mood = HAPPY; moodFromPresence = true; }
   else if (someoneClose)      { mood = HAPPY; moodFromPresence = true; }
+  else if (affection > 0.45f) { mood = HAPPY; moodFromPresence = true; }      // still glowing from play
   else if (moodFromPresence && (!someoneNear || mood != NEUTRAL)) { mood = NEUTRAL; moodFromPresence = false; }
   else if (lonely && mood == NEUTRAL) mood = SLEEPY;
-  else if (!lonely && mood == SLEEPY && someoneNear) mood = NEUTRAL;
+  else if (!lonely && mood == SLEEPY && (someoneNear || !canSee)) mood = NEUTRAL;
 
   // --- gaze ---
   float t = now / 1000.0f;
