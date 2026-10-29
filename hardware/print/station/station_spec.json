@@ -2,9 +2,29 @@
  "size_mm": [
   216.0,
   132.0,
-  95.7
+  36.0
  ],
- "solid_grams": 299,
+ "plate_print_mm": [
+  84.0,
+  91.7,
+  11.7
+ ],
+ "slot": {
+  "tongue_mm": [
+   80.0,
+   9.1,
+   8.0
+  ],
+  "slot_mm": [
+   80.4,
+   10.5,
+   8.2
+  ],
+  "play_sides_front_mm": 0.2,
+  "extra_play_backward_mm": 1.0,
+  "floor_under_slot_mm": 3.8
+ },
+ "solid_grams": 298,
  "plate": {
   "x": [
    48.0,
@@ -48,7 +68,7 @@
   ],
   "wall_rays": 36,
   "pit_open_through": true,
-  "base_bottom_z": -0.01,
+  "base_bottom_z": 0.0,
   "second_layer_resting_on_base": "13/13"
  },
  "face_gaps": {

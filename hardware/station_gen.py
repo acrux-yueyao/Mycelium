@@ -17,7 +17,7 @@ board, charging through the gap under the cap.
 
 Built in the cube mesh frame (x, front, up); the body's floor is z = 0.
 Usage: python3 hardware/station_gen.py <base.json> <variants_dir> <out_dir>
-Writes station.stl (print pose), station_preview.png, station_spec.json
+Writes station_base.stl + station_plate.stl (print poses), station_preview.png, station_spec.json
 """
 import json
 import os
@@ -39,6 +39,10 @@ MARGIN = 2           # cubes of base on every side of the robot
 PLATE_BACK = 48.0    # back plate = exactly the one free cube layer behind the body (48..60)
 BOARD_T = 0.8
 BOARD_SINK = 1.0     # board's wire side this far behind the plate front (solder joints don't scrape the body)
+TONGUE_D = 8.0       # plate tongue depth into the base slot
+TONGUE_IN = 2.0      # tongue inset from the plate outline (the plate's shoulders sit on the base top)
+FIT_SLOT = 0.2       # slot play per side
+SLOT_BACK_PLAY = 1.0 # extra slot length toward the back, room to adjust
 SCREW_R = 1.15       # M2 through holes in the back (no posts: use your own spacers/nuts)
 POCKET_FLOOR = 1.2   # closed back skin behind the board pocket
 STACK_STEP = 0.5     # each stacked cube this much narrower per side than the one below
@@ -56,6 +60,16 @@ def cyl(axis, c, r, h0, h1, sections=32):
     else:
         m.apply_translation([c[0], c[1], (h0 + h1) / 2])
     return m
+
+
+def export_clean(m, path):
+    """Write an STL that is still watertight once read back (float32 rounding can fold sliver faces)."""
+    m = m.copy()
+    m.vertices = np.round(m.vertices, 3)
+    m.merge_vertices(); m.update_faces(m.nondegenerate_faces()); m.remove_unreferenced_vertices()
+    m.export(path)
+    back = trimesh.load(path)
+    assert back.is_watertight and abs(back.volume - m.volume) < 1.0, f'{path} not watertight after export'
 
 
 def hash01(*k):
@@ -121,9 +135,9 @@ def main(base_p, vdir, out):
     for (x, z), d in reach.items():
         if (x, z) in floor:
             continue
-        parts.append(B(x * P - 0.01, z * P - 0.01, -0.01, (x + 1) * P + 0.01, (z + 1) * P + 0.01, GROUND - TILE_D))   # core
+        parts.append(B(x * P, z * P, 0, (x + 1) * P, (z + 1) * P, GROUND - TILE_D))   # core
         h = min(GROUND, lowest[(x, z)] * P) if (x, z) in lowest else GROUND
-        parts.append(B(x * P + GAP / 2, z * P + GAP / 2, -0.01, (x + 1) * P - GAP / 2, (z + 1) * P - GAP / 2, h))
+        parts.append(B(x * P + GAP / 2, z * P + GAP / 2, 0, (x + 1) * P - GAP / 2, (z + 1) * P - GAP / 2, h))
         heights[(x, z)] = h
         # whole cubes stacked on the outer cells (never under any part of the body), now and then a small one
         if (x, z) in lowest or d == 0 or (px0 - P < (x + 1) * P and x * P < px1 + P and z >= zb - 2):   # nothing against the back
@@ -145,19 +159,30 @@ def main(base_p, vdir, out):
     board_wire = front - BOARD_SINK                         # wire side of the board
     board_comp = board_wire - BOARD_T                       # component side (faces back)
     board_bot = czm - 33
-    parts.append(B(px0, PLATE_BACK, -0.01, px1, front, top))                 # back wall, closed
     pk_back = PLATE_BACK + POCKET_FLOOR
-    # board pocket: 2 mm wider than the door hole per side and 2 mm below the board, so the JST cables
-    # (eyes, ToF, amp, LED) come round the board edges into the body; open at the top for the plug
-    st = trimesh.boolean.union(parts + deco, engine='manifold')
-    st = trimesh.boolean.difference([st, B(hx0 - 2, pk_back, GROUND, hx1 + 2, front + 1, top + 1)], engine='manifold')   # down to the base: no ledge
-    cuts = []
-    cuts_after = [cyl(1, (hx, hz), SCREW_R, PLATE_BACK - 1, pk_back + 1) for hx, hz in holes]    # 4 holes through the back
-    # the 8 floor cubes: cut right through, snug
-    for (x, z) in floor:
-        cuts.append(B(x * P - FIT, z * P - FIT, -1, (x + 1) * P + FIT, (z + 1) * P + FIT, GROUND + 5))
-    st = trimesh.boolean.difference([st] + cuts + cuts_after, engine='manifold')
-    assert st.is_watertight and len(st.split(only_watertight=False)) == 1
+    # ---- two prints. Base: everything below the base top, with a flat seat where the plate stands and a
+    # slot for its tongue (FIT_SLOT play on every side, SLOT_BACK_PLAY extra toward the back so the plate
+    # can be nudged or shimmed if the prints come out a little off).
+    t0x, t1x, t0y, t1y = px0 + TONGUE_IN, px1 - TONGUE_IN, PLATE_BACK + POCKET_FLOOR / 2, front - TONGUE_IN
+    parts.append(B(px0, PLATE_BACK, 0, px1, front, GROUND))             # flat seat under the plate
+    base = trimesh.boolean.union(parts + deco, engine='manifold')
+    cuts = [B(x * P - FIT, z * P - FIT, -1, (x + 1) * P + FIT, (z + 1) * P + FIT, GROUND + 5) for (x, z) in floor]   # 8 floor cubes, through
+    cuts.append(B(t0x - FIT_SLOT, t0y - FIT_SLOT - SLOT_BACK_PLAY, GROUND - TONGUE_D - FIT_SLOT, t1x + FIT_SLOT, t1y + FIT_SLOT, GROUND + 1))
+    base = trimesh.boolean.difference([base] + cuts, engine='manifold')
+    # Plate: one cube thick, as wide as the body, from the base top to just under the cap, tongue below.
+    # The board hides in a pocket open toward the body and at the top (USB-C); its floor is the tongue
+    # top, flush with the base top, so there is no ledge. 4 M2 holes through the closed back.
+    plate = trimesh.boolean.union([B(px0, PLATE_BACK, GROUND, px1, front, top),
+                                   B(t0x, t0y, GROUND - TONGUE_D, t1x, t1y, GROUND + 0.01)], engine='manifold')
+    plate = trimesh.boolean.difference([plate, B(hx0 - 2, pk_back, GROUND, hx1 + 2, front + 1, top + 1)]
+                                       + [cyl(1, (hx, hz), SCREW_R, PLATE_BACK - 1, pk_back + 1) for hx, hz in holes], engine='manifold')
+    for part in (plate, base):
+        assert part.is_watertight and len(part.split(only_watertight=False)) == 1
+    st = trimesh.boolean.union([base, plate], engine='manifold')        # assembled, for the fit checks below
+    slot_info = {'tongue_mm': [round(t1x - t0x, 2), round(t1y - t0y, 2), TONGUE_D],
+                 'slot_mm': [round(t1x - t0x + 2 * FIT_SLOT, 2), round(t1y - t0y + 2 * FIT_SLOT + SLOT_BACK_PLAY, 2), TONGUE_D + FIT_SLOT],
+                 'play_sides_front_mm': FIT_SLOT, 'extra_play_backward_mm': SLOT_BACK_PLAY,
+                 'floor_under_slot_mm': round(GROUND - TONGUE_D - FIT_SLOT, 2)}
     # ---- fit check: nothing of the station inside any cube of the robot
     robot = trimesh.boolean.union([B(x * P + 0.05, z * P + 0.05, y * P + 0.05, (x + 1) * P - 0.05, (z + 1) * P - 0.05, (y + 1) * P - 0.05)
                                    for (x, y, z) in K], engine='manifold')
@@ -224,9 +249,12 @@ def main(base_p, vdir, out):
                  'down_faces_min_gap_if_not_resting_mm': round(down_min_nonzero, 3), 'rays': len(O)}
     usb = (7, 8, 4) not in K and (7, 9, 4) not in K and (7, 8, 3) not in K
     os.makedirs(out, exist_ok=True)
-    st.export(f'{out}/station_meshframe.stl')
-    pr = st.copy(); pr.apply_translation(-pr.bounds[0]); pr.export(f'{out}/station.stl')
-    spec = {'size_mm': [round(v, 1) for v in pr.extents], 'solid_grams': round(st.volume / 1000 * 1.24),
+    st.export(f'{out}/station_meshframe.stl'); base.export(f'{out}/base_meshframe.stl'); plate.export(f'{out}/plate_meshframe.stl')
+    pr = base.copy(); pr.apply_translation(-pr.bounds[0]); export_clean(pr, f'{out}/station_base.stl')
+    pl = plate.copy()                                     # print lying on its closed back, pocket up
+    pl.apply_transform(trimesh.transformations.rotation_matrix(np.pi / 2, [1, 0, 0]))
+    pl.apply_translation(-pl.bounds[0]); export_clean(pl, f'{out}/station_plate.stl')
+    spec = {'size_mm': [round(v, 1) for v in pr.extents], 'plate_print_mm': [round(v, 1) for v in pl.extents], 'slot': slot_info, 'solid_grams': round(st.volume / 1000 * 1.24),
             'plate': {'x': [px0, px1], 'back': PLATE_BACK, 'front': front, 'top': top},
             'board': {'wire_side': board_wire, 'parts_height_room_mm': round(board_comp - pk_back, 1), 'holes': holes},
             'overlap_with_robot_mm3': round(hit_v, 2), 'drop_in_overlap_mm3': round(sw_v, 2),
