@@ -4,11 +4,11 @@
   132.0,
   95.7
  ],
- "solid_grams": 628,
+ "solid_grams": 315,
  "plate": {
   "x": [
-   54.0,
-   126.0
+   50.0,
+   130.0
   ],
   "back": 48.0,
   "front": 59.7,
@@ -16,7 +16,7 @@
  },
  "board": {
   "wire_side": 58.7,
-  "component_gap_mm": 8.7,
+  "parts_clear_over_tabs_mm": 3.6,
   "holes": [
    [
     70.0,

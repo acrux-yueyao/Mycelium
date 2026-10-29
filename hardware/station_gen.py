@@ -8,11 +8,12 @@ board, charging through the gap under the cap.
     bottom can no longer wobble or slide. Round the dip, whole cubes stacked 0-2 high with a few
     smaller cubes on top — cubes only. The pit is open right through: the floor cubes stand on the
     table (speaker grille included), the base is exactly one cube tall around them.
-  · back plate: stands in the free layer behind the body (creature z = 4, under the cap), same height
-    as the old cavity (top just under the cap at 96 mm). Its front is flush with the body's back
-    plane, so the robot drops in from above. The board sits in a pocket in the plate, component side
-    (XIAO) facing back, wire side facing the open door hole; the pocket is open at the top so the
-    USB-C plug goes straight up into the free cell under the cap (x = 7) and the cable leaves backward.
+  · back U: one cube thick, in the free layer behind the body (creature z = 4, under the cap): two posts
+    either side of the door hole up to just under the cap (96 mm, the old cavity height) and a bar
+    along the bottom, open in the middle. Its front is flush with the body's back plane, so the robot
+    drops in from above. The board hangs on 4 thin tabs with M2 bosses, parts side facing back into
+    the opening, wire side facing the door hole; USB-C goes straight up into the free cell under the
+    cap (x = 7) and the cable leaves backward.
 
 Built in the cube mesh frame (x, front, up); the body's floor is z = 0.
 Usage: python3 hardware/station_gen.py <base.json> <variants_dir> <out_dir>
@@ -36,11 +37,11 @@ TILE_D = 0.6         # mosaic groove depth
 GAP = 0.8            # mosaic groove width
 MARGIN = 2           # cubes of base on every side of the robot
 PLATE_BACK = 48.0    # back plate = exactly the one free cube layer behind the body (48..60)
-POCKET_FLOOR = 1.2   # plate skin behind the board pocket
 BOARD_T = 0.8
 BOARD_SINK = 1.0     # board's wire side this far behind the plate front (solder joints don't scrape the body)
 PILOT_R = 0.85       # M2 self-tapping pilot
 BOSS_R = 2.6
+TAB_CLEAR = 3.6     # gap between the board's parts side and the mounting tabs (JST-SH bodies are 2.9)
 STACK_STEP = 0.5     # each stacked cube this much narrower per side than the one below
 
 
@@ -88,81 +89,79 @@ def main(base_p, vdir, out):
     front = zb * P - CLR                                    # plate front face
     top = (ty + 7) * P - CLR                                # same height as the old cavity (just under the cap)
     hx0, hx1 = (tx + 1) * P, (tx + 6) * P                   # door hole, x
-    px0, px1 = hx0 - 6, hx1 + 6                             # plate a little wider than the hole
+    px0, px1 = hx0 - 10, hx1 + 10                           # U posts 10 mm wide either side of the hole
     for (x, y, z) in K:                                     # plate volume must be empty space
         if z * P < front and (z + 1) * P > PLATE_BACK and y * P < top and (x + 1) * P > px0 and x * P < px1:
             raise SystemExit(f'plate hits cube {(x, y, z)}')
 
     parts = []
-    # ---- mosaic tiles
     lowest = {}
     for (x, y, z) in K:
         lowest[(x, z)] = min(lowest.get((x, z), 99), y)
-    heights = {}
-    for x in range(bx0 - MARGIN, bx1 + 1 + MARGIN):
-        for z in range(bz0 - MARGIN, bz1 + 1 + MARGIN):
-            if (x, z) in floor:
-                continue
-            inside = bx0 <= x <= bx1 and bz0 <= z <= bz1
-            d = max(bx0 - x, x - bx1, bz0 - z, z - bz1, 0)
-            h = GROUND                                       # margin cubes are stacked on below
-            if (x, z) in lowest:
-                h = min(h, lowest[(x, z)] * P)
-            heights[(x, z)] = h
-            parts.append(B(x * P + GAP / 2, z * P + GAP / 2, -0.01, (x + 1) * P - GAP / 2, (z + 1) * P - GAP / 2, h))
-    # solid core up to just under the groove depth, so the pit has full walls (grooves are only cosmetic)
-    parts.append(B((bx0 - MARGIN) * P, (bz0 - MARGIN) * P, -0.01, (bx1 + 1 + MARGIN) * P, (bz1 + 1 + MARGIN) * P, GROUND - TILE_D))
-    # ---- back plate (fills the grooves under it): full height behind the door hole, stepping down
-    # cube by cube to the sides like a little pixel hill; mosaic grooves on its back face
-    steps = {}
-    for x in range(tx - 3, tx + 10):
-        h = top if tx + 1 <= x <= tx + 5 else top - P * (2 * max(tx + 1 - x, x - tx - 5)) + P
-        if h < GROUND + P or any((x, y, z) in K for z in (zb - 1,) for y in range(int(h // P) + 1)):
+    # ---- outline: not a rectangle — every cell under the robot's shadow plus a wobbling 0-2 cube rim
+    # round it, so the edge steps in and out cube by cube
+    carry = set(lowest) | {(x, zb - 1) for x in range(int(px0 // P), int(px1 // P))}       # the robot's whole shadow + the U
+    reach = {}
+    for x in range(bx0 - 4, bx1 + 5):
+        for z in range(bz0 - 4, bz1 + 5):
+            d = min(max(abs(x - a), abs(z - b)) for a, b in carry)
+            lim = int(hash01(x // 2, z // 2, 11) * 2.99)             # smooth-ish: shared by 2×2 blocks
+            if d <= lim and (bx0 - 2) <= x <= (bx1 + 2) and (bz0 - 2) <= z <= (bz1 + 2):
+                reach[(x, z)] = d
+    keep, todo = set(), [c for c in carry if c in reach]           # side-connected only: one solid piece
+    while todo:
+        c = todo.pop()
+        if c in keep:
             continue
-        steps[x] = h
-        parts.append(B(x * P, PLATE_BACK, -0.01, (x + 1) * P, front, h))
-    groove = [B(x * P - GAP / 2, PLATE_BACK - 1, GROUND, x * P + GAP / 2, PLATE_BACK + 0.6, top + 1) for x in range(tx - 2, tx + 10)]
-    groove += [B((tx - 3) * P, PLATE_BACK - 1, y * P - GAP / 2, (tx + 10) * P, PLATE_BACK + 0.6, y * P + GAP / 2) for y in range(2, ty + 8)]
+        keep.add(c)
+        todo += [n for n in ((c[0] + 1, c[1]), (c[0] - 1, c[1]), (c[0], c[1] + 1), (c[0], c[1] - 1)) if n in reach]
+    reach = {c: d for c, d in reach.items() if c in keep}
+    heights = {}
+    deco = []
+    for (x, z), d in reach.items():
+        if (x, z) in floor:
+            continue
+        parts.append(B(x * P - 0.01, z * P - 0.01, -0.01, (x + 1) * P + 0.01, (z + 1) * P + 0.01, GROUND - TILE_D))   # core
+        h = min(GROUND, lowest[(x, z)] * P) if (x, z) in lowest else GROUND
+        parts.append(B(x * P + GAP / 2, z * P + GAP / 2, -0.01, (x + 1) * P - GAP / 2, (z + 1) * P - GAP / 2, h))
+        heights[(x, z)] = h
+        # whole cubes stacked on the outer cells (never under any part of the body), now and then a small one
+        if (x, z) in lowest or d == 0 or (px0 < (x + 1) * P and x * P < px1 and z == zb - 1):
+            continue
+        r = hash01(x, z)
+        k = (0 if r < 0.5 else 1) if d == 1 else (1 if r < 0.55 else 2 if r < 0.85 else 0)
+        deco += cube_stack(x, z, k, GROUND, GAP / 2)
+        heights[(x, z)] = GROUND + k * P
+        if hash01(z, x, 3) < 0.2:
+            a = 6.0 if hash01(x, z, 5) < 0.5 else 8.0
+            e = GAP / 2 + STACK_STEP * k
+            ox = x * P + e + hash01(x, z, 9) * (P - 2 * e - a); oy = z * P + e + hash01(z, x, 9) * (P - 2 * e - a)
+            deco.append(B(ox, oy, heights[(x, z)] - 0.01, ox + a, oy + a, heights[(x, z)] + a))
+    # ---- back U: one cube thick, two posts either side of the door hole up to just under the cap and a
+    # bar along the bottom; open in the middle. The board hangs on 4 thin tabs with M2 bosses, its parts
+    # facing back into the opening, wires facing the door hole; USB-C straight up under the cap.
     cxm, czm = (tx + 3.5) * P, (ty + 4) * P
     holes = ((cxm - 20, czm - 23), (cxm + 20, czm - 23), (cxm - 20, czm + 32), (cxm + 20, czm + 32))
-    pk_back = PLATE_BACK + POCKET_FLOOR
     board_wire = front - BOARD_SINK                         # wire side of the board
-    board_comp = board_wire - BOARD_T                       # component side (faces the pocket floor)
-    # pocket, open at top + front: 2 mm wider than the door hole per side and 2 mm below it, so the JST
-    # cables (eyes, ToF, amp, LED) can come round the board edges into the cavity
-    cuts = groove + [B(hx0 - 2, pk_back, (ty + 1) * P - 2, hx1 + 2, front + 1, top + 1)]
+    board_comp = board_wire - BOARD_T                       # component side (faces back)
+    tab_front = board_comp - TAB_CLEAR                      # tabs stay this far behind the board: low parts pass over them
+    board_bot = czm - 33
+    parts.append(B(px0, PLATE_BACK, -0.01, hx0, front, top))                 # left post
+    parts.append(B(hx1, PLATE_BACK, -0.01, px1, front, top))                 # right post
+    parts.append(B(px0, PLATE_BACK, -0.01, px1, front, board_bot - 2))       # bottom bar
     bosses = []
     for hx, hz in holes:
-        bosses.append(cyl(1, (hx, hz), BOSS_R, pk_back - 0.01, board_comp))
-    cuts_after = [cyl(1, (hx, hz), PILOT_R, pk_back - 0.6, board_comp + 1) for hx, hz in holes]
-    # ---- cubes round the dip: whole 12 mm cubes stacked 0-2 high (higher toward the outside), and
-    # here and there a smaller 6 or 8 mm cube on top
-    deco = []
-    for x in range(bx0 - MARGIN, bx1 + 1 + MARGIN):
-        for z in range(bz0 - MARGIN, bz1 + 1 + MARGIN):
-            if (bx0 <= x <= bx1 and bz0 <= z <= bz1) or (px0 < (x + 1) * P and x * P < px1 and PLATE_BACK < (z + 1) * P and z * P < front):
-                continue
-            d = max(bx0 - x, x - bx1, bz0 - z, z - bz1)
-            r = hash01(x, z)
-            k = (0 if r < 0.45 else 1) if d == 1 else (1 if r < 0.55 else 2 if r < 0.9 else 0)
-            deco += cube_stack(x, z, k, GROUND, GAP / 2)
-            heights[(x, z)] = GROUND + k * P
-            if hash01(z, x, 3) < 0.22:
-                a = 6.0 if hash01(x, z, 5) < 0.5 else 8.0
-                e = GAP / 2 + STACK_STEP * k
-                ox = x * P + e + hash01(x, z, 9) * (P - 2 * e - a); oy = z * P + e + hash01(z, x, 9) * (P - 2 * e - a)
-                deco.append(B(ox, oy, heights[(x, z)] - 0.01, ox + a, oy + a, heights[(x, z)] + a))
-    for x, h in steps.items():                               # a small cube on each lower step of the plate
-        if h < top - 1:
-            a = 6.0 if x % 2 else 8.0
-            cx, cy = (x + 0.5) * P, (PLATE_BACK + front) / 2
-            deco.append(B(cx - a / 2, cy - a / 2, h - 0.01, cx + a / 2, cy + a / 2, h + a))
+        side0, side1 = (hx0 - 0.01, hx + BOSS_R + 0.5) if hx < cxm else (hx - BOSS_R - 0.5, hx1 + 0.01)
+        bosses.append(B(side0, PLATE_BACK, hz - 3.5, side1, tab_front, hz + 3.5))
+        bosses.append(cyl(1, (hx, hz), BOSS_R, tab_front - 0.01, board_comp))
+    cuts = []
+    cuts_after = [cyl(1, (hx, hz), PILOT_R, PLATE_BACK - 1, board_comp + 1) for hx, hz in holes]
     st = trimesh.boolean.union(parts + bosses + deco, engine='manifold')
-    # floor pocket (tiles already skip the floor cells; this squares the walls with clearance)
+    # the 8 floor cubes: cut right through, snug
     for (x, z) in floor:
         cuts.append(B(x * P - FIT, z * P - FIT, -1, (x + 1) * P + FIT, (z + 1) * P + FIT, GROUND + 5))
     st = trimesh.boolean.difference([st] + cuts + cuts_after, engine='manifold')
-    assert st.is_watertight
+    assert st.is_watertight and len(st.split(only_watertight=False)) == 1
     # ---- fit check: nothing of the station inside any cube of the robot
     robot = trimesh.boolean.union([B(x * P + 0.05, z * P + 0.05, y * P + 0.05, (x + 1) * P - 0.05, (z + 1) * P - 0.05, (y + 1) * P - 0.05)
                                    for (x, y, z) in K], engine='manifold')
@@ -173,8 +172,11 @@ def main(base_p, vdir, out):
                                    for (x, y, z) in K], engine='manifold')
     sw = trimesh.boolean.intersection([st, sweep], engine='manifold')
     sw_v = sw.volume if len(sw.faces) else 0.0
-    # board (56 × 68, top edge 3 mm above the top holes — hardware/pcb/facebrd_gen.py) + 9 mm of parts behind it
-    brd = B(cxm - 28 + 0.05, board_comp - 8.5 + 0.05, czm - 33 + 0.05, cxm + 28 - 0.05, board_wire - 0.05, czm + 35 - 0.05)
+    # board (56 × 68, top edge 3 mm above the top holes — hardware/pcb/facebrd_gen.py) + parts up to TAB_CLEAR
+    # behind it everywhere except on the screw bosses (taller parts sit in the open middle of the U)
+    brd = B(cxm - 28 + 0.05, board_comp - TAB_CLEAR + 0.05, czm - 33 + 0.05, cxm + 28 - 0.05, board_wire - 0.05, czm + 35 - 0.05)
+    brd = trimesh.boolean.difference([brd] + [cyl(1, (hx, hz), BOSS_R + 0.1, board_comp - 10, board_comp + 0.01) for hx, hz in holes],
+                                     engine='manifold')
     bh = trimesh.boolean.intersection([st, brd], engine='manifold')
     board_hit = round(bh.volume if len(bh.faces) else 0.0, 2)
     # pit fit, measured on the mesh: rays from inside each floor cube to its walls / floor, and the base
@@ -204,7 +206,7 @@ def main(base_p, vdir, out):
     pr = st.copy(); pr.apply_translation(-pr.bounds[0]); pr.export(f'{out}/station.stl')
     spec = {'size_mm': [round(v, 1) for v in pr.extents], 'solid_grams': round(st.volume / 1000 * 1.24),
             'plate': {'x': [px0, px1], 'back': PLATE_BACK, 'front': front, 'top': top},
-            'board': {'wire_side': board_wire, 'component_gap_mm': round(board_comp - pk_back, 1), 'holes': holes},
+            'board': {'wire_side': board_wire, 'parts_clear_over_tabs_mm': TAB_CLEAR, 'holes': holes},
             'overlap_with_robot_mm3': round(hit_v, 2), 'drop_in_overlap_mm3': round(sw_v, 2),
             'board_overlap_mm3': board_hit, 'usb_gap_under_cap_free': usb, 'fit': fit}
     json.dump(spec, open(f'{out}/station_spec.json', 'w'), indent=1)
@@ -265,7 +267,7 @@ def preview(st, K, man, path):
     for (x, y, z), c in K.items():
         robot.append((B(x * P + 0.3, z * P + 0.3, y * P + 0.3, (x + 1) * P - 0.3, (z + 1) * P - 0.3, (y + 1) * P - 0.3),
                       matplotlib.colors.to_rgb(man['colors'][c['ci']]), 1.0))
-    views = (('休息站 · 从背后左上看(背板凹槽装主板)', [(st, pearl, 1)], 35, 215),
+    views = (('休息站 · 从背后左上看(U 形背板,中间镂空装主板)', [(st, pearl, 1)], 35, 215),
              ('休息站 · 从前面看(中间下凹,8 颗白块的位置镂空)', [(st, pearl, 1)], 40, 25),
              ('放上 Moony · 从背后看', [(st, pearl, 1)] + robot, 20, 200))
     fig, ax = plt.subplots(1, 3, figsize=(21, 7), facecolor='#f6f5f0')
