@@ -9,9 +9,9 @@ board, charging through the gap under the cap.
     smaller cubes on top — cubes only. The pit is open right through: the floor cubes stand on the
     table (speaker grille included), the base is exactly one cube tall around them.
   · back U (seen from above): one extra cube layer behind the body, closed at the back, up to just
-    under the cap (96 mm, the old cavity height), with one-cube arms running forward along both sides
+    under the cap (96 mm, the old cavity height), exactly as wide as the body, with thin arms running forward along both sides
     of the body. The board hides inside that layer: a pocket open only toward the door hole (and at
-    the top), M2 bosses from the pocket floor, parts side facing the closed back, wire side facing the
+    the top), 4 M2 holes through the back (no posts), parts side facing the back, wire side facing the
     body. USB-C goes straight up into the free cell under the cap (x = 7); the cable leaves backward.
     The robot drops in from above.
 
@@ -39,8 +39,8 @@ MARGIN = 2           # cubes of base on every side of the robot
 PLATE_BACK = 48.0    # back plate = exactly the one free cube layer behind the body (48..60)
 BOARD_T = 0.8
 BOARD_SINK = 1.0     # board's wire side this far behind the plate front (solder joints don't scrape the body)
-PILOT_R = 0.85       # M2 self-tapping pilot
-BOSS_R = 2.6
+SCREW_R = 1.15       # M2 through holes in the back (no posts: use your own spacers/nuts)
+ARM_T = 3.0          # U arms: thin walls hugging the body sides, so the width grows only 2 × 3 mm
 ARM_LEN = 2          # U arms run this many cubes forward from the back wall
 POCKET_FLOOR = 1.2   # closed back skin behind the board pocket
 STACK_STEP = 0.5     # each stacked cube this much narrower per side than the one below
@@ -90,7 +90,7 @@ def main(base_p, vdir, out):
     front = zb * P - CLR                                    # plate front face
     top = (ty + 7) * P - CLR                                # same height as the old cavity (just under the cap)
     hx0, hx1 = (tx + 1) * P, (tx + 6) * P                   # door hole, x
-    px0, px1 = hx0 - 2 * P, hx1 + 2 * P                     # back wall: two cubes either side of the hole
+    px0, px1 = hx0 - P, hx1 + P                             # back layer = exactly the body's width (door ring x)
     for (x, y, z) in K:                                     # plate volume must be empty space
         if z * P < front and (z + 1) * P > PLATE_BACK and y * P < top and (x + 1) * P > px0 and x * P < px1:
             raise SystemExit(f'plate hits cube {(x, y, z)}')
@@ -141,7 +141,7 @@ def main(base_p, vdir, out):
             deco.append(B(ox, oy, heights[(x, z)] - 0.01, ox + a, oy + a, heights[(x, z)] + a))
     # ---- back U: one extra cube layer behind the body, closed at the back, up to just under the cap,
     # with the board hidden inside it: a pocket open only toward the body (and at the top for the USB-C
-    # plug), parts side facing the closed back, wire side facing the door hole; M2 bosses from the pocket floor.
+    # plug), parts side facing the back, wire side facing the door hole; 4 M2 holes through the back, no posts.
     cxm, czm = (tx + 3.5) * P, (ty + 4) * P
     holes = ((cxm - 20, czm - 23), (cxm + 20, czm - 23), (cxm - 20, czm + 32), (cxm + 20, czm + 32))
     board_wire = front - BOARD_SINK                         # wire side of the board
@@ -152,20 +152,17 @@ def main(base_p, vdir, out):
     # arms of the U (seen from above): one cube wide, running forward along both sides of the body
     # from the back wall, as high as the body lets them (under the arms / cap) — they hug the body
     arm_h = {}
-    for ax_, inner in ((int(px0 // P), (int(px0 // P) + 1) * P - CLR), (int(px1 // P) - 1, (int(px1 // P) - 1) * P + CLR)):
-        zs_arm = [z for z in range(zb, zb + ARM_LEN)]
-        h = min([lowest.get((ax_, z), 99) * P for z in zs_arm] + [top + CLR]) - CLR
-        x0_, x1_ = (ax_ * P, inner) if inner > ax_ * P + 6 else (inner, (ax_ + 1) * P)
-        parts.append(B(x0_, front - 0.01, -0.01, x1_, (zb + ARM_LEN) * P, h))
+    for ax_, x0_, x1_ in ((int(px0 // P) - 1, px0 - CLR - ARM_T, px0 - CLR), (int(px1 // P), px1 + CLR, px1 + CLR + ARM_T)):
+        h = min([lowest.get((ax_, z), 99) * P for z in range(zb, zb + ARM_LEN)] + [top + CLR]) - CLR
+        parts.append(B(x0_, PLATE_BACK, -0.01, x1_, (zb + ARM_LEN) * P, h))
+        parts.append(B(x0_, PLATE_BACK, -0.01, px0 + 0.01, front, h) if x0_ < px0 else B(px1 - 0.01, PLATE_BACK, -0.01, x1_, front, h))   # join to the back
         arm_h[ax_] = h
     # board pocket: 2 mm wider than the door hole per side and 2 mm below the board, so the JST cables
     # (eyes, ToF, amp, LED) come round the board edges into the body; open at the top for the plug
     st = trimesh.boolean.union(parts + deco, engine='manifold')
     st = trimesh.boolean.difference([st, B(hx0 - 2, pk_back, board_bot - 2, hx1 + 2, front + 1, top + 1)], engine='manifold')
-    bosses = [cyl(1, (hx, hz), BOSS_R, pk_back - 0.01, board_comp) for hx, hz in holes]
     cuts = []
-    cuts_after = [cyl(1, (hx, hz), PILOT_R, pk_back - 0.6, board_comp + 1) for hx, hz in holes]   # blind: back stays closed
-    st = trimesh.boolean.union([st] + bosses, engine='manifold')
+    cuts_after = [cyl(1, (hx, hz), SCREW_R, PLATE_BACK - 1, pk_back + 1) for hx, hz in holes]    # 4 holes through the back
     # the 8 floor cubes: cut right through, snug
     for (x, z) in floor:
         cuts.append(B(x * P - FIT, z * P - FIT, -1, (x + 1) * P + FIT, (z + 1) * P + FIT, GROUND + 5))
@@ -182,10 +179,8 @@ def main(base_p, vdir, out):
     sw = trimesh.boolean.intersection([st, sweep], engine='manifold')
     sw_v = sw.volume if len(sw.faces) else 0.0
     # board (56 × 68, top edge 3 mm above the top holes — hardware/pcb/facebrd_gen.py) + parts filling the
-    # pocket depth behind it everywhere except on the screw bosses
+    # pocket depth behind it
     brd = B(cxm - 28 + 0.05, pk_back + 0.05, czm - 33 + 0.05, cxm + 28 - 0.05, board_wire - 0.05, czm + 35 - 0.05)
-    brd = trimesh.boolean.difference([brd] + [cyl(1, (hx, hz), BOSS_R + 0.1, board_comp - 10, board_comp + 0.01) for hx, hz in holes],
-                                     engine='manifold')
     bh = trimesh.boolean.intersection([st, brd], engine='manifold')
     board_hit = round(bh.volume if len(bh.faces) else 0.0, 2)
     # pit fit, measured on the mesh: rays from inside each floor cube to its walls / floor, and the base
