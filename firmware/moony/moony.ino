@@ -60,6 +60,7 @@ Adafruit_SSD1306 eyeR(128, 64, &Wire1, -1);
 #if USE_TOF
 Adafruit_VL53L0X lox;
 bool hasTof = false;
+bool tofBlind = false;   // window wall in the sensor's view: it only ever sees that wall → ignore it
 #endif
 
 float clampf(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
@@ -640,7 +641,11 @@ void calibrate() {
     bgMM = v[n / 2];
     nearGate = (bgMM < NEAR_MM + 120) ? max(80, bgMM - 120) : NEAR_MM;
   }
-  Serial.printf("背景 %d mm → 发现门限 %d mm\n", bgMM, nearGate);
+  // the VL53L0X looks out in a ~25° cone; if the W window's bore crops it, the bore wall answers at a
+  // few cm all the time. Then nothing it reports is a person: switch presence + peekaboo off (eyes calm).
+  tofBlind = n >= 5 && bgMM < 120;
+  Serial.printf("背景 %d mm → 发现门限 %d mm%s\n", bgMM, nearGate,
+                tofBlind ? "  ⚠ ToF 一直看到窗口内壁,先不用它(c 键可重测)" : "");
 }
 #endif
 
@@ -955,7 +960,7 @@ void loop() {
 
   // --- presence ---
 #if USE_TOF
-  if (hasTof && now - lastRangePoll > 20) {
+  if (hasTof && !tofBlind && now - lastRangePoll > 20) {
     lastRangePoll = now;
     if (lox.isRangeComplete()) { int r = lox.readRangeResult(); if (r > 0 && r < 8000) rangeMM = r; }
     // hysteresis: once someone is there, they stay "near" until clearly past the gate, so a reading
@@ -1057,7 +1062,7 @@ void loop() {
   if (touched) lastTouchAny = now;
 #if USE_TOF
   // peekaboo: cover its "eye" (the ToF window) for a moment, then take your hand away
-  if (hasTof) {
+  if (hasTof && !tofBlind) {
     // covered only after < 50 mm for 150 ms, uncovered only after > 90 mm for 100 ms: a reading that
     // hovers around the threshold (or the window itself reflecting) no longer snaps the eyes shut
     static uint32_t closeSince = 0, farSince = 0;
