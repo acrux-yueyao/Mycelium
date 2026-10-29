@@ -41,6 +41,11 @@
 #include "Adafruit_VL53L0X.h"
 #endif
 #include "moony_config.h"
+// Halloween mode: a little devil's snicker (hold the nose, or now and then by itself), shifty eyes.
+// Turn off after the holiday with #define HALLOWEEN 0 in moony_config.h.
+#ifndef HALLOWEEN
+#define HALLOWEEN 1
+#endif
 
 // ===================== pins (MC03-F) =====================
 #if defined(ARDUINO_XIAO_ESP32S3)
@@ -684,6 +689,7 @@ uint32_t padLastPress[12] = {0};
 float affection = 0;
 uint32_t lastPlayAt = 0;
 void tuneSneeze();
+void tuneCackle();
 void liked(uint32_t now, float amt = 0.12f) { affection = fminf(1, affection + amt); lastPlayAt = now; }
 
 /** A pad that keeps flickering on/off by itself (a lead sitting right at the threshold) is muted
@@ -790,6 +796,9 @@ void handleTouch(uint16_t cur, uint16_t prev, uint32_t now) {
       if (i == P_FOREHEAD && dur > 2500) {                       // stroke the forehead and it drifts off
         padHoldFired[i] = true; lastReact = now; tuneSleep(); startAct(A_SLEEP, now, 30000);
         Serial.println("互动: 按住额头(睡着了)");
+      } else if (HALLOWEEN && i == P_NOSE && dur > 1200) {      // Halloween: hold its nose → wicked snicker
+        padHoldFired[i] = true; lastReact = now; tuneCackle();
+        touchReact("按住鼻尖(小恶魔坏笑)", now, 2400, ANGRY, 0.7f, 0.1f, 0.6f, true);
       } else if (i == P_TOP && dur > 1200 && WiFi.status() != WL_CONNECTED) {   // no tower to talk to:
         padHoldFired[i] = true; lastReact = now; tunePurr(); liked(now, 0.2f);   // a hand on its head is just nice
         touchReact("手放在头顶(好舒服)", now, 3000, HAPPY, 0, -0.1f, 0.4f);
@@ -857,6 +866,24 @@ void tuneSneeze() { PLAY(vc(120, 0.9f, 1.15f, 0, .5f, 0, 30, 60, 1.0f, 0.2f, 1.8
                          vc(140, 1.0f, 1.35f, 0, .5f, 0, 30, 60, 1.0f, 0.2f, 2.0f), rest(140),
                          vc(150, 1.9f, 0.9f, 0, .5f, 1, 2, 60, 0, 1.6f, 2.6f)); }      // a-a-chu!
 
+// Halloween: a little devil's snicker — a sly low "hmm~", a run of quick breathy "he-he-he" that speed up
+// and tumble down, and a low wicked "hehh~" at the end. Each time a little different.
+void tuneCackle() {
+  Note n[16]; int k = 0;
+  n[k++] = vc(300, 0.6f, 0.82f, 0.56f, .45f, 0, 40, 110, 1.4f, 0.7f, 1.5f);           // hmm~ (scheming)
+  n[k++] = rest(110);
+  int syl = 4 + int(frand() * 3);
+  float p = 1.55f + 0.1f * frand();
+  for (int i = 0; i < syl; i++) {
+    float a = p * (1.0f - 0.045f * i);
+    n[k++] = vc(62 + int(frand() * 18), a, a * 0.84f, 0, .5f, 1, 2, 55, 0.3f, 1.4f, 2.4f);   // he
+    n[k++] = rest(max(26, 62 - 8 * i));                                                    // faster
+  }
+  Note last = vc(320, 1.08f, 0.6f, 1.12f, .2f, 0, 10, 220, 0.8f, 1.2f, 2.8f);         // hehh~
+  last.warble = 0.8f; n[k++] = last;
+  playNotes(n, k);
+}
+
 void innerLife(uint32_t now, bool someoneNear, bool interacted) {
   float dt = (now - lastLifeTick) / 1000.0f; lastLifeTick = now;
   if (dt > 1) dt = 1;
@@ -874,7 +901,7 @@ void innerLife(uint32_t now, bool someoneNear, bool interacted) {
     Serial.println("自己: 困了,睡一会儿"); return;
   }
   // otherwise pick by weight
-  float w[7] = {
+  float w[8] = {
     0.8f + 0.6f * (1 - boredom) + 1.2f * affection,   // 0 hum a little tune to itself (more after play)
     0.6f + 0.8f * curiosity,                     // 1 babble / talk to itself
     0.5f + 1.0f * curiosity,                     // 2 look around
@@ -882,10 +909,11 @@ void innerLife(uint32_t now, bool someoneNear, bool interacted) {
     0.2f + 1.2f * boredom,                       // 4 sigh (lonely)
     0.15f,                                       // 5 sneeze
     (lastFam >= 0 && now - lastFamAt < 600000) ? 1.2f : 0,   // 6 remember what someone said
+    HALLOWEEN ? 0.9f : 0,                        // 7 Halloween: snickers to itself, up to no good
   };
   float tot = 0; for (float v : w) tot += v;
   float r = frand() * tot; int pick = 0;
-  while (pick < 6 && r > w[pick]) r -= w[pick++];
+  while (pick < 7 && r > w[pick]) r -= w[pick++];
   Note m[MAX_NOTES]; int n;
   switch (pick) {
     case 0: n = familyMelody(int(frand() * 2) ? 0 : 1, 0.25f, 0.1f, 0.3f, int(frand() * 360), m); playQuiet(m, min(n, 6), 0.45f);
@@ -899,6 +927,7 @@ void innerLife(uint32_t now, bool someoneNear, bool interacted) {
     case 5: tuneSneeze(); touchReact("自己: 打喷嚏", now, 1400, NEUTRAL, 0, 0.2f, 0.15f); break;
     case 6: n = familyMelody(lastFam, 0.4f, 0.2f, 0.4f, 200, m); playQuiet(m, min(n, 6), 0.4f);
             touchReact("自己: 想起刚才有人说的话", now, 3000, familyMood(lastFam), 0.5f, -0.5f, 0.85f); break;
+    case 7: tuneCackle(); touchReact("自己: 小恶魔坏笑(万圣节)", now, 2400, ANGRY, 0, 0.1f, 0.6f, true); break;
   }
 }
 
@@ -1161,6 +1190,7 @@ void loop() {
         touchFocus = touchFocus >= 11 ? -1 : touchFocus + 1;
         if (touchFocus < 0) Serial.println("触摸监视:看全部 12 路"); else Serial.printf("触摸监视:只看 E%d(再按 e 换下一路)\n", touchFocus);
         touchMon = true; break;
+      case 'x': tuneCackle(); touchReact("小恶魔坏笑(串口 x)", now, 2400, ANGRY, 0, 0.1f, 0.6f, true); break;
       case 't': touchMon = !touchMon; Serial.println(touchMon ? "触摸监视 开(再按 t 关)" : "触摸监视 关"); break;
       case 'i': Serial.printf("Wi-Fi=%d Pi=%s 倾斜 x=%.2f z=%.2f 触摸=0x%03X 麦=%d act=%d\n", wifiOk,
                               piAddr.toString().c_str(), tiltX, tiltZ, touched, micLevel, act); break;
