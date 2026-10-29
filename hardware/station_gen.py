@@ -28,7 +28,10 @@ from trimesh.transformations import translation_matrix as TM
 P = 12.0
 CLR = 0.3            # robot-to-station clearance
 SLAB = 3.0           # solid floor under everything (z -SLAB .. 0)
-GROUND = 12.0 - 0.3  # base top under the body: the whole floor layer (8 cubes) sinks into its pockets
+GROUND = 12.0        # base top under the body = top of the floor layer: the 8 floor cubes sink into a full
+                     # 12 mm pit and the second layer rests flat on the base
+FIT = 0.15           # pit wall clearance per side (snug press-in; 0.3 if your cubes print fat)
+TILE_D = 0.6         # mosaic groove depth
 GAP = 0.8            # mosaic groove width
 MARGIN = 2           # cubes of forest on every side of the robot
 PLATE_BACK = 48.0    # back plate = exactly the one free cube layer behind the body (48..60)
@@ -107,9 +110,11 @@ def main(base_p, vdir, out):
             d = max(bx0 - x, x - bx1, bz0 - z, z - bz1, 0)
             h = GROUND if inside else GROUND + 3 * d + 3 * int(hash01(x, z) * 3)     # forest rises round the dip
             if (x, z) in lowest:
-                h = min(h, lowest[(x, z)] * P - CLR)
+                h = min(h, lowest[(x, z)] * P)
             heights[(x, z)] = h
             parts.append(B(x * P + GAP / 2, z * P + GAP / 2, -0.01, (x + 1) * P - GAP / 2, (z + 1) * P - GAP / 2, h))
+    # solid core up to just under the groove depth, so the pit has full walls (grooves are only cosmetic)
+    parts.append(B((bx0 - MARGIN) * P, (bz0 - MARGIN) * P, -0.01, (bx1 + 1 + MARGIN) * P, (bz1 + 1 + MARGIN) * P, GROUND - TILE_D))
     # ---- back plate (fills the grooves under it): full height behind the door hole, stepping down
     # cube by cube to the sides like a little pixel hill; mosaic grooves on its back face
     steps = {}
@@ -155,7 +160,7 @@ def main(base_p, vdir, out):
     st = trimesh.boolean.union(parts + bosses + deco, engine='manifold')
     # floor pocket (tiles already skip the floor cells; this squares the walls with clearance)
     for (x, z) in floor:
-        cuts.append(B(x * P - CLR, z * P - CLR, 0, (x + 1) * P + CLR, (z + 1) * P + CLR, GROUND + 5))
+        cuts.append(B(x * P - FIT, z * P - FIT, 0, (x + 1) * P + FIT, (z + 1) * P + FIT, GROUND + 5))
     for (x, z) in grille:                                    # speaker: hole down, then a channel out the side
         cx, cy = (x + 0.5) * P, (z + 0.5) * P
         cuts.append(cyl(2, (cx, cy), 4.5, -SLAB - 1, 1))
@@ -176,6 +181,27 @@ def main(base_p, vdir, out):
     brd = B(cxm - 28 + 0.05, board_comp - 8.5 + 0.05, czm - 33 + 0.05, cxm + 28 - 0.05, board_wire - 0.05, czm + 35 - 0.05)
     bh = trimesh.boolean.intersection([st, brd], engine='manifold')
     board_hit = round(bh.volume if len(bh.faces) else 0.0, 2)
+    # pit fit, measured on the mesh: rays from inside each floor cube to its walls / floor, and the base
+    # surface under every second-layer cube
+    rays_o, rays_d, expect = [], [], []
+    for (x, z) in floor:
+        for dx, dz in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            if (x + dx, z + dz) in floor:
+                continue
+            for hgt in (2.0, 6.0, 10.0):
+                rays_o.append([(x + 0.5) * P, (z + 0.5) * P, hgt]); rays_d.append([dx, dz, 0]); expect.append('wall')
+        rays_o.append([(x + 0.5) * P + 3, (z + 0.5) * P + 3, 6.0]); rays_d.append([0, 0, -1]); expect.append('floor')
+    loc, ri, _ = st.ray.intersects_location(np.array(rays_o), np.array(rays_d), multiple_hits=False)
+    walls, floors = [], []
+    for p_, i in zip(loc, ri):
+        dist = np.linalg.norm(p_ - rays_o[i])
+        (walls if expect[i] == 'wall' else floors).append(dist - (P / 2 if expect[i] == 'wall' else 6.0))
+    second = [(x, z) for (x, y, z) in K if y == 1 and (x, z) not in floor]
+    probe = np.array([[(x + 0.5) * P + 2, (z + 0.5) * P + 2, GROUND + d] for (x, z) in second for d in (-0.3, 0.3)])
+    inside = st.contains(probe).reshape(-1, 2)
+    fit = {'pit_depth_mm': GROUND, 'pit_wall_gap_mm': [round(min(walls), 2), round(max(walls), 2)], 'wall_rays': len(walls),
+           'floor_gap_mm': [round(min(floors), 2), round(max(floors), 2)],
+           'second_layer_resting_on_base': f'{int((inside[:, 0] & ~inside[:, 1]).sum())}/{len(second)}'}
     usb = (7, 8, 4) not in K and (7, 9, 4) not in K and (7, 8, 3) not in K
     os.makedirs(out, exist_ok=True)
     st.export(f'{out}/station_meshframe.stl')
@@ -184,7 +210,7 @@ def main(base_p, vdir, out):
             'plate': {'x': [px0, px1], 'back': PLATE_BACK, 'front': front, 'top': top},
             'board': {'wire_side': board_wire, 'component_gap_mm': round(board_comp - pk_back, 1), 'holes': holes},
             'overlap_with_robot_mm3': round(hit_v, 2), 'drop_in_overlap_mm3': round(sw_v, 2),
-            'board_overlap_mm3': board_hit, 'usb_gap_under_cap_free': usb}
+            'board_overlap_mm3': board_hit, 'usb_gap_under_cap_free': usb, 'fit': fit}
     json.dump(spec, open(f'{out}/station_spec.json', 'w'), indent=1)
     print(json.dumps(spec))
     preview(st, K, man, f'{out}/station_preview.png')

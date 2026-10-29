@@ -4,7 +4,7 @@
   137.4,
   98.7
  ],
- "solid_grams": 652,
+ "solid_grams": 707,
  "plate": {
   "x": [
    54.0,
@@ -39,5 +39,18 @@
  "overlap_with_robot_mm3": 0.0,
  "drop_in_overlap_mm3": 0.0,
  "board_overlap_mm3": 0.0,
- "usb_gap_under_cap_free": true
+ "usb_gap_under_cap_free": true,
+ "fit": {
+  "pit_depth_mm": 12.0,
+  "pit_wall_gap_mm": [
+   0.15,
+   0.15
+  ],
+  "wall_rays": 36,
+  "floor_gap_mm": [
+   0.0,
+   0.0
+  ],
+  "second_layer_resting_on_base": "13/13"
+ }
 }
