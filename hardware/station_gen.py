@@ -8,11 +8,11 @@ board, charging through the gap under the cap.
     bottom can no longer wobble or slide. Round the dip, whole cubes stacked 0-2 high with a few
     smaller cubes on top — cubes only. The pit is open right through: the floor cubes stand on the
     table (speaker grille included), the base is exactly one cube tall around them.
-  · back U (seen from above): one extra cube layer behind the body, closed at the back, up to just
-    under the cap (96 mm, the old cavity height), exactly as wide as the body, with thin arms running forward along both sides
-    of the body. The board hides inside that layer: a pocket open only toward the door hole (and at
-    the top), 4 M2 holes through the back (no posts), parts side facing the back, wire side facing the
-    body. USB-C goes straight up into the free cell under the cap (x = 7); the cable leaves backward.
+  · back layer: one extra cube layer behind the body, closed at the back, up to just under the cap
+    (96 mm, the old cavity height), exactly as wide as the body (84 mm), nothing past its sides. The
+    board hides inside it: a pocket open only toward the door hole (and at the top), 4 M2 holes through
+    the back (no posts), parts side facing the back, wire side facing the body. USB-C goes straight up
+    into the free cell under the cap (x = 7); the cable leaves backward.
     The robot drops in from above.
 
 Built in the cube mesh frame (x, front, up); the body's floor is z = 0.
@@ -40,8 +40,6 @@ PLATE_BACK = 48.0    # back plate = exactly the one free cube layer behind the b
 BOARD_T = 0.8
 BOARD_SINK = 1.0     # board's wire side this far behind the plate front (solder joints don't scrape the body)
 SCREW_R = 1.15       # M2 through holes in the back (no posts: use your own spacers/nuts)
-ARM_T = 3.0          # U arms: thin walls hugging the body sides, so the width grows only 2 × 3 mm
-ARM_LEN = 2          # U arms run this many cubes forward from the back wall
 POCKET_FLOOR = 1.2   # closed back skin behind the board pocket
 STACK_STEP = 0.5     # each stacked cube this much narrower per side than the one below
 
@@ -149,14 +147,6 @@ def main(base_p, vdir, out):
     board_bot = czm - 33
     parts.append(B(px0, PLATE_BACK, -0.01, px1, front, top))                 # back wall, closed
     pk_back = PLATE_BACK + POCKET_FLOOR
-    # arms of the U (seen from above): one cube wide, running forward along both sides of the body
-    # from the back wall, as high as the body lets them (under the arms / cap) — they hug the body
-    arm_h = {}
-    for ax_, x0_, x1_ in ((int(px0 // P) - 1, px0 - CLR - ARM_T, px0 - CLR), (int(px1 // P), px1 + CLR, px1 + CLR + ARM_T)):
-        h = min([lowest.get((ax_, z), 99) * P for z in range(zb, zb + ARM_LEN)] + [top + CLR]) - CLR
-        parts.append(B(x0_, PLATE_BACK, -0.01, x1_, (zb + ARM_LEN) * P - CLR, h))     # stops CLR short of the next cube
-        parts.append(B(x0_, PLATE_BACK, -0.01, px0 + 0.01, front, h) if x0_ < px0 else B(px1 - 0.01, PLATE_BACK, -0.01, x1_, front, h))   # join to the back
-        arm_h[ax_] = h
     # board pocket: 2 mm wider than the door hole per side and 2 mm below the board, so the JST cables
     # (eyes, ToF, amp, LED) come round the board edges into the body; open at the top for the plug
     st = trimesh.boolean.union(parts + deco, engine='manifold')
@@ -237,7 +227,7 @@ def main(base_p, vdir, out):
     st.export(f'{out}/station_meshframe.stl')
     pr = st.copy(); pr.apply_translation(-pr.bounds[0]); pr.export(f'{out}/station.stl')
     spec = {'size_mm': [round(v, 1) for v in pr.extents], 'solid_grams': round(st.volume / 1000 * 1.24),
-            'plate': {'x': [px0, px1], 'back': PLATE_BACK, 'front': front, 'top': top, 'arm_heights': {str(k): round(v, 1) for k, v in arm_h.items()}, 'arm_front': (zb + ARM_LEN) * P - CLR},
+            'plate': {'x': [px0, px1], 'back': PLATE_BACK, 'front': front, 'top': top},
             'board': {'wire_side': board_wire, 'parts_height_room_mm': round(board_comp - pk_back, 1), 'holes': holes},
             'overlap_with_robot_mm3': round(hit_v, 2), 'drop_in_overlap_mm3': round(sw_v, 2),
             'board_overlap_mm3': board_hit, 'usb_gap_under_cap_free': usb, 'fit': fit, 'face_gaps': face_gaps}
