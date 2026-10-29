@@ -4,10 +4,11 @@
 
 ## 第一次用
 
-在仓库根目录把 Vercel 上的环境变量拉到本地(会写进 `.env.local`，它已经在 .gitignore 里):
+在仓库根目录把 Vercel 上的环境变量拉到本地(会写进 `.env.local`，它已经在 .gitignore 里)。网站对应的 Vercel 项目是 **mycelium-abxv**(团队 acrux-yueyaos-projects),先把本地仓库连到它:
 
 ```
-vercel env pull .env.local
+vercel link --project mycelium-abxv --scope acrux-yueyaos-projects --yes
+vercel env pull .env.local --environment=production
 ```
 
 没有装 Vercel CLI 的话，也可以去 Upstash 控制台复制 `UPSTASH_REDIS_REST_URL` 和 `UPSTASH_REDIS_REST_TOKEN`，写进根目录的 `.env.local`:
