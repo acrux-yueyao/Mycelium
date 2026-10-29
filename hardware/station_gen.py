@@ -4,9 +4,10 @@ Moony rest station — one piece: a mosaic cube base the body stands in + a back
 board, charging through the gap under the cap.
 
   · base: the robot footprint + 2 cubes on every side, one cube tall, a 12 mm mosaic on top. The 8
-    floor cubes (y = 0) sink into a full 12 mm pit and the second layer rests on the base, so the
+    floor cubes (y = 0) sit in a 12 mm through-cut and the second layer rests on the base, so the
     bottom can no longer wobble or slide. Round the dip, whole cubes stacked 0-2 high with a few
-    smaller cubes on top — cubes only. A hole + channel under the speaker grille (G).
+    smaller cubes on top — cubes only. The pit is open right through: the floor cubes stand on the
+    table (speaker grille included), the base is exactly one cube tall around them.
   · back plate: stands in the free layer behind the body (creature z = 4, under the cap), same height
     as the old cavity (top just under the cap at 96 mm). Its front is flush with the body's back
     plane, so the robot drops in from above. The board sits in a pocket in the plate, component side
@@ -28,7 +29,6 @@ from trimesh.transformations import translation_matrix as TM
 
 P = 12.0
 CLR = 0.3            # robot-to-station clearance
-SLAB = 3.0           # solid floor under everything (z -SLAB .. 0)
 GROUND = 12.0        # base top under the body = top of the floor layer: the 8 floor cubes sink into a full
                      # 12 mm pit and the second layer rests flat on the base
 FIT = 0.15           # pit wall clearance per side (snug press-in; 0.3 if your cubes print fat)
@@ -83,7 +83,6 @@ def main(base_p, vdir, out):
     xs = [c['x'] for c in cells]; zs = [c['z'] for c in cells]
     bx0, bx1, bz0, bz1 = min(xs), max(xs), min(zs), max(zs)
     floor = [(c['x'], c['z']) for c in cells if c['y'] == 0]
-    grille = [(c['x'], c['z']) for c in cells if c['y'] == 0 and c['code'][0] == 'G']
     # the body's back plane over the door hole + plate span
     zb = min(z for (x, y, z) in K if x in (tx, tx + 6) and ty + 1 <= y <= ty + 6)       # door ring layer
     front = zb * P - CLR                                    # plate front face
@@ -94,7 +93,7 @@ def main(base_p, vdir, out):
         if z * P < front and (z + 1) * P > PLATE_BACK and y * P < top and (x + 1) * P > px0 and x * P < px1:
             raise SystemExit(f'plate hits cube {(x, y, z)}')
 
-    parts = [B((bx0 - MARGIN) * P, (bz0 - MARGIN) * P, -SLAB, (bx1 + 1 + MARGIN) * P, (bz1 + 1 + MARGIN) * P, 0.01)]
+    parts = []
     # ---- mosaic tiles
     lowest = {}
     for (x, y, z) in K:
@@ -161,11 +160,7 @@ def main(base_p, vdir, out):
     st = trimesh.boolean.union(parts + bosses + deco, engine='manifold')
     # floor pocket (tiles already skip the floor cells; this squares the walls with clearance)
     for (x, z) in floor:
-        cuts.append(B(x * P - FIT, z * P - FIT, 0, (x + 1) * P + FIT, (z + 1) * P + FIT, GROUND + 5))
-    for (x, z) in grille:                                    # speaker: hole down, then a channel out the side
-        cx, cy = (x + 0.5) * P, (z + 0.5) * P
-        cuts.append(cyl(2, (cx, cy), 4.5, -SLAB - 1, 1))
-        cuts.append(B((bx0 - MARGIN) * P - 1, cy - 4, -SLAB - 1, cx, cy + 4, -SLAB + 2.5))
+        cuts.append(B(x * P - FIT, z * P - FIT, -1, (x + 1) * P + FIT, (z + 1) * P + FIT, GROUND + 5))
     st = trimesh.boolean.difference([st] + cuts + cuts_after, engine='manifold')
     assert st.is_watertight
     # ---- fit check: nothing of the station inside any cube of the robot
@@ -191,7 +186,6 @@ def main(base_p, vdir, out):
                 continue
             for hgt in (2.0, 6.0, 10.0):
                 rays_o.append([(x + 0.5) * P, (z + 0.5) * P, hgt]); rays_d.append([dx, dz, 0]); expect.append('wall')
-        rays_o.append([(x + 0.5) * P + 3, (z + 0.5) * P + 3, 6.0]); rays_d.append([0, 0, -1]); expect.append('floor')
     loc, ri, _ = st.ray.intersects_location(np.array(rays_o), np.array(rays_d), multiple_hits=False)
     walls, floors = [], []
     for p_, i in zip(loc, ri):
@@ -201,7 +195,8 @@ def main(base_p, vdir, out):
     probe = np.array([[(x + 0.5) * P + 2, (z + 0.5) * P + 2, GROUND + d] for (x, z) in second for d in (-0.3, 0.3)])
     inside = st.contains(probe).reshape(-1, 2)
     fit = {'pit_depth_mm': GROUND, 'pit_wall_gap_mm': [round(min(walls), 2), round(max(walls), 2)], 'wall_rays': len(walls),
-           'floor_gap_mm': [round(min(floors), 2), round(max(floors), 2)],
+           'pit_open_through': bool(not st.contains(np.array([[(x + 0.5) * P, (z + 0.5) * P, 0.5] for (x, z) in floor])).any()),
+           'base_bottom_z': round(float(st.bounds[0][2]), 2),
            'second_layer_resting_on_base': f'{int((inside[:, 0] & ~inside[:, 1]).sum())}/{len(second)}'}
     usb = (7, 8, 4) not in K and (7, 9, 4) not in K and (7, 8, 3) not in K
     os.makedirs(out, exist_ok=True)
@@ -271,7 +266,7 @@ def preview(st, K, man, path):
         robot.append((B(x * P + 0.3, z * P + 0.3, y * P + 0.3, (x + 1) * P - 0.3, (z + 1) * P - 0.3, (y + 1) * P - 0.3),
                       matplotlib.colors.to_rgb(man['colors'][c['ci']]), 1.0))
     views = (('休息站 · 从背后左上看(背板凹槽装主板)', [(st, pearl, 1)], 35, 215),
-             ('休息站 · 从前面看(中间下凹,挖出 8 颗白色底块的坑)', [(st, pearl, 1)], 40, 25),
+             ('休息站 · 从前面看(中间下凹,8 颗白块的位置镂空)', [(st, pearl, 1)], 40, 25),
              ('放上 Moony · 从背后看', [(st, pearl, 1)] + robot, 20, 200))
     fig, ax = plt.subplots(1, 3, figsize=(21, 7), facecolor='#f6f5f0')
     for a, (title, ms, el, az) in zip(ax, views):

@@ -2,9 +2,9 @@
  "size_mm": [
   216.0,
   132.0,
-  98.7
+  95.7
  ],
- "solid_grams": 731,
+ "solid_grams": 628,
  "plate": {
   "x": [
    54.0,
@@ -47,10 +47,8 @@
    0.15
   ],
   "wall_rays": 36,
-  "floor_gap_mm": [
-   0.0,
-   0.0
-  ],
+  "pit_open_through": true,
+  "base_bottom_z": -0.01,
   "second_layer_resting_on_base": "13/13"
  }
 }
