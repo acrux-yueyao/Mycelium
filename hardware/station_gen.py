@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-Moony rest station — one piece: a mosaic-forest base the body stands in + a back plate that holds the
-board, charging through the gap under the mushroom cap.
+Moony rest station — one piece: a mosaic cube base the body stands in + a back plate that holds the
+board, charging through the gap under the cap.
 
-  · base: the robot footprint + 2 cubes on every side, a 12 mm mosaic of tiles at stepped heights,
-    voxel mushrooms and grass tufts in the margin. The 8 floor cubes (y = 0) drop into a pocket,
-    so the bottom layer can no longer wobble or slide; a hole under the speaker grille (G).
+  · base: the robot footprint + 2 cubes on every side, one cube tall, a 12 mm mosaic on top. The 8
+    floor cubes (y = 0) sink into a full 12 mm pit and the second layer rests on the base, so the
+    bottom can no longer wobble or slide. Round the dip, whole cubes stacked 0-2 high with a few
+    smaller cubes on top — cubes only. A hole + channel under the speaker grille (G).
   · back plate: stands in the free layer behind the body (creature z = 4, under the cap), same height
     as the old cavity (top just under the cap at 96 mm). Its front is flush with the body's back
     plane, so the robot drops in from above. The board sits in a pocket in the plate, component side
@@ -33,13 +34,14 @@ GROUND = 12.0        # base top under the body = top of the floor layer: the 8 f
 FIT = 0.15           # pit wall clearance per side (snug press-in; 0.3 if your cubes print fat)
 TILE_D = 0.6         # mosaic groove depth
 GAP = 0.8            # mosaic groove width
-MARGIN = 2           # cubes of forest on every side of the robot
+MARGIN = 2           # cubes of base on every side of the robot
 PLATE_BACK = 48.0    # back plate = exactly the one free cube layer behind the body (48..60)
 POCKET_FLOOR = 1.2   # plate skin behind the board pocket
 BOARD_T = 0.8
 BOARD_SINK = 1.0     # board's wire side this far behind the plate front (solder joints don't scrape the body)
 PILOT_R = 0.85       # M2 self-tapping pilot
 BOSS_R = 2.6
+STACK_STEP = 0.5     # each stacked cube this much narrower per side than the one below
 
 
 def B(x0, y0, z0, x1, y1, z1):
@@ -63,18 +65,14 @@ def hash01(*k):
     return h / 0xffffffff
 
 
-def mushroom(cx, cy, z0, s, tall):
-    """Voxel mushroom of s-mm voxels: 2×2 stem, 4×4 cap with a 2×2 crown, a 6×6 brim for big ones."""
-    parts = []
-    v = s
-    parts.append(B(cx - v, cy - v, z0 - 0.01, cx + v, cy + v, z0 + tall * v))
-    zc = z0 + tall * v
-    brim = 3 if tall >= 4 else 2
-    parts.append(B(cx - brim * v, cy - brim * v, zc, cx + brim * v, cy + brim * v, zc + v))
-    parts.append(B(cx - (brim - 1) * v, cy - (brim - 1) * v, zc + v - 0.01, cx + (brim - 1) * v, cy + (brim - 1) * v, zc + 2 * v))
-    if brim == 3:
-        parts.append(B(cx - v, cy - v, zc + 2 * v - 0.01, cx + v, cy + v, zc + 2.6 * v))
-    return parts
+def cube_stack(x, y, k, z0, inset0):
+    """k whole 12 mm cubes stacked on cell (x, y) from z0, each a little narrower than the one under it
+    so every cube reads on its own."""
+    out = []
+    for j in range(k):
+        e = inset0 + STACK_STEP * (j + 1)
+        out.append(B(x * P + e, y * P + e, z0 + j * P - 0.01, (x + 1) * P - e, (y + 1) * P - e, z0 + (j + 1) * P))
+    return out
 
 
 def main(base_p, vdir, out):
@@ -108,7 +106,7 @@ def main(base_p, vdir, out):
                 continue
             inside = bx0 <= x <= bx1 and bz0 <= z <= bz1
             d = max(bx0 - x, x - bx1, bz0 - z, z - bz1, 0)
-            h = GROUND if inside else GROUND + 3 * d + 3 * int(hash01(x, z) * 3)     # forest rises round the dip
+            h = GROUND                                       # margin cubes are stacked on below
             if (x, z) in lowest:
                 h = min(h, lowest[(x, z)] * P)
             heights[(x, z)] = h
@@ -138,25 +136,28 @@ def main(base_p, vdir, out):
     for hx, hz in holes:
         bosses.append(cyl(1, (hx, hz), BOSS_R, pk_back - 0.01, board_comp))
     cuts_after = [cyl(1, (hx, hz), PILOT_R, pk_back - 0.6, board_comp + 1) for hx, hz in holes]
-    # ---- forest: mushrooms + grass in the margin
+    # ---- cubes round the dip: whole 12 mm cubes stacked 0-2 high (higher toward the outside), and
+    # here and there a smaller 6 or 8 mm cube on top
     deco = []
-    spots = [((bx0 - 2, bz0 - 1), 3.2, 6), ((bx0 - 1, bz1 + 2), 2.4, 3), ((bx1 + 2, bz0), 2.8, 4),
-             ((bx1 + 1, bz1 + 2), 3.4, 5), ((bx0 + 3, bz1 + 2), 2.0, 3), ((bx1 - 3, bz0 - 2), 2.4, 4),
-             ((bx0 - 2, bz1 - 1), 2.0, 2), ((bx1 + 2, bz1 - 2), 2.0, 3)]
-    for (x, z), s, tall in spots:
-        cx, cy = (x + 0.5) * P, (z + 0.5) * P
-        deco += mushroom(cx, cy, heights[(x, z)], s, tall)
-    for x, h in steps.items():                               # small mushrooms on the plate's lower steps
-        if h < top - 1:
-            deco += mushroom((x + 0.5) * P, (PLATE_BACK + front) / 2, h, 2.0, 2 + (x % 2))
     for x in range(bx0 - MARGIN, bx1 + 1 + MARGIN):
         for z in range(bz0 - MARGIN, bz1 + 1 + MARGIN):
-            if (x, z) in heights and not (bx0 <= x <= bx1 and bz0 <= z <= bz1) and hash01(z, x, 7) < 0.35 \
-                    and all((x, z) != s[0] for s in spots) and not (px0 < (x + 1) * P and x * P < px1 and z * P < front):
-                for k in range(3):
-                    gx = x * P + 2.5 + hash01(x, z, k) * 7; gy = z * P + 2.5 + hash01(z, x, k) * 7
-                    deco.append(B(gx - 0.8, gy - 0.8, heights[(x, z)] - 0.01, gx + 0.8, gy + 0.8,
-                                  heights[(x, z)] + 2.5 + 4 * hash01(k, x, z)))
+            if (bx0 <= x <= bx1 and bz0 <= z <= bz1) or (px0 < (x + 1) * P and x * P < px1 and PLATE_BACK < (z + 1) * P and z * P < front):
+                continue
+            d = max(bx0 - x, x - bx1, bz0 - z, z - bz1)
+            r = hash01(x, z)
+            k = (0 if r < 0.45 else 1) if d == 1 else (1 if r < 0.55 else 2 if r < 0.9 else 0)
+            deco += cube_stack(x, z, k, GROUND, GAP / 2)
+            heights[(x, z)] = GROUND + k * P
+            if hash01(z, x, 3) < 0.22:
+                a = 6.0 if hash01(x, z, 5) < 0.5 else 8.0
+                e = GAP / 2 + STACK_STEP * k
+                ox = x * P + e + hash01(x, z, 9) * (P - 2 * e - a); oy = z * P + e + hash01(z, x, 9) * (P - 2 * e - a)
+                deco.append(B(ox, oy, heights[(x, z)] - 0.01, ox + a, oy + a, heights[(x, z)] + a))
+    for x, h in steps.items():                               # a small cube on each lower step of the plate
+        if h < top - 1:
+            a = 6.0 if x % 2 else 8.0
+            cx, cy = (x + 0.5) * P, (PLATE_BACK + front) / 2
+            deco.append(B(cx - a / 2, cy - a / 2, h - 0.01, cx + a / 2, cy + a / 2, h + a))
     st = trimesh.boolean.union(parts + bosses + deco, engine='manifold')
     # floor pocket (tiles already skip the floor cells; this squares the walls with clearance)
     for (x, z) in floor:
