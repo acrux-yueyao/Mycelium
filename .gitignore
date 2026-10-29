@@ -9,3 +9,6 @@ dist
 tsconfig.tsbuildinfo
 __pycache__/
 *.pyc
+
+# exported study feedback — participant data, never commit
+/feedback-export/
