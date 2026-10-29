@@ -154,7 +154,7 @@ def main(base_p, vdir, out):
     arm_h = {}
     for ax_, x0_, x1_ in ((int(px0 // P) - 1, px0 - CLR - ARM_T, px0 - CLR), (int(px1 // P), px1 + CLR, px1 + CLR + ARM_T)):
         h = min([lowest.get((ax_, z), 99) * P for z in range(zb, zb + ARM_LEN)] + [top + CLR]) - CLR
-        parts.append(B(x0_, PLATE_BACK, -0.01, x1_, (zb + ARM_LEN) * P, h))
+        parts.append(B(x0_, PLATE_BACK, -0.01, x1_, (zb + ARM_LEN) * P - CLR, h))     # stops CLR short of the next cube
         parts.append(B(x0_, PLATE_BACK, -0.01, px0 + 0.01, front, h) if x0_ < px0 else B(px1 - 0.01, PLATE_BACK, -0.01, x1_, front, h))   # join to the back
         arm_h[ax_] = h
     # board pocket: 2 mm wider than the door hole per side and 2 mm below the board, so the JST cables
@@ -174,7 +174,8 @@ def main(base_p, vdir, out):
     hit = trimesh.boolean.intersection([st, robot], engine='manifold')
     hit_v = hit.volume if len(hit.faces) else 0.0
     # drop-in check: the robot swept upward must not hit the station either
-    sweep = trimesh.boolean.union([B(x * P + 0.05, z * P + 0.05, y * P + 0.05, (x + 1) * P - 0.05, (z + 1) * P - 0.05, 400)
+    e = FIT - 0.01                                          # must slide past with at least ~FIT everywhere
+    sweep = trimesh.boolean.union([B(x * P + e, z * P + e, y * P + e, (x + 1) * P - e, (z + 1) * P - e, 400)
                                    for (x, y, z) in K], engine='manifold')
     sw = trimesh.boolean.intersection([st, sweep], engine='manifold')
     sw_v = sw.volume if len(sw.faces) else 0.0
@@ -204,15 +205,42 @@ def main(base_p, vdir, out):
            'pit_open_through': bool(not st.contains(np.array([[(x + 0.5) * P, (z + 0.5) * P, 0.5] for (x, z) in floor])).any()),
            'base_bottom_z': round(float(st.bounds[0][2]), 2),
            'second_layer_resting_on_base': f'{int((inside[:, 0] & ~inside[:, 1]).sum())}/{len(second)}'}
+    # every exposed face of every robot cube: gap straight out along its normal to the station.
+    # Only downward faces may touch (the body rests on the table / the base); everything else needs ≥ FIT.
+    O, Dn, kind = [], [], []
+    g = np.linspace(0.5, 11.5, 8)
+    for (x, y, z) in K:
+        for ax, sgn in ((0, -1), (0, 1), (1, -1), (1, 1), (2, -1), (2, 1)):
+            n = [0, 0, 0]; n[ax] = sgn
+            if (x + n[0], y + n[2], z + n[1]) in K:
+                continue
+            o = np.array([x * P, z * P, y * P], float); oth = [i for i in range(3) if i != ax]
+            o[ax] += 0 if sgn < 0 else P
+            for u in g:
+                for v in g:
+                    q = o.copy(); q[oth[0]] += u; q[oth[1]] += v
+                    O.append(q - np.array(n) * 1e-4); Dn.append(n); kind.append('down' if (ax, sgn) == (2, -1) else 'side')
+    O = np.array(O); Dn = np.array(Dn, float)
+    loc, ri, _ = st.ray.intersects_location(O, Dn, multiple_hits=False)
+    gaps = {'down': [], 'side': []}
+    for q, i in zip(loc, ri):
+        gaps[kind[i]].append(float(np.linalg.norm(q - O[i])) - 1e-4)
+    side_min = min(gaps['side'])
+    down_touch = sum(1 for v in gaps['down'] if v < 0.01)
+    down_min_nonzero = min(v for v in gaps['down'] if v >= 0.01)
+    assert side_min >= FIT - 1e-3, f'a side/back/top face is only {side_min:.3f} mm from the station'
+    assert down_min_nonzero >= FIT - 1e-3, f'a downward face hovers {down_min_nonzero:.3f} mm over the station'
+    face_gaps = {'side_faces_min_gap_mm': round(side_min, 3), 'down_faces_resting_points': down_touch,
+                 'down_faces_min_gap_if_not_resting_mm': round(down_min_nonzero, 3), 'rays': len(O)}
     usb = (7, 8, 4) not in K and (7, 9, 4) not in K and (7, 8, 3) not in K
     os.makedirs(out, exist_ok=True)
     st.export(f'{out}/station_meshframe.stl')
     pr = st.copy(); pr.apply_translation(-pr.bounds[0]); pr.export(f'{out}/station.stl')
     spec = {'size_mm': [round(v, 1) for v in pr.extents], 'solid_grams': round(st.volume / 1000 * 1.24),
-            'plate': {'x': [px0, px1], 'back': PLATE_BACK, 'front': front, 'top': top, 'arm_heights': {str(k): round(v, 1) for k, v in arm_h.items()}, 'arm_front': (zb + ARM_LEN) * P},
+            'plate': {'x': [px0, px1], 'back': PLATE_BACK, 'front': front, 'top': top, 'arm_heights': {str(k): round(v, 1) for k, v in arm_h.items()}, 'arm_front': (zb + ARM_LEN) * P - CLR},
             'board': {'wire_side': board_wire, 'parts_height_room_mm': round(board_comp - pk_back, 1), 'holes': holes},
             'overlap_with_robot_mm3': round(hit_v, 2), 'drop_in_overlap_mm3': round(sw_v, 2),
-            'board_overlap_mm3': board_hit, 'usb_gap_under_cap_free': usb, 'fit': fit}
+            'board_overlap_mm3': board_hit, 'usb_gap_under_cap_free': usb, 'fit': fit, 'face_gaps': face_gaps}
     json.dump(spec, open(f'{out}/station_spec.json', 'w'), indent=1)
     print(json.dumps(spec))
     preview(st, K, man, f'{out}/station_preview.png')

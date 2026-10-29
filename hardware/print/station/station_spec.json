@@ -17,7 +17,7 @@
    "3": 83.7,
    "11": 83.7
   },
-  "arm_front": 84.0
+  "arm_front": 83.7
  },
  "board": {
   "wire_side": 58.7,
@@ -55,5 +55,11 @@
   "pit_open_through": true,
   "base_bottom_z": -0.01,
   "second_layer_resting_on_base": "13/13"
+ },
+ "face_gaps": {
+  "side_faces_min_gap_mm": 0.15,
+  "down_faces_resting_points": 832,
+  "down_faces_min_gap_if_not_resting_mm": 0.3,
+  "rays": 57600
  }
 }
