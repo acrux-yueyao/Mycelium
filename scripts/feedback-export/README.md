@@ -2,6 +2,18 @@
 
 把网站「留下一段经历」收到的反馈从 Upstash 导出来。只读，不会改动或删除任何数据。
 
+## 最省事:直接在网站上导出
+
+在 Vercel(项目 mycelium-abxv → Settings → Environment Variables)加一个 `FEEDBACK_EXPORT_KEY`,值是你自己定的一串密码,保存后重新部署。之后用手机或电脑打开:
+
+```
+https://mycelium.yueyao.design/api/feedback-export?key=你的密码
+```
+
+就是可以直接打印的页面(顶上有「打印 / 存成 PDF」「下载表格 CSV」按钮)。没设这个变量时这个地址不存在;密码不对会拒绝。
+
+## 在自己电脑上导出(备用)
+
 ## 第一次用
 
 在仓库根目录把 Vercel 上的环境变量拉到本地(会写进 `.env.local`，它已经在 .gitignore 里)。网站对应的 Vercel 项目是 **mycelium-abxv**(团队 acrux-yueyaos-projects),先把本地仓库连到它:
