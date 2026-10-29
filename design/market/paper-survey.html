@@ -1,111 +1,109 @@
 <!doctype html>
-<html lang="zh">
+<html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Mycelium 纸质问卷</title>
+<title>Mycelium paper questionnaire</title>
 <style>
 @page { size: A4; margin: 13mm 15mm 12mm; }
 * { box-sizing: border-box; }
-body { margin: 0; color: #1d1c19; font: 9.6pt/1.45 -apple-system, "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif; }
-.page { height: 271mm; display: flex; flex-direction: column; page-break-after: always; break-after: page; position: relative; }
+body { margin: 0; color: #1d1c19; font: 10pt/1.45 -apple-system, "Helvetica Neue", Arial, "PingFang SC", "Noto Sans CJK SC", sans-serif; }
+.zh { color: #6b675d; font-size: 7.4pt; line-height: 1.4; font-weight: 400; }
+.zh.b { display: block; margin-top: .4mm; }
+.page { height: 271mm; display: flex; flex-direction: column; page-break-after: always; break-after: page; }
 .page:last-child { page-break-after: auto; break-after: auto; }
 .top { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #1d1c19; padding-bottom: 2mm; margin-bottom: 4mm; }
-h1 { font-size: 17pt; margin: 0; letter-spacing: .04em; }
-h1 span { font-size: 12pt; font-weight: 500; margin-left: 3mm; color: #4a463e; }
+h1 { font-size: 18pt; margin: 0; letter-spacing: .03em; }
+h1 .zh { font-size: 9pt; margin-left: 2.5mm; letter-spacing: 0; }
 .no { font-size: 9pt; color: #4a463e; white-space: nowrap; }
 .no b { display: inline-block; width: 26mm; border-bottom: 1px solid #1d1c19; }
-.en { color: #5d594f; font-size: 8.6pt; }
-.notice { border: 1px solid #8a8578; border-radius: 2mm; padding: 2.5mm 3.5mm; font-size: 8.4pt; line-height: 1.45; margin-bottom: 4.5mm; }
-.notice b { font-weight: 700; }
+.notice { border: 1px solid #8a8578; border-radius: 2mm; padding: 2.5mm 3.5mm; font-size: 8.8pt; line-height: 1.45; margin-bottom: 4.5mm; }
 .q { margin-bottom: 4mm; }
-.qt { font-size: 11.5pt; font-weight: 700; margin-bottom: .8mm; }
-.qt .en { font-weight: 500; font-size: 9pt; margin-left: 2mm; }
-.hint { font-size: 8.6pt; color: #4a463e; margin: 0 0 2mm; }
+.qt { font-size: 12.5pt; font-weight: 700; margin-bottom: .8mm; }
+.qt .zh { font-size: 8.4pt; margin-left: 2mm; }
+.hint { font-size: 9pt; color: #3d3a33; margin: 0 0 2mm; }
+.grow { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .lines { flex: 1; min-height: 0; border: 1px solid #bdb7a8; border-radius: 2mm; padding: 0 4mm 2mm; overflow: hidden; }
 .lines .ln { height: 8.6mm; border-bottom: 0.6pt solid #b9b3a4; }
-.grow { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-.foot { font-size: 8pt; color: #6b675d; margin-top: 2.5mm; text-align: right; }
-.scale { display: grid; grid-template-columns: 34mm auto 38mm; align-items: center; gap: 3mm; margin: 2.2mm 0; }
-.scale .l { text-align: right; } .scale .l, .scale .r { font-size: 9.4pt; line-height: 1.2; }
-.scale .l .en, .scale .r .en { display: block; font-size: 7.6pt; }
+.foot { font-size: 8.5pt; color: #6b675d; margin-top: 2.5mm; text-align: right; }
+.scale { display: grid; grid-template-columns: 40mm auto 42mm; align-items: center; gap: 3mm; margin: 2.4mm 0; }
+.scale .l { text-align: right; } .scale .l, .scale .r { font-size: 9.6pt; line-height: 1.2; }
+.scale .zh { display: block; }
 .dots { display: flex; gap: 3mm; justify-content: center; }
 .dots i { font-style: normal; width: 7.4mm; height: 7.4mm; border: 1.3px solid #1d1c19; border-radius: 50%; display: grid; place-items: center; font-size: 8.5pt; color: #4a463e; }
-.opt { font-size: 8pt; color: #6b675d; }
-.field { display: flex; align-items: center; gap: 3mm; margin: 2.6mm 0; font-size: 9.6pt; }
+.opt { font-size: 8.4pt; color: #6b675d; }
+.field { display: flex; align-items: center; gap: 2.5mm; margin: 2.8mm 0; font-size: 10pt; flex-wrap: wrap; }
 .field .line { flex: 0 0 70mm; border-bottom: 1px solid #1d1c19; height: 6mm; }
 .box { display: inline-block; width: 4mm; height: 4mm; border: 1.3px solid #1d1c19; border-radius: .7mm; vertical-align: -0.6mm; margin: 0 1.4mm 0 4mm; }
-.box.first { margin-left: 0; }
-.check { display: grid; grid-template-columns: 7mm 1fr; gap: 1mm; margin: 3mm 0; font-size: 9pt; }
+.check { display: grid; grid-template-columns: 7mm 1fr; gap: 1mm; margin: 3mm 0; font-size: 9.4pt; }
 .check .box { width: 5mm; height: 5mm; margin: .4mm 0 0; }
-.check .en { display: block; margin-top: .6mm; }
 hr { border: 0; border-top: 1px solid #cfcabd; margin: 4mm 0; }
 .cut { margin-top: auto; border-top: 1.5px dashed #6b675d; padding-top: 3mm; position: relative; }
 .cut::before { content: "✂"; position: absolute; top: -3.2mm; left: 0; background: #fff; padding-right: 1.5mm; font-size: 10pt; color: #6b675d; }
-.stub { display: grid; grid-template-columns: 1fr 44mm; gap: 5mm; align-items: center; font-size: 8.5pt; }
-.stub h3 { margin: 0 0 1mm; font-size: 10.5pt; }
+.stub { display: grid; grid-template-columns: 1fr 44mm; gap: 5mm; align-items: center; font-size: 9pt; }
+.stub h3 { margin: 0 0 1mm; font-size: 11pt; }
 .stub .no b { width: 30mm; }
-.staff { font-size: 7.6pt; color: #6b675d; margin-top: 2mm; }
+.staff { font-size: 7.8pt; color: #6b675d; margin-top: 2mm; }
 </style>
 </head>
 <body>
 
 <section class="page">
   <div class="top">
-    <h1>留下这段经历<span>LEAVE AN ACCOUNT</span></h1>
-    <div class="no">表号 No. <b></b></div>
+    <h1>LEAVE AN ACCOUNT<span class="zh">留下这段经历</span></h1>
+    <div class="no">No. <b></b></div>
   </div>
 
   <div class="notice">
-    <b>如果你此刻很难受</b>——这张问卷不是求助渠道。请联系你所在地的心理支持热线或校园咨询服务；有紧急危险请拨打当地急救电话。你写下的内容不会被用来判断你。
-    美国：拨打或短信 <b>988</b>（危机热线）· 紧急情况：<b>911</b> · 其他地区：findahelpline.com<br>
-    <span class="en"><b>If you are struggling right now</b> — this form is not a help channel. Please contact a local support line or campus counseling service; in an emergency, call your local emergency number. Nothing you write here will be used to judge you. In the US: call or text <b>988</b> · emergency: <b>911</b> · elsewhere: findahelpline.com</span>
+    <b>If you are struggling right now</b> — this form is not a help channel. Please contact a local support line or campus counseling service; in an emergency, call your local emergency number. Nothing you write here will be used to judge you.
+    In the US: call or text <b>988</b> (Suicide &amp; Crisis Lifeline) · emergency: <b>911</b> · elsewhere: findahelpline.com
+    <span class="zh b">如果你此刻很难受——这张问卷不是求助渠道。请联系所在地的心理支持热线或校园咨询服务;有紧急危险请拨打当地急救电话。你写下的内容不会被用来判断你。美国:拨打或短信 988 · 紧急情况:911 · 其他地区:findahelpline.com</span>
   </div>
 
   <div class="q grow">
-    <div class="qt">这件作品，在你身上留下了什么？<span class="en">What did this work leave with you?</span></div>
-    <p class="hint">不用总结好不好——写下它让你想起什么、感到什么、动摇了什么，或者你带走了什么。慢慢写，写一半也没关系。<br>
-      <span class="en">No need to judge whether it was good. Write what it brought to mind, what you felt, what it unsettled, or what you took away. Take your time; a half-written entry is fine.</span></p>
+    <div class="qt">What did this work leave with you?<span class="zh">这件作品,在你身上留下了什么?</span></div>
+    <p class="hint">No need to judge whether it was good. Write what it brought to mind, what you felt, what it unsettled, or what you took away. Take your time; a half-written entry is fine.
+      <span class="zh b">不用总结好不好——写下它让你想起什么、感到什么、动摇了什么,或者你带走了什么。慢慢写,写一半也没关系。</span></p>
     <div class="lines"><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div></div>
   </div>
-  <div class="foot">背面还有几个小问题 · please turn over ▸</div>
+  <div class="foot">A few short questions on the back — please turn over ▸ <span class="zh">背面还有几个小问题</span></div>
 </section>
 
 <section class="page">
   <div class="top">
-    <h1>写完这一刻，感觉怎么样？<span>How do you feel right now?</span></h1>
-    <div class="no">表号 No. <b></b></div>
+    <h1>How do you feel right now?<span class="zh">写完这一刻,感觉怎么样?</span></h1>
+    <div class="no">No. <b></b></div>
   </div>
-  <p class="hint">不是评价作品——是此刻你自己的状态。凭直觉圈一个数字。<br>
-    <span class="en">Not a rating of the work — your own state at this moment. Go with your first instinct: circle one number.</span></p>
+  <p class="hint">Not a rating of the work — your own state at this moment. Go with your first instinct and circle one number.
+    <span class="zh b">不是评价作品——是此刻你自己的状态。凭直觉圈一个数字。</span></p>
 
-  <div class="scale"><div class="l">更难受了<span class="en">harder to bear</span></div><div class="dots"><i>1</i><i>2</i><i>3</i><i>4</i><i>5</i><i>6</i><i>7</i></div><div class="r">更扛得住了<span class="en">easier to bear</span></div></div>
-  <div class="scale"><div class="l">更糊涂了<span class="en">more confused</span></div><div class="dots"><i>1</i><i>2</i><i>3</i><i>4</i><i>5</i><i>6</i><i>7</i></div><div class="r">更看得清了<span class="en">clearer</span></div></div>
-  <div class="scale"><div class="l">更说不出<span class="en">harder to put into words</span></div><div class="dots"><i>1</i><i>2</i><i>3</i><i>4</i><i>5</i><i>6</i><i>7</i></div><div class="r">更说得出了<span class="en">easier to put into words</span></div></div>
-  <div class="scale"><div class="l">想把它推开<span class="en">want to push it away</span></div><div class="dots"><i>1</i><i>2</i><i>3</i><i>4</i><i>5</i><i>6</i><i>7</i></div><div class="r">能让它悬着 <span class="opt">(可选)</span><span class="en">can let it stay open (optional)</span></div></div>
+  <div class="scale"><div class="l">harder to bear<span class="zh">更难受了</span></div><div class="dots"><i>1</i><i>2</i><i>3</i><i>4</i><i>5</i><i>6</i><i>7</i></div><div class="r">easier to bear<span class="zh">更扛得住了</span></div></div>
+  <div class="scale"><div class="l">more confused<span class="zh">更糊涂了</span></div><div class="dots"><i>1</i><i>2</i><i>3</i><i>4</i><i>5</i><i>6</i><i>7</i></div><div class="r">clearer<span class="zh">更看得清了</span></div></div>
+  <div class="scale"><div class="l">harder to put into words<span class="zh">更说不出</span></div><div class="dots"><i>1</i><i>2</i><i>3</i><i>4</i><i>5</i><i>6</i><i>7</i></div><div class="r">easier to put into words<span class="zh">更说得出了</span></div></div>
+  <div class="scale"><div class="l">want to push it away<span class="zh">想把它推开</span></div><div class="dots"><i>1</i><i>2</i><i>3</i><i>4</i><i>5</i><i>6</i><i>7</i></div><div class="r">can let it stay open <span class="opt">(optional)</span><span class="zh">能让它悬着(可选)</span></div></div>
 
   <hr>
-  <div class="field">昵称（可选）<span class="en">Nickname (optional)</span><span class="line"></span></div>
-  <div class="field">年龄段（可选）<span class="en">Your age (optional)</span>
-    <span><span class="box"></span>18–29 <span class="box"></span>30 及以上 <span class="en">30+</span> <span class="box"></span>不想说 <span class="en">prefer not to say</span></span></div>
-  <div class="field">你正处在一段人生过渡中吗？（可选）<span class="en">In a life transition? (optional)</span>
-    <span><span class="box"></span>是 <span class="en">yes</span> <span class="box"></span>否 <span class="en">no</span> <span class="box"></span>说不清 <span class="en">hard to say</span></span></div>
+  <div class="field">Nickname <span class="opt">(optional)</span> <span class="zh">昵称</span><span class="line"></span></div>
+  <div class="field">Your age <span class="opt">(optional)</span> <span class="zh">年龄段</span>
+    <span><span class="box"></span>18–29 <span class="box"></span>30 or older <span class="zh">30 及以上</span> <span class="box"></span>prefer not to say <span class="zh">不想说</span></span></div>
+  <div class="field">Are you in the middle of a life transition? <span class="opt">(optional)</span> <span class="zh">你正处在一段人生过渡中吗?</span>
+    <span><span class="box"></span>yes <span class="zh">是</span> <span class="box"></span>no <span class="zh">否</span> <span class="box"></span>hard to say <span class="zh">说不清</span></span></div>
   <hr>
 
-  <div class="check"><span class="box"></span><div><b>我已年满 18 岁。</b><span class="en">I am 18 or older.</span></div></div>
+  <div class="check"><span class="box"></span><div><b>I am 18 or older.</b> <span class="zh">我已年满 18 岁。</span></div></div>
   <div class="check"><span class="box"></span><div>
-    我同意把这段经历作为<b>匿名研究语料</b>使用。纸质问卷不需要写名字；我可以凭下面剪下的小票上的表号，随时写信至 <b>nikkiyao814@gmail.com</b> 要求删除这份记录。参与完全自愿，且须年满 18 岁。这段文字可能被研究者阅读与编码，用于理解交互作品如何承接观众。
-    <span class="en">I agree that this account may be used as <b>anonymous research material</b>. No name is needed on this paper form; I can ask for it to be deleted at any time by writing to nikkiyao814@gmail.com with the form number on the slip below. Participation is voluntary and open to those 18 or over. The text may be read and coded by researchers to understand how interactive works accompany their audiences.</span>
+    I agree that this account may be used as <b>anonymous research material</b>. No name is needed on this paper form; I can ask for it to be deleted at any time by writing to <b>nikkiyao814@gmail.com</b> with the number on the slip below. Participation is voluntary and open to those 18 or over. The text may be read and coded by researchers to understand how interactive works accompany their audiences.
+    <span class="zh b">我同意把这段经历作为匿名研究语料使用。纸质问卷不需要写名字;我可以凭下面小票上的编号,随时写信至 nikkiyao814@gmail.com 要求删除这份记录。参与完全自愿,且须年满 18 岁。这段文字可能被研究者阅读与编码,用于理解交互作品如何承接观众。</span>
   </div></div>
-  <p class="hint">两个方框都勾上，这份问卷才会被收录。写完请交给摊位的工作人员，或投进问卷箱。<br>
-    <span class="en">Both boxes need a tick for the form to be kept. Hand it to the booth or drop it in the box.</span></p>
+  <p class="hint">Both boxes need a tick for the form to be kept. Hand it to the booth or drop it in the box.
+    <span class="zh b">两个方框都勾上,这份问卷才会被收录。写完请交给摊位,或投进问卷箱。</span></p>
 
   <div class="cut">
     <div class="stub">
-      <div><h3>你的小票 · keep this slip</h3>
-        想删除这份问卷，写信到 nikkiyao814@gmail.com，附上右边的表号就行。<br>
-        <span class="en">To have your form deleted, write to nikkiyao814@gmail.com with the number on the right.</span>
-        <div class="staff">工作人员：发问卷前在两页的「表号」和小票上写同一个编号。· staff: write the same number on both pages and here.</div></div>
-      <div class="no">表号 No. <b></b></div>
+      <div><h3>Keep this slip <span class="zh">你的小票</span></h3>
+        To have your form deleted, write to nikkiyao814@gmail.com with the number on the right.
+        <span class="zh b">想删除这份问卷,写信到 nikkiyao814@gmail.com,附上右边的编号。</span>
+        <div class="staff">Staff: write the same number on both pages and on this slip before handing out. <span class="zh">工作人员:发问卷前在两页和小票上写同一个编号。</span></div></div>
+      <div class="no">No. <b></b></div>
     </div>
   </div>
 </section>
