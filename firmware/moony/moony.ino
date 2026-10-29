@@ -453,6 +453,7 @@ constexpr uint32_t REUNION_AFTER_MS = 60000;      // alone this long → chime w
 constexpr int CLAP_LEVEL = 24000;
 int rangeMM = 9999, bgMM = 9999, nearGate = NEAR_MM;
 bool peekCovered = false;            // something right over the ToF window (peekaboo)
+uint32_t coverStart = 0;
 uint32_t lastRangePoll = 0, lastPresence = 0, noticedAt = 0, leftAt = 0, lastReunion = 0;
 bool wasNear = false, moodFromPresence = false, debugRange = false;
 uint32_t lastDbg = 0;
@@ -957,7 +958,10 @@ void loop() {
   if (hasTof && now - lastRangePoll > 20) {
     lastRangePoll = now;
     if (lox.isRangeComplete()) { int r = lox.readRangeResult(); if (r > 0 && r < 8000) rangeMM = r; }
-    if (rangeMM > 0 && rangeMM < nearGate) lastPresence = now;
+    // hysteresis: once someone is there, they stay "near" until clearly past the gate, so a reading
+    // hovering on the gate doesn't flap startle/leave and pulse the eyes
+    bool wasNearNow = (now - lastPresence) < HOLD_MS && lastPresence != 0;
+    if (rangeMM > 0 && rangeMM < nearGate + (wasNearNow ? 100 : 0)) lastPresence = now;
   }
   if (debugRange && now - lastDbg > 250) { lastDbg = now; Serial.printf("距离 %4d mm  麦 %d\n", rangeMM, micLevel); }
 #endif
@@ -1053,11 +1057,14 @@ void loop() {
   if (touched) lastTouchAny = now;
 #if USE_TOF
   // peekaboo: cover its "eye" (the ToF window) for a moment, then take your hand away
-  static uint32_t coverStart = 0;
   if (hasTof) {
-    bool veryClose = rangeMM < 60;
-    if (veryClose && !peekCovered) { peekCovered = true; coverStart = now; }
-    if (!veryClose && peekCovered) {
+    // covered only after < 50 mm for 150 ms, uncovered only after > 90 mm for 100 ms: a reading that
+    // hovers around the threshold (or the window itself reflecting) no longer snaps the eyes shut
+    static uint32_t closeSince = 0, farSince = 0;
+    if (rangeMM < 50) { if (!closeSince) closeSince = now; } else closeSince = 0;
+    if (rangeMM > 90) { if (!farSince) farSince = now; } else farSince = 0;
+    if (!peekCovered && closeSince && now - closeSince > 150) { peekCovered = true; coverStart = now; Serial.printf("ToF 被挡住 (%d mm) → 闭眼\n", rangeMM); }
+    if (peekCovered && farSince && now - farSince > 100) {
       peekCovered = false;
       uint32_t held = now - coverStart;
       if (held > 700 && held < 8000 && (act == A_IDLE || act == A_TOUCH)) { tuneBoop(); touchReact("躲猫猫,找到你了!", now, 1600, HAPPY, 0, 0, 1.3f); }
@@ -1172,7 +1179,8 @@ void loop() {
   else if (mood == SLEEPY) open_ *= 0.72f;
   if (act == A_LISTEN || act == A_LOOK) open_ *= 1.12f;
   if (act == A_TOUCH) open_ *= touchOpen;
-  if (peekCovered && act == A_IDLE) open_ *= 0.08f;                  // hiding behind your hand too
+  if (peekCovered && act == A_IDLE && now - coverStart < 8000) open_ *= 0.08f;   // hiding behind your hand too
+                                                                     // (not forever if something sits on the window)
   if (startled || jolted || clapped) open_ *= 1.18f;
   if (justLeft) open_ *= 0.80f;
 
