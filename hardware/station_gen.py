@@ -128,7 +128,7 @@ def main(base_p, vdir, out):
         parts.append(B(x * P + GAP / 2, z * P + GAP / 2, -0.01, (x + 1) * P - GAP / 2, (z + 1) * P - GAP / 2, h))
         heights[(x, z)] = h
         # whole cubes stacked on the outer cells (never under any part of the body), now and then a small one
-        if (x, z) in lowest or d == 0 or (px0 < (x + 1) * P and x * P < px1 and z == zb - 1):
+        if (x, z) in lowest or d == 0 or (px0 - P < (x + 1) * P and x * P < px1 + P and z >= zb - 2):   # nothing against the back
             continue
         r = hash01(x, z)
         k = (0 if r < 0.5 else 1) if d == 1 else (1 if r < 0.55 else 2 if r < 0.85 else 0)
@@ -160,7 +160,7 @@ def main(base_p, vdir, out):
     # board pocket: 2 mm wider than the door hole per side and 2 mm below the board, so the JST cables
     # (eyes, ToF, amp, LED) come round the board edges into the body; open at the top for the plug
     st = trimesh.boolean.union(parts + deco, engine='manifold')
-    st = trimesh.boolean.difference([st, B(hx0 - 2, pk_back, board_bot - 2, hx1 + 2, front + 1, top + 1)], engine='manifold')
+    st = trimesh.boolean.difference([st, B(hx0 - 2, pk_back, GROUND, hx1 + 2, front + 1, top + 1)], engine='manifold')   # down to the base: no ledge
     cuts = []
     cuts_after = [cyl(1, (hx, hz), SCREW_R, PLATE_BACK - 1, pk_back + 1) for hx, hz in holes]    # 4 holes through the back
     # the 8 floor cubes: cut right through, snug
