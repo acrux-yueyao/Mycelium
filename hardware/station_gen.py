@@ -41,6 +41,7 @@ BOARD_T = 0.8
 BOARD_SINK = 1.0     # board's wire side this far behind the plate front (solder joints don't scrape the body)
 PILOT_R = 0.85       # M2 self-tapping pilot
 BOSS_R = 2.6
+ARM_LEN = 2          # U arms run this many cubes forward from the back wall
 TAB_CLEAR = 3.6     # gap between the board's parts side and the mounting tabs (JST-SH bodies are 2.9)
 STACK_STEP = 0.5     # each stacked cube this much narrower per side than the one below
 
@@ -89,7 +90,7 @@ def main(base_p, vdir, out):
     front = zb * P - CLR                                    # plate front face
     top = (ty + 7) * P - CLR                                # same height as the old cavity (just under the cap)
     hx0, hx1 = (tx + 1) * P, (tx + 6) * P                   # door hole, x
-    px0, px1 = hx0 - 10, hx1 + 10                           # U posts 10 mm wide either side of the hole
+    px0, px1 = hx0 - 2 * P, hx1 + 2 * P                     # back wall: two cubes either side of the hole
     for (x, y, z) in K:                                     # plate volume must be empty space
         if z * P < front and (z + 1) * P > PLATE_BACK and y * P < top and (x + 1) * P > px0 and x * P < px1:
             raise SystemExit(f'plate hits cube {(x, y, z)}')
@@ -101,6 +102,7 @@ def main(base_p, vdir, out):
     # ---- outline: not a rectangle — every cell under the robot's shadow plus a wobbling 0-2 cube rim
     # round it, so the edge steps in and out cube by cube
     carry = set(lowest) | {(x, zb - 1) for x in range(int(px0 // P), int(px1 // P))}       # the robot's whole shadow + the U
+
     reach = {}
     for x in range(bx0 - 4, bx1 + 5):
         for z in range(bz0 - 4, bz1 + 5):
@@ -146,9 +148,18 @@ def main(base_p, vdir, out):
     board_comp = board_wire - BOARD_T                       # component side (faces back)
     tab_front = board_comp - TAB_CLEAR                      # tabs stay this far behind the board: low parts pass over them
     board_bot = czm - 33
-    parts.append(B(px0, PLATE_BACK, -0.01, hx0, front, top))                 # left post
-    parts.append(B(hx1, PLATE_BACK, -0.01, px1, front, top))                 # right post
-    parts.append(B(px0, PLATE_BACK, -0.01, px1, front, board_bot - 2))       # bottom bar
+    parts.append(B(px0, PLATE_BACK, -0.01, hx0, front, top))                 # back wall, left of the hole
+    parts.append(B(hx1, PLATE_BACK, -0.01, px1, front, top))                 # back wall, right of the hole
+    parts.append(B(px0, PLATE_BACK, -0.01, px1, front, board_bot - 2))       # low bar under the board
+    # arms of the U (seen from above): one cube wide, running forward along both sides of the body
+    # from the back wall, as high as the body lets them (under the arms / cap) — they hug the body
+    arm_h = {}
+    for ax_, inner in ((int(px0 // P), (int(px0 // P) + 1) * P - CLR), (int(px1 // P) - 1, (int(px1 // P) - 1) * P + CLR)):
+        zs_arm = [z for z in range(zb, zb + ARM_LEN)]
+        h = min([lowest.get((ax_, z), 99) * P for z in zs_arm] + [top + CLR]) - CLR
+        x0_, x1_ = (ax_ * P, inner) if inner > ax_ * P + 6 else (inner, (ax_ + 1) * P)
+        parts.append(B(x0_, front - 0.01, -0.01, x1_, (zb + ARM_LEN) * P, h))
+        arm_h[ax_] = h
     bosses = []
     for hx, hz in holes:
         side0, side1 = (hx0 - 0.01, hx + BOSS_R + 0.5) if hx < cxm else (hx - BOSS_R - 0.5, hx1 + 0.01)
@@ -205,7 +216,7 @@ def main(base_p, vdir, out):
     st.export(f'{out}/station_meshframe.stl')
     pr = st.copy(); pr.apply_translation(-pr.bounds[0]); pr.export(f'{out}/station.stl')
     spec = {'size_mm': [round(v, 1) for v in pr.extents], 'solid_grams': round(st.volume / 1000 * 1.24),
-            'plate': {'x': [px0, px1], 'back': PLATE_BACK, 'front': front, 'top': top},
+            'plate': {'x': [px0, px1], 'back': PLATE_BACK, 'front': front, 'top': top, 'arm_heights': {str(k): round(v, 1) for k, v in arm_h.items()}, 'arm_front': (zb + ARM_LEN) * P},
             'board': {'wire_side': board_wire, 'parts_clear_over_tabs_mm': TAB_CLEAR, 'holes': holes},
             'overlap_with_robot_mm3': round(hit_v, 2), 'drop_in_overlap_mm3': round(sw_v, 2),
             'board_overlap_mm3': board_hit, 'usb_gap_under_cap_free': usb, 'fit': fit}
@@ -267,7 +278,7 @@ def preview(st, K, man, path):
     for (x, y, z), c in K.items():
         robot.append((B(x * P + 0.3, z * P + 0.3, y * P + 0.3, (x + 1) * P - 0.3, (z + 1) * P - 0.3, (y + 1) * P - 0.3),
                       matplotlib.colors.to_rgb(man['colors'][c['ci']]), 1.0))
-    views = (('休息站 · 从背后左上看(U 形背板,中间镂空装主板)', [(st, pearl, 1)], 35, 215),
+    views = (('休息站 · 从背后左上看(俯视 U 形背板兜住身体,中间镂空装主板)', [(st, pearl, 1)], 35, 215),
              ('休息站 · 从前面看(中间下凹,8 颗白块的位置镂空)', [(st, pearl, 1)], 40, 25),
              ('放上 Moony · 从背后看', [(st, pearl, 1)] + robot, 20, 200))
     fig, ax = plt.subplots(1, 3, figsize=(21, 7), facecolor='#f6f5f0')

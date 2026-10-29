@@ -4,15 +4,20 @@
   132.0,
   95.7
  ],
- "solid_grams": 315,
+ "solid_grams": 400,
  "plate": {
   "x": [
-   50.0,
-   130.0
+   36.0,
+   144.0
   ],
   "back": 48.0,
   "front": 59.7,
-  "top": 95.7
+  "top": 95.7,
+  "arm_heights": {
+   "3": 83.7,
+   "11": 83.7
+  },
+  "arm_front": 84.0
  },
  "board": {
   "wire_side": 58.7,
