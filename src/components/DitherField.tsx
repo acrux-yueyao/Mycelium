@@ -613,8 +613,9 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
       // isolated creature — the supporter (a) of each live support bond.
       const supporterIds = new Set<string>();
       for (const bd of bonds.values()) { if (bd.support) supporterIds.add(bd.a); }
-      // tower kiosk (15.6 field) enlarges the spores overall for viewing distance
-      const kioskZoom = document.body.classList.contains('kiosk-mode') ? 1.3 : 1;
+      // the tower kiosk draws spores at the same scale as the website (it used to enlarge them 1.3×;
+      // with the per-spore size spread that made the installation read out of proportion)
+      const kioskZoom = 1;
       for (const a of bodies) {
         let gz = seed01(a.id) < 0.5 ? -0.85 : 0.85;
         const pid = partnerOf.get(a.id);
