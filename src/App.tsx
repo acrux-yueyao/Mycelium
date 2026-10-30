@@ -1037,7 +1037,7 @@ export default function App() {
           mineId={latestCreature?.id ?? null}
           observable={scene === 'field' || scene === 'observe'}
           observedId={scene === 'field' || scene === 'observe' ? observed?.id ?? null : null}
-          centerHole={scene !== 'observe'}
+          centerHole={scene === 'field' && !latestCreature}   // only while the whisper input is actually there
           onObserve={setObserved}
           magnifier={!towerField}
           onObserveFrame={onObserveFrame}
