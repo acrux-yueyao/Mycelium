@@ -978,6 +978,28 @@ export default function App() {
   };
   const latestReleased = !!latestCreature && releasedRef.current.has(latestCreature.id);
 
+  // Start over for the next person at a shared screen (the booth iPad / laptop): the current spore
+  // is released into the field if it wasn't yet, and the whisper input comes back.
+  const startOver = () => {
+    if (latestCreature && !releasedRef.current.has(latestCreature.id)) {
+      releasedRef.current.add(latestCreature.id);
+      addCreature(latestCreature);
+    }
+    setLatestCreature(null);
+    setScene('field');
+  };
+  // ...and on its own after two quiet minutes in the field, so a walk-away never leaves the
+  // screen without an input.
+  useEffect(() => {
+    if (!latestCreature || scene !== 'field') return;
+    let t = window.setTimeout(startOver, 120000);
+    const poke = () => { window.clearTimeout(t); t = window.setTimeout(startOver, 120000); };
+    const evs = ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const;
+    evs.forEach((e) => window.addEventListener(e, poke, { passive: true }));
+    return () => { window.clearTimeout(t); evs.forEach((e) => window.removeEventListener(e, poke)); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestCreature, scene]);
+
   // ?s=<token> — a shared/claimed spore. Decode it, open its specimen card,
   // and mark it released so it's read-only and never re-persisted.
   useEffect(() => {
@@ -1151,6 +1173,18 @@ export default function App() {
         >
           <span className="specimen-recall-dot" aria-hidden />
           your specimen <span aria-hidden>▸</span>
+        </motion.button>
+      )}
+      {scene === 'field' && latestCreature && (
+        <motion.button
+          type="button"
+          className="whisper-again"
+          onClick={startOver}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.35 }}
+        >
+          ＋ new whisper <span className="whisper-again-zh">再写一句</span>
         </motion.button>
       )}
 
