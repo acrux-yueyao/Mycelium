@@ -944,7 +944,7 @@ export default function App() {
       secondaryLabel: entity.secondaryLabel,
       x: Math.max(0.03, Math.min(0.97, entity.x / w)),
       y: Math.max(0.05, Math.min(0.95, entity.y / h)),
-      cell: 5,
+      cell: 4.2 + 1.8 * Math.max(0, Math.min(1, entity.intensity ?? result.reading.intensity ?? 0.5)),   // stronger feeling, bigger spore
       name: entity.name,
       primaryLabel: result.reading.primary?.label,
       rationale: result.reading.rationale,

@@ -322,7 +322,9 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
           id: c.id, charId: c.charId,
           x: c.x * W, y: c.y * H, vx: Math.cos(a) * 0.3, vy: Math.sin(a) * 0.3,
           bornAt: c.bornAt ?? now, lastBondAt: now,
-          cell: c.cell * (small ? 0.82 : 1), spec: specOf(c),
+          // every spore its own size: a stable per-id factor (0.75–1.35×), so the field reads as a
+          // crowd of different beings rather than one stamp repeated
+          cell: c.cell * (small ? 0.82 : 1) * (0.75 + seed01(c.id + 'size') * 0.6), spec: specOf(c),
           name: c.name ?? nameFor(c.id), appearAt: now, src: c,
           blinkAt: now + BLINK_MIN + seed01(c.id + 'blink') * BLINK_VAR,
         };
