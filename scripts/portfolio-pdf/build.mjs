@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Portfolio → print-ready PDF in the poster sheet format (1620 × 585 pt), English and Chinese, from public/portfolio.html and
+ * Portfolio → print-ready PDF (A4), English and Chinese, from public/portfolio.html and
  * public/portfolio-zh.html — the same page the site serves, laid out for paper:
  *
  *   · headings never strand at a page bottom, cards / figures / tables never split across pages,
@@ -27,22 +27,17 @@ const out = path.join(root, 'design/portfolio');
 const SITE = 'https://mycelium.yueyao.design';
 
 const PRINT_CSS = `
-@page { size: 1620pt 585.12pt; margin: 46pt 0 34pt; }
+@page { size: A4; margin: 12mm 0 14mm; }
 html, body { background: #F1F0EB !important; }
-/* the poster sheet format: content flows down three columns, then on to the next sheet */
-.wrap { padding: 0 48pt !important; max-width: none !important; columns: 3; column-gap: 44pt; column-fill: auto; }
-.wrap > * { max-width: none !important; }
-.wrap img, .wrap svg { max-width: 100%; height: auto; }
+.wrap { padding: 0 14mm !important; }
 html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 #langtoggle { display: none !important; }
 .fadein { animation: none !important; opacity: 1 !important; transform: none !important; }
-.sec { padding-top: 0 !important; margin-top: 0 !important; break-before: column; }   /* one section per panel, like the poster */
-
+.sec { padding-top: 6mm !important; }
 .sec + .sec { border-top: 0; }
 .sec-head, .sec-title, h2, h3, .eyebrow { break-after: avoid; page-break-after: avoid; }
 .feat, .feats > *, .step, .rq, .cell, .loop, .glance, .pf, .hl, .fnote, .devcap, .demo, .demo-out,
-.fammap, .iramp, .forestmap, .mycofig, .herocast, .browser, .phone, .phoneshow, .phonestrip,
-figure, table, tr, img, svg, li, .rule {
+.fammap, .iramp, .forestmap, .mycofig, .herocast, figure, table, tr, img, svg, li, .rule {
   break-inside: avoid; page-break-inside: avoid;
 }
 p { orphans: 3; widows: 3; }
@@ -76,17 +71,15 @@ async function build(file, sample, pdfName, lang) {
     return Promise.race([all, new Promise((r) => setTimeout(r, 8000))]);
   });
   await page.waitForTimeout(400);
-  const foot = lang === 'zh' ? '作品集 · Yue Yao' : 'Portfolio · Yue Yao';
+  const foot = lang === 'zh' ? 'Mycelium · 作品集 · Yue Yao' : 'Mycelium · Portfolio · Yue Yao';
   await page.pdf({
-    path: path.join(out, pdfName), printBackground: true, preferCSSPageSize: true,
+    path: path.join(out, pdfName), format: 'A4', printBackground: true, preferCSSPageSize: true, scale: 0.9,
     displayHeaderFooter: true,
     // header/footer bands painted in the page colour so the cream runs edge to edge
-    // header/footer bands in the page colour (cream edge to edge), set like the poster's top bar
-    headerTemplate: `<div style="position:absolute;top:0;left:0;right:0;height:46pt;background:#F1F0EB;-webkit-print-color-adjust:exact"></div>
-      <div style="position:relative;width:100%;padding:16pt 48pt 0;display:flex;justify-content:space-between;align-items:baseline;font:9px 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.12em;color:#8a857a">
-      <span><b style="font:700 12px 'Chakra Petch',sans-serif;color:#17161a;letter-spacing:.04em">MYCELIUM</b>&nbsp;&nbsp;<span style="color:#5b4fd0">The Whisper Network</span>&nbsp;&nbsp;·&nbsp;&nbsp;${foot}</span>
-      <span><span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`,
-    footerTemplate: `<div style="position:absolute;bottom:0;left:0;right:0;height:34pt;background:#F1F0EB;-webkit-print-color-adjust:exact"></div><span></span>`,
+    headerTemplate: `<div style="position:absolute;top:0;left:0;right:0;height:12mm;background:#F1F0EB;-webkit-print-color-adjust:exact"></div>`,
+    footerTemplate: `<div style="position:absolute;bottom:0;left:0;right:0;height:14mm;background:#F1F0EB;-webkit-print-color-adjust:exact"></div>
+      <div style="position:relative;width:100%;font:7.5px 'JetBrains Mono',ui-monospace,monospace;color:#8a857a;padding:0 14mm 2mm;display:flex;justify-content:space-between;letter-spacing:.08em">
+      <span>${foot}</span><span><span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`,
   });
   await browser.close();
   console.log('→', path.relative(root, path.join(out, pdfName)));
