@@ -72,8 +72,25 @@ table.spec td:first-child { color: var(--accent); white-space: nowrap; width: 11
 .kv { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--edge); border: 1px solid var(--edge); margin: 8pt 0; }
 .kv div { background: #f6f5f0; padding: 8pt 10pt; }
 .kv .n { font-family: var(--display); font-weight: 700; font-size: 20pt; color: var(--accent); line-height: 1.1; }
+.quote { border-left: 2px solid var(--accent); padding: 2pt 0 2pt 9pt; margin: 6pt 0; }
+.qt { font-size: 8.7pt; line-height: 1.45; color: #222; font-family: var(--mono), 'PingFang SC', 'Noto Sans CJK SC', sans-serif; }
+.qm { font-size: 7.4pt; color: var(--soft); letter-spacing: .06em; margin: 2pt 0 3pt; }
+.sc { display: grid; grid-template-columns: 1fr 1fr; column-gap: 10pt; row-gap: 2pt; font-size: 6.8pt; color: var(--dim); }
+.sc .row { display: flex; align-items: center; gap: 5pt; white-space: nowrap; }
+.dots { display: inline-flex; gap: 2.2pt; }
+.dots i { width: 5.2pt; height: 5.2pt; border-radius: 50%; border: 1px solid #b9b6ab; display: inline-block; }
+.dots i.on { background: var(--accent); border-color: var(--accent); }
 .kv .l { font-size: 8pt; color: var(--dim); line-height: 1.35; margin-top: 2pt; }
 `;
+
+const SCALES = [['bearable', 'harder to bear', 'easier to bear'], ['comprehensible', 'more confused', 'clearer'],
+  ['expressible', 'harder to put into words', 'easier to put into words'], ['acceptance', 'push it away', 'let it stay open']];
+// the three accounts left on the day (design/portfolio/source — nicknames withheld)
+const QUOTES = [
+  { text: 'I liked the way you can create a character based on how you feel and it can interact with other mycelium. I would like to see other ways to interact with mycelium. It’s a very creative idea and I love the software — super easy to use and very beautiful.', meta: '13:11 · 18–29 · not in a transition', s: [7, 7, 7, 7] },
+  { text: 'The colors and animations drew me in. I thought that this was such a cool concept and the idea of people influencing each other being depicted as “exchanging colors” is very sweet and touching.', meta: '15:29 · 18–29 · in a life transition', s: [3, 3, 4, 3] },
+  { text: '人们之间的互动，but why things get so digitalized nowadays', meta: '17:04 · 18–29 · in a life transition', s: [5, 4, 3, 6] },
+];
 
 const bar = (sections, n) => `<div class="bar"><span class="brand">MYCELIUM</span><span class="sub">The Whisper Network</span>${sections}
   <span class="pg"><i style="background:#c9a7e6"></i><i style="background:#49bd97"></i><i style="background:#b6d35a"></i><i style="background:#5b4fd0"></i>&nbsp;${n} / ${TOTAL}</span></div>`;
@@ -111,7 +128,7 @@ const sheet8 = `<section class="sheet">${bar('INSTALLATION · HYPHAL COLUMN · D
 </div>${foot}</section>`;
 
 const sheet9 = `<section class="sheet">${bar('CHARMS · COMPANION · BU ART MARKET', POSTER_SHEETS + 2)}
-<div class="grid" style="grid-template-columns: 1fr 1fr 1fr">
+<div class="grid" style="grid-template-columns: 1fr 1fr 1.22fr">
   <div class="panel">
     <div class="ghost">26</div>
     <div class="eyebrow">26 · Off-screen</div>
@@ -139,15 +156,9 @@ const sheet9 = `<section class="sheet">${bar('CHARMS · COMPANION · BU ART MARK
     <div class="eyebrow">28 · Shown</div>
     <h2>BU Art Market</h2>
     <p class="dim">Fri, Oct 30, 2026 · 808 Commonwealth Ave, Boston</p>
-    <p>People sat on the cushions and whispered their sentences to the tower. Spores grew, and some went home as charms. Visitors could leave an anonymous account of what the work left with them — on the site or on a paper card.</p>
-    <div class="kv">
-      <div><div class="n">6</div><div class="l">screens on one<br>steel column</div></div>
-      <div><div class="n">1</div><div class="l">sentence per visitor<br>— never shown</div></div>
-      <div><div class="n">0</div><div class="l">accounts · feeds<br>· metrics</div></div>
-    </div>
-    <div class="box">What the installation adds to the web prototype: <b>co-presence in a room</b>. The colony is the same; the difference is that the people whose spores touch are sitting on the next cushion.</div>
-    <p class="dim" style="margin-top:10pt">Thanks to everyone who came, and to everyone who filled the little form.</p>
-    <p style="margin-top:14pt"><span style="color:var(--accent)">Grow one now →</span> mycelium.yueyao.design</p>
+    <p>People sat on the cushions and whispered their sentences to the tower. Spores grew, and some went home as charms. Three visitors left an anonymous account of what the work left with them — their words, and how they felt right after writing (1–7):</p>
+    ${QUOTES.map((q) => `<div class="quote"><div class="qt">“${q.text}”</div><div class="qm">${q.meta}</div><div class="sc">${SCALES.map(([k, l, r], i) => `<span class="row"><span class="dots">${[1, 2, 3, 4, 5, 6, 7].map((n) => `<i class="${n === q.s[i] ? 'on' : ''}"></i>`).join('')}</span><span class="sr">${l} → ${r}</span></span>`).join('')}</div></div>`).join('')}
+    <p class="dim" style="margin-top:5pt;font-size:8.2pt">Formative feedback, pre-IRB. The scales read the visitor's own state, not the work — the warmest words came with the lowest numbers, which is what they are for. &nbsp;<span style="color:var(--accent)">Grow one now →</span> mycelium.yueyao.design</p>
   </div>
 </div>${foot}</section>`;
 
@@ -168,6 +179,6 @@ await browser.close();
 
 const merged = path.join(out, 'Mycelium_Portfolio.pdf');
 execFileSync('pdfunite', [POSTER, sheetsPdf, merged]);
-fs.unlinkSync(htmlPath);
+if (!process.env.KEEP_HTML) fs.unlinkSync(htmlPath);
 console.log('→', path.relative(root, sheetsPdf), `(${SHEETS} sheets)`);
 console.log('→', path.relative(root, merged), `(poster ${POSTER_SHEETS} + ${SHEETS})`);
