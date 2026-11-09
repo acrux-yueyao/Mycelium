@@ -66,10 +66,14 @@ export function useCreatures() {
     setColony((prev) => [c, ...prev].slice(0, MAX_LOCAL));
     setPopulation((p) => p + 1);
     if (TEST_MODE) return; // sandbox: keep it local, never persist
+    // The sentence never leaves this device: only the grown shape is shared.
+    // (The server drops it too; this keeps it off the wire altogether.)
+    const { text: _sentence, ...shape } = c;
+    void _sentence;
     fetch('/api/creatures', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ creature: c }),
+      body: JSON.stringify({ creature: shape }),
     })
       .then((r) => r.json())
       .then((d) => { if (typeof d?.population === 'number' && d.population > 0) setPopulation(d.population); })

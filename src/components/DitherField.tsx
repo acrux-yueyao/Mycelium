@@ -25,7 +25,12 @@ import { cueCandy } from '../core/audio';
 export interface FieldCreature extends CreatureSeed {
   x: number; y: number; cell: number;
   name?: string; primaryLabel?: string; rationale?: string; bornAt?: number;
-  /** the sentence the visitor whispered to grow this creature. */
+  /** specimen number (MYC-…), computed from the sentence at birth and kept
+   *  on the record so it stays the same once the sentence is gone. */
+  myc?: string;
+  /** the sentence the visitor whispered to grow this creature. Lives only in
+   *  this browser session, on the writer's own card — it is never sent to the
+   *  shared store, never served back, never put in a share link. */
   text?: string;
 }
 

@@ -27,6 +27,7 @@ import { CHARACTERS, type CharId } from './data/characters';
 import type { Morphology } from './core/emotion';
 import { randomName } from './core/names';
 import { decodeCreature } from './core/share';
+import { sporeId } from './core/sporeId';
 import { findNearestBody, stepField } from './core/field';
 import { stepConnections, isActive, type Connection } from './core/connections';
 import { type ExplorationProbe } from './core/probes';
@@ -949,10 +950,14 @@ export default function App() {
       primaryLabel: result.reading.primary?.label,
       rationale: result.reading.rationale,
       bornAt: entity.bornAt,
+      // the sentence stays on this device (specimen card + share image only);
+      // it is stripped before the creature is persisted or linked.
       text,
       // Halloween spell: a costume word in the whisper dresses the spore
       costume: spellCostume(text) ?? undefined,
     };
+    // Fix the specimen number now, while the sentence is still here to hash.
+    creature.myc = sporeId(creature);
     // Don't commit to the colony/backend yet — the visitor meets the
     // creature on its specimen card first and can rename it there. It's
     // added (and persisted) once released into the field, so the final

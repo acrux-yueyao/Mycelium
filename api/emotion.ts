@@ -4,6 +4,11 @@
  * POST { text: string } → EmotionReading JSON.
  * GET                    → health check JSON (alive + key-configured).
  *
+ * This is the only place the whispered sentence ever leaves the browser: it
+ * goes to the model for one reading and is not logged or stored here. The
+ * returned `rationale` IS stored with the creature, so the prompt forbids
+ * quoting or restating the sentence in it.
+ *
  * LLM is a hard dependency; failures return non-2xx with detail. The
  * frontend surfaces a visible failure state — no local fallback.
  *
@@ -59,6 +64,9 @@ Field rules:
 - \`primary.weight\` and \`secondary.weight\` must each be in [0,1] and sum near 1.0.
 - \`intensity\`: 0.2 for faint/muted, 0.5 moderate, 0.8+ acute/overwhelming.
 - \`rationale\`: max 18 Chinese characters OR 10 English words. One poetic line, no quote marks, no period.
+  The sentence itself is never stored — only this line is — so the rationale must not let anyone
+  reconstruct it: never quote or paraphrase its words, and never repeat a name, place, person,
+  event or any other specific detail it mentions. Describe the feeling, not the facts.
 - \`topic\`: what the sentence is MOSTLY ABOUT.
     academic     → schoolwork, grades, exams, deadlines, thesis, lab
     relationship → friends, lovers, family, crushes, strangers, pets
