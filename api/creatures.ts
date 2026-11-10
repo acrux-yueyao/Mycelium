@@ -6,6 +6,12 @@
  * population counter is incremented (the "CURRENT POPULATION" figure).
  * When the next visitor loads, they see everyone's accumulated creatures.
  *
+ * The whispered sentence itself is NEVER stored or served. Only the grown
+ * shape survives: emotion labels, morphology, name, specimen number, time.
+ * POST keeps just the allow-listed fields below (anything else — `text`
+ * above all — is dropped before the write), and GET strips `text` again in
+ * case an older record still carries one.
+ *
  *   GET  /api/creatures → { creatures: FieldCreature[], population: number }
  *   POST /api/creatures  { creature: FieldCreature } → { ok, population }
  *
@@ -42,6 +48,22 @@ async function pipeline(cmds: unknown[][]): Promise<unknown[]> {
   return data.map((d) => d.result);
 }
 
+/** The only fields a stored creature may carry. No sentence, ever. */
+const KEEP_FIELDS = [
+  'id', 'charId', 'morphology', 'intensity', 'secondaryLabel', 'costume',
+  'x', 'y', 'cell', 'name', 'primaryLabel', 'rationale', 'bornAt', 'myc',
+] as const;
+
+/** Reduce a creature to its storable shape: allow-listed keys only, `text` gone. */
+export function sanitizeCreature(input: unknown): Record<string, unknown> | null {
+  if (!input || typeof input !== 'object') return null;
+  const src = input as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const k of KEEP_FIELDS) if (src[k] !== undefined) out[k] = src[k];
+  if (typeof out.id !== 'string' || typeof out.charId !== 'number') return null;
+  return out;
+}
+
 function json(obj: unknown, status: number): Response {
   return new Response(JSON.stringify(obj), {
     status,
@@ -60,7 +82,7 @@ export default async function handler(req: Request): Promise<Response> {
         ['GET', POP_KEY],
       ]);
       const creatures = ((list as string[]) || [])
-        .map((s) => { try { return JSON.parse(s); } catch { return null; } })
+        .map((s) => { try { return sanitizeCreature(JSON.parse(s)); } catch { return null; } })
         .filter(Boolean);
       return json({ creatures, population: Number(pop) || creatures.length, configured: true }, 200);
     } catch (e) {
@@ -72,8 +94,8 @@ export default async function handler(req: Request): Promise<Response> {
     if (!url || !token) return json({ ok: false, error: 'not-configured' }, 200);
     let body: { creature?: unknown };
     try { body = await req.json(); } catch { return json({ ok: false, error: 'bad-body' }, 400); }
-    const creature = body.creature;
-    if (!creature || typeof creature !== 'object') return json({ ok: false, error: 'bad-creature' }, 400);
+    const creature = sanitizeCreature(body.creature);
+    if (!creature) return json({ ok: false, error: 'bad-creature' }, 400);
     const value = JSON.stringify(creature);
     if (value.length > 4000) return json({ ok: false, error: 'too-large' }, 400);
     try {

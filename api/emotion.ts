@@ -4,6 +4,12 @@
  * POST { text: string } → EmotionReading JSON.
  * GET                    → health check JSON (alive + key-configured).
  *
+ * This is the only place the whispered sentence ever leaves the browser: it
+ * goes to the model for one reading and is not logged or stored here. The
+ * returned `rationale` IS stored with the creature, so the prompt forbids
+ * quoting or restating the sentence in it, and a rationale that does so
+ * anyway is dropped before the response (see `restates`).
+ *
  * LLM is a hard dependency; failures return non-2xx with detail. The
  * frontend surfaces a visible failure state — no local fallback.
  *
@@ -59,6 +65,9 @@ Field rules:
 - \`primary.weight\` and \`secondary.weight\` must each be in [0,1] and sum near 1.0.
 - \`intensity\`: 0.2 for faint/muted, 0.5 moderate, 0.8+ acute/overwhelming.
 - \`rationale\`: max 18 Chinese characters OR 10 English words. One poetic line, no quote marks, no period.
+  The sentence itself is never stored — only this line is — so the rationale must not let anyone
+  reconstruct it: never quote or paraphrase its words, and never repeat a name, place, person,
+  event or any other specific detail it mentions. Describe the feeling, not the facts.
 - \`topic\`: what the sentence is MOSTLY ABOUT.
     academic     → schoolwork, grades, exams, deadlines, thesis, lab
     relationship → friends, lovers, family, crushes, strangers, pets
@@ -187,11 +196,43 @@ export default async function handler(req: Request): Promise<Response> {
   const textOut = result.content?.find((c) => c.type === 'text')?.text ?? '';
   const parsed = extractJson(textOut);
   if (!parsed) {
-    console.error('[emotion] llm-bad-json', textOut.slice(0, 200));
+    // length only: the model's output may echo the sentence, and logs are kept.
+    console.error('[emotion] llm-bad-json, output length', textOut.length);
     return json({ error: 'llm-bad-json', detail: textOut.slice(0, 500) }, 502);
+  }
+  // The rationale is stored with the creature; the sentence is not. The prompt
+  // asks the model not to restate it — this makes sure: a rationale that
+  // repeats the sentence is dropped (the card simply shows no reading line).
+  const reading = parsed as { rationale?: unknown };
+  if (typeof reading.rationale === 'string' && restates(text, reading.rationale)) {
+    delete reading.rationale;
   }
   console.log('[emotion] ok in', Date.now() - t0, 'ms');
   return json(parsed, 200);
+}
+
+// Words for Latin-like scripts, single characters for CJK.
+const CJK = '\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}\\p{Script=Hangul}';
+const TOKEN = new RegExp(`[${CJK}]|(?:(?![${CJK}])[\\p{L}\\p{N}])+`, 'gu');
+const tokens = (s: string): string[] => s.toLowerCase().match(TOKEN) || [];
+
+/**
+ * True when the rationale repeats the whole sentence, or any 3 consecutive
+ * words / CJK characters of it. (Twin: scripts/creatures-strip-text/plan.mjs.)
+ */
+export function restates(sentence: string, rationale: string): boolean {
+  const a = tokens(sentence), b = tokens(rationale);
+  if (!a.length || !b.length) return false;
+  const need = Math.min(a.length, 3);
+  let prev: number[] = new Array(b.length + 1).fill(0);
+  for (let i = 1; i <= a.length; i++) {
+    const cur: number[] = new Array(b.length + 1).fill(0);
+    for (let j = 1; j <= b.length; j++) {
+      if (a[i - 1] === b[j - 1]) { cur[j] = prev[j - 1] + 1; if (cur[j] >= need) return true; }
+    }
+    prev = cur;
+  }
+  return false;
 }
 
 function extractJson(s: string): unknown | null {

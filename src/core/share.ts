@@ -4,6 +4,11 @@
  * the creature's reading reproduces the *exact* same spore on any device
  * with no backend lookup — the "reproducible & claimable" promise from the
  * visual-identity spec.
+ *
+ * The token carries the shape and the name, never the whispered sentence:
+ * a link is meant to be passed around, and the sentence stays with the
+ * person who wrote it. (Older links that still carry a `t` field are
+ * decoded without it.)
  */
 import type { FieldCreature } from '../components/DitherField';
 import type { Morphology } from './emotion';
@@ -27,13 +32,18 @@ function b64urlDecode(s: string): string {
 // Short keys keep the token compact.
 interface Packed {
   i: string; c: number; m: Morphology; n: number; s?: string;
-  e: number; na?: string; p?: string; r?: string; b?: number; t?: string; k?: Costume;
+  e: number; na?: string; p?: string; r?: string; b?: number; k?: Costume;
+  /** specimen number (MYC-…), fixed at birth so it survives without the sentence. */
+  d?: string;
+  /** legacy: the whispered sentence. Never written any more; ignored on decode. */
+  t?: string;
 }
 
 export function encodeCreature(c: FieldCreature): string {
   const packed: Packed = {
     i: c.id, c: c.charId, m: c.morphology, n: c.intensity, s: c.secondaryLabel,
-    e: c.cell, na: c.name, p: c.primaryLabel, r: c.rationale, b: c.bornAt, t: c.text, k: c.costume ?? undefined,
+    e: c.cell, na: c.name, p: c.primaryLabel, r: c.rationale, b: c.bornAt, k: c.costume ?? undefined,
+    d: c.myc,
   };
   return b64urlEncode(JSON.stringify(packed));
 }
@@ -57,7 +67,7 @@ export function decodeCreature(token: string): FieldCreature | null {
       primaryLabel: p.p,
       rationale: p.r,
       bornAt: p.b,
-      text: p.t,
+      myc: typeof p.d === 'string' ? p.d : undefined,
       costume: p.k === 'pumpkin' || p.k === 'witch' || p.k === 'ghost' || p.k === 'mummy' || p.k === 'zombie' ? p.k : undefined,
     };
   } catch {
