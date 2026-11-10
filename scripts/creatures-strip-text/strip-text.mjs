@@ -10,7 +10,9 @@
  * shape is kept. Until 2026-11 the client posted the sentence along with the shape, so older
  * records carry a `text` field. This script drops it. Before dropping it, each record gets its
  * specimen number (`myc`, MYC-…) computed from the sentence the same way the card did, so the
- * number people saw on their card does not change once the sentence is gone.
+ * number people saw on their card does not change once the sentence is gone. A stored rationale
+ * that restates its sentence (the whole of it, or 3 consecutive words / characters) is dropped too.
+ * The logic lives in ./plan.mjs.
  *
  * Safety
  *   - Dry run by default. Prints how many records would change; never prints a sentence.
@@ -28,8 +30,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { LIST_KEY, POP_KEY, planFor, stillWithText, evalArgs } from './plan.mjs';
 
-const LIST_KEY = 'mycelium:creatures';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const args = process.argv.slice(2);
 const apply = args.includes('--apply');
@@ -62,57 +64,6 @@ async function upstash(cmds) {
   return (await res.json()).map((d) => { if (d.error) throw new Error(d.error); return d.result; });
 }
 
-// ---- specimen number: identical to src/core/sporeId.ts + src/core/seed.ts (xmur3) ----
-function xmur3(str) {
-  let h = 1779033703 ^ str.length;
-  for (let i = 0; i < str.length; i++) {
-    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
-    h = (h << 13) | (h >>> 19);
-  }
-  return function () {
-    h = Math.imul(h ^ (h >>> 16), 2246822507);
-    h = Math.imul(h ^ (h >>> 13), 3266489909);
-    h ^= h >>> 16;
-    return h >>> 0;
-  };
-}
-const B32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
-const FAM_CODE = 'TCRDPL';
-function sporeId(c) {
-  const h0 = xmur3(c.text || c.id)();
-  let tail = '';
-  for (let k = 4; k >= 0; k--) tail += B32[(h0 >>> (k * 5)) & 31];
-  return `MYC-${FAM_CODE[c.charId] ?? 'X'}${tail}`;
-}
-
-/** The stored record without its sentence (and with its number fixed). null = nothing to change. */
-function stripped(raw) {
-  let c;
-  try { c = JSON.parse(raw); } catch { return { skip: 'unparseable' }; }
-  if (!c || typeof c !== 'object') return { skip: 'not-an-object' };
-  if (!Object.prototype.hasOwnProperty.call(c, 'text')) return { skip: 'clean' };
-  const hadSentence = typeof c.text === 'string' && c.text.length > 0;
-  if (!c.myc && hadSentence && typeof c.charId === 'number') c.myc = sporeId(c);
-  delete c.text;
-  return { value: JSON.stringify(c), hadSentence };
-}
-
-// Compare-and-set rewrite: ARGV = idx, old, new, idx, old, new, …
-const LUA = `
-local key = KEYS[1]
-local n = #ARGV / 3
-for j = 0, n - 1 do
-  local idx = tonumber(ARGV[j * 3 + 1])
-  if redis.call('LINDEX', key, idx) ~= ARGV[j * 3 + 2] then
-    return redis.error_reply('changed:' .. idx)
-  end
-end
-for j = 0, n - 1 do
-  redis.call('LSET', key, tonumber(ARGV[j * 3 + 1]), ARGV[j * 3 + 3])
-end
-return n
-`;
-
 function backupPath() {
   const p = path.resolve(backupArg ?? path.join(os.homedir(), 'mycelium-raw-export',
     `creatures-raw-${new Date().toISOString().replace(/[:.]/g, '-')}.json`));
@@ -126,23 +77,15 @@ function backupPath() {
 
 async function main() {
   loadEnv();
-  const [list, population] = await upstash([['LRANGE', LIST_KEY, '0', '-1'], ['GET', 'mycelium:population']]);
+  const [list, population] = await upstash([['LRANGE', LIST_KEY, '0', '-1'], ['GET', POP_KEY]]);
   const raws = list || [];
-  const plan = [];
-  const skipped = { clean: 0, unparseable: 0, 'not-an-object': 0 };
-  let withSentence = 0, emptyTextField = 0, mycAdded = 0;
-  raws.forEach((raw, idx) => {
-    const r = stripped(raw);
-    if (r.skip) { skipped[r.skip]++; return; }
-    if (r.hadSentence) withSentence++; else emptyTextField++;
-    if (JSON.parse(r.value).myc && !JSON.parse(raw).myc) mycAdded++;
-    plan.push([idx, raw, r.value]);
-  });
+  const { plan, counts } = planFor(raws);
 
-  console.log(`records in ${LIST_KEY}: ${raws.length}   (population counter: ${population ?? '—'})`);
-  console.log(`  carrying a \`text\` field: ${plan.length}   (${withSentence} with a sentence, ${emptyTextField} empty)`);
-  console.log(`  already clean: ${skipped.clean}   unparseable: ${skipped.unparseable + skipped['not-an-object']}`);
-  console.log(`  specimen numbers (myc) to fix from the sentence before dropping it: ${mycAdded}`);
+  console.log(`records in ${LIST_KEY}: ${counts.total}   (population counter: ${population ?? '—'})`);
+  console.log(`  carrying a \`text\` field: ${plan.length}   (${counts.withSentence} with a sentence, ${counts.emptyTextField} empty)`);
+  console.log(`  already clean: ${counts.clean}   unparseable: ${counts.unparseable}`);
+  console.log(`  specimen numbers (myc) to fix from the sentence before dropping it: ${counts.mycAdded}`);
+  console.log(`  rationales that restate their sentence, dropped with it: ${counts.rationaleDropped}`);
   if (!plan.length) { console.log('nothing to change.'); return; }
   if (!apply) { console.log(`\ndry run — nothing written. Re-run with --apply to rewrite ${plan.length} record(s).`); return; }
 
@@ -153,10 +96,9 @@ async function main() {
   if (back.raw.length !== raws.length) { console.error('备份校验失败,中止。'); process.exit(1); }
   console.log(`\nbackup written (${raws.length} raw records, NOT in the repo): ${bp}`);
 
-  const argv = plan.flatMap(([idx, oldV, newV]) => [String(idx), oldV, newV]);
   let changed;
   try {
-    [changed] = await upstash([['EVAL', LUA, '1', LIST_KEY, ...argv]]);
+    [changed] = await upstash([evalArgs(plan)]);
   } catch (e) {
     console.error(`rewrite aborted, nothing changed: ${e.message}\n(a new creature probably arrived mid-run — just re-run the script)`);
     process.exit(2);
@@ -164,7 +106,7 @@ async function main() {
   console.log(`rewrote ${changed} record(s).`);
 
   const [after] = await upstash([['LRANGE', LIST_KEY, '0', '-1']]);
-  const still = (after || []).filter((raw) => { try { return Object.prototype.hasOwnProperty.call(JSON.parse(raw), 'text'); } catch { return false; } }).length;
+  const still = stillWithText(after || []);
   console.log(`verify: ${after?.length ?? 0} records, ${still} still carrying \`text\` ${still === 0 ? '✓' : '✗ (re-run)'}`);
   if (still) process.exit(3);
 }
