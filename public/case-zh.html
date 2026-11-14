@@ -110,7 +110,7 @@ table.tb td.g{font-family:var(--disp-cjk); font-weight:700; color:var(--accent-i
 .fam .stage img{image-rendering:pixelated; height:104px; width:auto; display:block}
 .arche .a .stage img{image-rendering:pixelated; height:130px; width:auto; display:block}
 .anat .stageC img{image-rendering:pixelated; height:clamp(170px,26vw,236px); width:auto; display:block}
-.mech .cell img.mechgif{width:100%; height:auto; margin-bottom:12px; border:1px solid var(--edge); border-radius:4px; image-rendering:pixelated; display:block}
+.mech .cell .mechgif{width:100%; height:auto; margin-bottom:12px; border:1px solid var(--edge); border-radius:4px; image-rendering:pixelated; display:block}
 .sp .nm{font-family:var(--mono); font-size:9px; letter-spacing:.06em; color:var(--dim)} .sp .nm b{color:var(--accent-ink)}
 
 .fam-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:18px 0}
@@ -443,9 +443,9 @@ table.tb td.g{font-family:var(--disp-cjk); font-weight:700; color:var(--accent-i
       <div class="sec-head"><div class="sec-no">16</div><h2 class="sec-title">社会模拟</h2></div>
       <div class="body"><p class="lead">实体不是静态图标——它们参与一个社会场域。相容小怪之间的「连接」不画成线,而是用<b>逐格染色</b>来呈现:彼此从接触点开始染上对方的色板——用颜色模拟触手,而非描一条连线。</p></div>
       <div class="mech">
-        <div class="cell"><img class="mechgif" src="mech-dye.gif" alt="dye" loading="lazy"><h4>逐格染色</h4><div class="fen">用颜色表达的连接</div><p>两只相容的怪相遇,一方的格子从接触侧染上对方的色板,逐格铺开——像素做成的触手;分开后再退回。</p></div>
+        <div class="cell"><video class="mechgif" aria-label="dye" poster="mech-dye.jpg" autoplay muted loop playsinline preload="metadata"><source src="mech-dye.webm" type="video/webm"><source src="mech-dye.mp4" type="video/mp4"></video><h4>逐格染色</h4><div class="fen">用颜色表达的连接</div><p>两只相容的怪相遇,一方的格子从接触侧染上对方的色板,逐格铺开——像素做成的触手;分开后再退回。</p></div>
         <div class="cell"><img class="mechgif" src="mech-matter.gif" alt="matter" loading="lazy"><h4>互换物质</h4><div class="fen">结伴伙伴互传方块</div><p>结伴的伙伴沿着这条(颜色)连接互相运送小马赛克块——一场看得见的物质循环。</p></div>
-        <div class="cell"><img class="mechgif" src="mech-hybrid.gif" alt="hybrid" loading="lazy"><h4>相容度与漂移</h4><div class="fen">谁与谁结伴</div><p>底层:吸引、分离、墙、清空中心、孤独漂流,以及决定谁与谁结伴的相容度矩阵——无需用户控制。</p></div>
+        <div class="cell"><video class="mechgif" aria-label="hybrid" poster="mech-elders.jpg" autoplay muted loop playsinline preload="metadata"><source src="mech-elders.webm" type="video/webm"><source src="mech-elders.mp4" type="video/mp4"></video><h4>相容度与漂移</h4><div class="fen">谁与谁结伴</div><p>底层:吸引、分离、墙、清空中心、孤独漂流,以及决定谁与谁结伴的相容度矩阵——无需用户控制。</p></div>
       </div>
       <table class="tb" style="margin-top:6px"><thead><tr><th>结伴生命周期</th><th>呈现为</th></tr></thead><tbody>
         <tr><td class="g">相遇 meet</td><td>相容的一对相遇;染色从接触侧开始渗入</td></tr>
@@ -459,7 +459,7 @@ table.tb td.g{font-family:var(--disp-cjk); font-weight:700; color:var(--accent-i
     <section class="sec" id="s17">
       <div class="sec-head"><div class="sec-no">17</div><h2 class="sec-title">母树</h2></div>
       <div class="anat tick" style="grid-template-columns:auto 1fr">
-        <div class="stageC" style="padding-left:6px"><img class="mechgif" src="mech-mother.gif" alt="mother tree" style="width:180px" loading="lazy"></div>
+        <div class="stageC" style="padding-left:6px"><video class="mechgif" style="width:180px" aria-label="mother tree" poster="mech-mother.jpg" autoplay muted loop playsinline preload="metadata"><source src="mech-mother.webm" type="video/webm"><source src="mech-mother.mp4" type="video/mp4"></video></div>
         <div class="body" style="padding:6px 18px">
           <p class="lead">照护作为一种系统内生的生态机制——不是按钮、提示或聊天回复。</p>
           <p class="dim">在场足够久(约 40 秒)的实体,会悄悄成为一棵<b>母树</b>。它向已孤立一段时间的实体伸出寿命更长、更柔软的扶持触手。照护源自场域内部的成熟、时间与关系——正因为无需任何用户触发,这成为项目最强的设计贡献之一。</p>

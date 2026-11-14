@@ -113,7 +113,7 @@ table.tb td.g{font-family:var(--display); font-weight:700; color:var(--accent-in
 .fam .stage img{image-rendering:pixelated; height:104px; width:auto; display:block}
 .arche .a .stage img{image-rendering:pixelated; height:130px; width:auto; display:block}
 .anat .stageC img{image-rendering:pixelated; height:clamp(170px,26vw,236px); width:auto; display:block}
-.mech .cell img.mechgif{width:100%; height:auto; margin-bottom:12px; border:1px solid var(--edge); border-radius:4px; image-rendering:pixelated; display:block}
+.mech .cell .mechgif{width:100%; height:auto; margin-bottom:12px; border:1px solid var(--edge); border-radius:4px; image-rendering:pixelated; display:block}
 .sp .nm{font-size:9px; letter-spacing:.06em; color:var(--dim)} .sp .nm b{color:var(--accent-ink)}
 
 .fam-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:18px 0}
@@ -467,9 +467,9 @@ table.tb td.g{font-family:var(--display); font-weight:700; color:var(--accent-in
       <div class="sec-head"><div class="sec-no">16</div><h2 class="sec-title">Social Simulation</h2></div>
       <div class="body"><p class="lead">Entities are not fixed icons; they take part in a social field. A bond between two compatible creatures is not drawn as a line. It shows up as <b>tile-swap dyeing</b>: each one picks up the other's palette starting from the point where they touch, so the tendril is made of colour rather than a stroke.</p></div>
       <div class="mech">
-        <div class="cell"><img class="mechgif" src="mech-dye.gif" alt="dye" loading="lazy"><h4>Contact-point dyeing</h4><div class="fen">the connection, as colour</div><p>When two compatible creatures meet, one's cells take on the other's palette from the touch side, sweeping across — the tendril made of pixels. It releases when they part.</p></div>
+        <div class="cell"><video class="mechgif" aria-label="dye" poster="mech-dye.jpg" autoplay muted loop playsinline preload="metadata"><source src="mech-dye.webm" type="video/webm"><source src="mech-dye.mp4" type="video/mp4"></video><h4>Contact-point dyeing</h4><div class="fen">the connection, as colour</div><p>When two compatible creatures meet, one's cells take on the other's palette from the touch side, sweeping across — the tendril made of pixels. It releases when they part.</p></div>
         <div class="cell"><img class="mechgif" src="mech-matter.gif" alt="matter" loading="lazy"><h4>Matter exchange</h4><div class="fen">bonded partners trade tiles</div><p>Bonded partners ferry small mosaic tiles back and forth — a visible circulation of substance along the (colour) connection.</p></div>
-        <div class="cell"><img class="mechgif" src="mech-hybrid.gif" alt="hybrid" loading="lazy"><h4>Compatibility &amp; drift</h4><div class="fen">who bonds with whom</div><p>Underneath: attraction, separation, walls, centre-clear, loneliness drift, and a compatibility matrix that decides who bonds — no user control.</p></div>
+        <div class="cell"><video class="mechgif" aria-label="hybrid" poster="mech-elders.jpg" autoplay muted loop playsinline preload="metadata"><source src="mech-elders.webm" type="video/webm"><source src="mech-elders.mp4" type="video/mp4"></video><h4>Compatibility &amp; drift</h4><div class="fen">who bonds with whom</div><p>Underneath: attraction, separation, walls, centre-clear, loneliness drift, and a compatibility matrix that decides who bonds — no user control.</p></div>
       </div>
       <table class="tb" style="margin-top:6px"><thead><tr><th>Bond lifecycle</th><th>Shown as</th></tr></thead><tbody>
         <tr><td class="g">meet</td><td>a compatible pair meets; the dye begins sweeping in from the contact side</td></tr>
@@ -484,7 +484,7 @@ table.tb td.g{font-family:var(--display); font-weight:700; color:var(--accent-in
     <section class="sec" id="s17">
       <div class="sec-head"><div class="sec-no">17</div><h2 class="sec-title">Mother Tree</h2></div>
       <div class="anat tick" style="grid-template-columns:auto 1fr">
-        <div class="stageC" style="padding-left:6px"><img class="mechgif" src="mech-mother.gif" alt="mother tree" style="width:180px" loading="lazy"></div>
+        <div class="stageC" style="padding-left:6px"><video class="mechgif" style="width:180px" aria-label="mother tree" poster="mech-mother.jpg" autoplay muted loop playsinline preload="metadata"><source src="mech-mother.webm" type="video/webm"><source src="mech-mother.mp4" type="video/mp4"></video></div>
         <div class="body" style="padding:6px 18px">
           <p class="lead">Care as an internal ecological mechanism — not a button, prompt, or chatbot reply.</p>
           <p class="dim">An entity that has stayed on stage long enough (~40s) quietly turns into a <b>mother tree</b>. It reaches out with longer-lived, softer support tendrils toward entities that have been on their own for a while. The care comes out of the field's own rules, from age, time, and proximity, and nobody has to press a button for it, which is a large part of why it matters.</p>

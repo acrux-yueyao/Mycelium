@@ -167,7 +167,7 @@ a{color:var(--accent-ink); text-decoration:none; border-bottom:1px solid var(--a
 .mechfig{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px}
 @media(max-width:640px){.mechfig{grid-template-columns:1fr}}
 .mechfig figure{margin:0; border:1px solid var(--edge); background:var(--panel); padding:10px}
-.mechfig img{width:100%; display:block; border:1px solid var(--edge); image-rendering:pixelated}
+.mechfig img,.mechfig video{width:100%; display:block; border:1px solid var(--edge); image-rendering:pixelated}
 .mechfig figcaption{margin-top:9px; font-size:11px; color:var(--dim); line-height:1.5}
 .mechfig figcaption b{color:var(--ink); font-weight:700; font-family:var(--display)}
 .mechfig .live{display:inline-block; font-family:var(--mono); font-size:9.5px; letter-spacing:.1em;
@@ -429,11 +429,11 @@ a{color:var(--accent-ink); text-decoration:none; border-bottom:1px solid var(--a
     <div class="sec-head"><div class="sec-no">06</div><h2 class="sec-title">How the colony behaves</h2></div>
     <div class="mechfig">
       <figure>
-        <img src="mech-dye.gif" alt="Two compatible creatures meet and dye each other from the contact seam" loading="lazy" />
+        <video aria-label="Two compatible creatures meet and dye each other from the contact seam" poster="mech-dye.jpg" autoplay muted loop playsinline preload="metadata"><source src="mech-dye.webm" type="video/webm"><source src="mech-dye.mp4" type="video/mp4"></video>
         <figcaption><b>Cross-dye encounter</b><span class="live">live render</span><br>Two compatible creatures drift together, take on each other's colour from the seam where they touch, trade matter tiles, then part and slowly fade back toward themselves.</figcaption>
       </figure>
       <figure>
-        <img src="mech-mother.gif" alt="An older creature grows larger, sways, and feeds a one-way stream to an isolated one" loading="lazy" />
+        <video aria-label="An older creature grows larger, sways, and feeds a one-way stream to an isolated one" poster="mech-mother.jpg" autoplay muted loop playsinline preload="metadata"><source src="mech-mother.webm" type="video/webm"><source src="mech-mother.mp4" type="video/mp4"></video>
         <figcaption><b>Mother-tree support</b><span class="live">live render</span><br>An elder that has been on stage long enough grows larger, sways, and feeds a slow one-way stream to a creature that's been alone too long — which quietly warms toward the elder's palette.</figcaption>
       </figure>
     </div>

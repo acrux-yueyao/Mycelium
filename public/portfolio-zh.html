@@ -167,7 +167,7 @@ a{color:var(--accent-ink); text-decoration:none; border-bottom:1px solid var(--a
 .mechfig{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px}
 @media(max-width:640px){.mechfig{grid-template-columns:1fr}}
 .mechfig figure{margin:0; border:1px solid var(--edge); background:var(--panel); padding:10px}
-.mechfig img{width:100%; display:block; border:1px solid var(--edge); image-rendering:pixelated}
+.mechfig img,.mechfig video{width:100%; display:block; border:1px solid var(--edge); image-rendering:pixelated}
 .mechfig figcaption{margin-top:9px; font-size:11px; color:var(--dim); line-height:1.6}
 .mechfig figcaption b{color:var(--ink); font-weight:700; font-family:var(--display)}
 .mechfig .live{display:inline-block; font-family:var(--mono); font-size:9.5px; letter-spacing:.1em;
@@ -429,11 +429,11 @@ a{color:var(--accent-ink); text-decoration:none; border-bottom:1px solid var(--a
     <div class="sec-head"><div class="sec-no">06</div><h2 class="sec-title">菌落如何行动</h2></div>
     <div class="mechfig">
       <figure>
-        <img src="mech-dye.gif" alt="两个相容的生命体相遇，从接触缝开始彼此染色" loading="lazy" />
+        <video aria-label="两个相容的生命体相遇，从接触缝开始彼此染色" poster="mech-dye.jpg" autoplay muted loop playsinline preload="metadata"><source src="mech-dye.webm" type="video/webm"><source src="mech-dye.mp4" type="video/mp4"></video>
         <figcaption><b>互染相遇</b><span class="live">实时渲染</span><br>两个相容的生命体彼此靠近，从接触的缝隙开始染上对方的颜色，来回交换物质小块，随后分开，再慢慢褪回自己。</figcaption>
       </figure>
       <figure>
-        <img src="mech-mother.gif" alt="一个年长的生命体变大、摇晃，向孤立者单向输送物质" loading="lazy" />
+        <video aria-label="一个年长的生命体变大、摇晃，向孤立者单向输送物质" poster="mech-mother.jpg" autoplay muted loop playsinline preload="metadata"><source src="mech-mother.webm" type="video/webm"><source src="mech-mother.mp4" type="video/mp4"></video>
         <figcaption><b>母树扶持</b><span class="live">实时渲染</span><br>在场足够久的长者会变大、摇晃，向一个孤立太久的生命体缓缓单向输送物质——后者悄悄地暖向长者的配色。</figcaption>
       </figure>
     </div>
