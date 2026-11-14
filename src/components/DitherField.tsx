@@ -416,7 +416,9 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
           bd.imprinted = true;
           if (seed01(k + 'hyb') < HYBRID_CHANCE) { imprint(A, B); imprint(B, A); }
         }
-        if (now - bd.born > bd.life || d > DISCONNECT_R) {
+        // a support reach spans MOTHER_REACH, so it must not be cut by the ordinary disconnect radius
+        // (it was: every mother-tree bond beyond 205 px died on the next frame)
+        if (now - bd.born > bd.life || d > (bd.support ? MOTHER_REACH + 40 : DISCONNECT_R)) {
           bonds.delete(k);
           cooldown.set(k, now + 7000 + seed01(k) * 5000);
           A.lastBondAt = now; B.lastBondAt = now;
@@ -440,7 +442,11 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
         }
       }
       // mother-tree support for the lonely (one reach per frame)
-      const mothers = bodies.filter((b) => now - b.bornAt > MOTHER_AGE);
+      // a mother tree has either been on stage a while (MOTHER_AGE, session clock) or is an elder
+      // by birth (epoch bornAt more than a day old). `now` is performance.now(), so comparing it with
+      // an epoch bornAt never fired — real spores never became mothers.
+      const epochNow = Date.now();
+      const mothers = bodies.filter((b) => now - b.appearAt > MOTHER_AGE || (b.bornAt > 1e12 && epochNow - b.bornAt > 86_400_000));
       if (mothers.length) {
         for (const lonely of bodies) {
           if ((bcount.get(lonely.id) ?? 0) > 0) continue;
@@ -970,6 +976,11 @@ export function DitherField({ creatures, clustered, mineId, observable, observed
     if (new URLSearchParams(window.location.search).has('debug')) {
       (window as unknown as Record<string, unknown>).__fieldBodies =
         () => bodies.map((b) => ({ id: b.id, x: b.x, y: b.y, name: b.name, costume: costumeFor(b.src) }));
+      // ...and the live bonds / dye, so a mechanism can be checked (or filmed) without guessing
+      (window as unknown as Record<string, unknown>).__fieldState = () => ({
+        bodies: bodies.map((b) => ({ id: b.id, x: Math.round(b.x), y: Math.round(b.y), dye: dyeProgress(b, performance.now()), perm: !!b.permPal })),
+        bonds: [...bonds.values()].map((bd) => ({ a: bd.a, b: bd.b, support: bd.support, age: Math.round(performance.now() - bd.born), imprinted: !!bd.imprinted })),
+      });
     }
 
     buildBackdrop();
